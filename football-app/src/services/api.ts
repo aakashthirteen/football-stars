@@ -1,8 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Temporarily back to mock mode due to network issues
-const USE_MOCK = true;
-const API_BASE_URL = USE_MOCK ? 'MOCK' : 'http://192.168.0.102:3001/api';
+// API Configuration - Switch between Mock and Production
+const USE_MOCK = true; // Set to false when Railway is deployed
+const RAILWAY_URL = 'https://your-railway-app-url.up.railway.app/api'; // Update with your Railway URL
+const LOCAL_URL = 'http://192.168.0.102:3001/api';
+const API_BASE_URL = USE_MOCK ? 'MOCK' : RAILWAY_URL;
 
 class ApiService {
   private async getAuthHeaders() {
