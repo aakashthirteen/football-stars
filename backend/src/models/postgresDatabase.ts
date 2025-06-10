@@ -7,10 +7,12 @@ export class PostgresDatabase {
   private pool: Pool;
 
   constructor() {
-    // Railway provides DATABASE_URL automatically
+    // Use Railway DATABASE_URL or fallback for local testing
+    const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/football_app';
+    
     this.pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+      connectionString,
+      ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
     });
     
     this.initDatabase();
