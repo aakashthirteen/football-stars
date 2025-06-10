@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { sqliteDb } from '../models/sqliteDatabase';
+import { database } from '../models/databaseFactory';
 import { AuthRequest, Tournament } from '../types';
 
 export const getTournaments = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -180,7 +180,7 @@ export const registerTeamToTournament = async (req: AuthRequest, res: Response):
     }
 
     // Verify team exists
-    const team = await sqliteDb.getTeamById(teamId);
+    const team = await database.getTeamById(teamId);
     if (!team) {
       res.status(404).json({ error: 'Team not found' });
       return;

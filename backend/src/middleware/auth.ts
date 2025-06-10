@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { sqliteDb } from '../models/sqliteDatabase';
+import { database } from '../models/databaseFactory';
 import { AuthRequest } from '../types';
 
 export const authenticateToken = async (
@@ -24,7 +24,7 @@ export const authenticateToken = async (
     }
 
     const decoded = jwt.verify(token, secret) as { userId: string };
-    const user = await sqliteDb.getUserById(decoded.userId);
+    const user = await database.getUserById(decoded.userId);
 
     if (!user) {
       res.status(401).json({ error: 'Invalid token' });

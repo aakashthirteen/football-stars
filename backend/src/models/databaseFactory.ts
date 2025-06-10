@@ -1,6 +1,6 @@
 import { PostgresDatabase } from './postgresDatabase';
 
-// Simple PostgreSQL-only database configuration
+// PostgreSQL-only database configuration
 export function createDatabase() {
   console.log('🐘 Using PostgreSQL database');
   return new PostgresDatabase();
