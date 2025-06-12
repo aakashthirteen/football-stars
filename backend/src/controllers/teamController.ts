@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { sqliteDb } from '../models/sqliteDatabase';
+import { database } from '../models/databaseFactory';
 import { AuthRequest, CreateTeamRequest, Team } from '../types';
 
 export const getUserTeams = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -10,13 +10,13 @@ export const getUserTeams = async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    const teams = await sqliteDb.getTeamsByUserId(req.user.id);
+    const teams = await database.getTeamsByUserId(req.user.id);
     
     // Get team players for each team
     const teamsWithPlayers = await Promise.all(teams.map(async team => {
-      const teamPlayers = await sqliteDb.getTeamPlayers(team.id);
+      const teamPlayers = await database.getTeamPlayers(team.id);
       const playersWithDetails = await Promise.all(teamPlayers.map(async tp => {
-        const player = await sqliteDb.getPlayerById(tp.playerId);
+        const player = await database.getPlayerById(tp.playerId);
         return {
           ...tp,
           player,
@@ -43,7 +43,7 @@ export const createTeam = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    const { name, description }: CreateTeamRequest = req.body;
+    const { name, description }: CreateTeamRequest = req.body as CreateTeamRequest;
 
     if (!name) {
       res.status(400).json({ error: 'Team name is required' });
@@ -58,10 +58,10 @@ export const createTeam = async (req: AuthRequest, res: Response): Promise<void>
       createdAt: new Date(),
     };
 
-    const createdTeam = await sqliteDb.createTeam(team);
+    const createdTeam = await database.createTeam(name, description || '', req.user.id);
 
     // Add the creator as team captain
-    const userPlayer = await sqliteDb.getPlayerByUserId(req.user.id);
+    const userPlayer = await database.getPlayerByUserId(req.user.id);
     if (userPlayer) {
       const teamPlayer = {
         id: uuidv4(),
@@ -71,7 +71,7 @@ export const createTeam = async (req: AuthRequest, res: Response): Promise<void>
         jerseyNumber: 1,
         joinedAt: new Date(),
       };
-      await sqliteDb.addPlayerToTeam(teamPlayer);
+      await database.addPlayerToTeam(teamPlayer);
     }
 
     res.status(201).json({
@@ -88,16 +88,16 @@ export const getTeamById = async (req: AuthRequest, res: Response): Promise<void
   try {
     const { id } = req.params;
     
-    const team = await sqliteDb.getTeamById(id);
+    const team = await database.getTeamById(id);
     if (!team) {
       res.status(404).json({ error: 'Team not found' });
       return;
     }
 
     // Get team players
-    const teamPlayers = await sqliteDb.getTeamPlayers(id);
+    const teamPlayers = await database.getTeamPlayers(id);
     const playersWithDetails = await Promise.all(teamPlayers.map(async tp => {
-      const player = await sqliteDb.getPlayerById(tp.playerId);
+      const player = await database.getPlayerById(tp.playerId);
       return {
         ...tp,
         player,

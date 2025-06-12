@@ -67,7 +67,7 @@ export const createTournament = async (req: AuthRequest, res: Response): Promise
       prizePool,
       startDate,
       endDate
-    } = req.body;
+    } = req.body as any;
 
     // Validation
     if (!name || !tournamentType || !maxTeams || !startDate || !endDate) {
@@ -114,7 +114,7 @@ export const createTournament = async (req: AuthRequest, res: Response): Promise
     };
 
     // In a real implementation, we would save to database
-    // const createdTournament = await sqliteDb.createTournament(tournament);
+    // const createdTournament = await database.createTournament(tournament);
 
     res.status(201).json({
       tournament,
@@ -172,7 +172,7 @@ export const registerTeamToTournament = async (req: AuthRequest, res: Response):
     }
 
     const { tournamentId } = req.params;
-    const { teamId } = req.body;
+    const { teamId } = req.body as any;
 
     if (!teamId) {
       res.status(400).json({ error: 'Team ID is required' });

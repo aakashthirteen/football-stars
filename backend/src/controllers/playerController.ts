@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { sqliteDb } from '../models/sqliteDatabase';
+import { database } from '../models/databaseFactory';
 import { AuthRequest } from '../types';
 
 export const getCurrentPlayer = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -9,7 +9,7 @@ export const getCurrentPlayer = async (req: AuthRequest, res: Response): Promise
       return;
     }
 
-    const player = await sqliteDb.getPlayerByUserId(req.user.id);
+    const player = await database.getPlayerByUserId(req.user.id);
     if (!player) {
       res.status(404).json({ error: 'Player profile not found' });
       return;
@@ -29,7 +29,7 @@ export const updateCurrentPlayer = async (req: AuthRequest, res: Response): Prom
       return;
     }
 
-    const player = await sqliteDb.getPlayerByUserId(req.user.id);
+    const player = await database.getPlayerByUserId(req.user.id);
     if (!player) {
       res.status(404).json({ error: 'Player profile not found' });
       return;
@@ -44,7 +44,7 @@ export const updateCurrentPlayer = async (req: AuthRequest, res: Response): Prom
       weight,
       bio,
       location
-    } = req.body;
+    } = req.body as any;
 
     // Validate position if provided
     if (position && !['GK', 'DEF', 'MID', 'FWD'].includes(position)) {
@@ -68,7 +68,7 @@ export const updateCurrentPlayer = async (req: AuthRequest, res: Response): Prom
     if (bio !== undefined) updates.bio = bio;
     if (location !== undefined) updates.location = location;
 
-    const updatedPlayer = await sqliteDb.updatePlayer(player.id, updates);
+    const updatedPlayer = await database.updatePlayer(player.id, updates);
 
     res.json({
       player: updatedPlayer,
@@ -89,7 +89,7 @@ export const getPlayerById = async (req: AuthRequest, res: Response): Promise<vo
 
     const { id } = req.params;
     
-    const player = await sqliteDb.getPlayerById(id);
+    const player = await database.getPlayerById(id);
     if (!player) {
       res.status(404).json({ error: 'Player not found' });
       return;

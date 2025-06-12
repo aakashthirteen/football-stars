@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { sqliteDb } from '../models/sqliteDatabase';
+import { database } from '../models/databaseFactory';
 import { AuthRequest } from '../types';
 
 export const getPlayerStats = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -17,13 +17,13 @@ export const getPlayerStats = async (req: AuthRequest, res: Response): Promise<v
     }
 
     // Verify player exists
-    const player = await sqliteDb.getPlayerById(playerId);
+    const player = await database.getPlayerById(playerId);
     if (!player) {
       res.status(404).json({ error: 'Player not found' });
       return;
     }
 
-    const stats = await sqliteDb.getPlayerStats(playerId);
+    const stats = await database.getPlayerStats(playerId);
 
     res.json({
       playerId,
@@ -45,13 +45,13 @@ export const getCurrentUserStats = async (req: AuthRequest, res: Response): Prom
     }
 
     // Get the player profile for the current user
-    const player = await sqliteDb.getPlayerByUserId(req.user.id);
+    const player = await database.getPlayerByUserId(req.user.id);
     if (!player) {
       res.status(404).json({ error: 'Player profile not found for current user' });
       return;
     }
 
-    const stats = await sqliteDb.getPlayerStats(player.id);
+    const stats = await database.getPlayerStats(player.id);
 
     res.json({
       playerId: player.id,
@@ -72,7 +72,7 @@ export const getAllPlayersStats = async (req: AuthRequest, res: Response): Promi
       return;
     }
 
-    const stats = await sqliteDb.getAllPlayersStats();
+    const stats = await database.getAllPlayersStats();
 
     res.json({ players: stats });
   } catch (error) {
@@ -96,13 +96,13 @@ export const getTeamPlayersStats = async (req: AuthRequest, res: Response): Prom
     }
 
     // Verify team exists
-    const team = await sqliteDb.getTeamById(teamId);
+    const team = await database.getTeamById(teamId);
     if (!team) {
       res.status(404).json({ error: 'Team not found' });
       return;
     }
 
-    const stats = await sqliteDb.getTeamPlayersStats(teamId);
+    const stats = await database.getTeamPlayersStats(teamId);
 
     res.json({
       teamId,
@@ -125,7 +125,7 @@ export const getLeaderboard = async (req: AuthRequest, res: Response): Promise<v
     const { type = 'goals', limit = '10' } = req.query;
     const limitNumber = parseInt(limit as string, 10) || 10;
 
-    const allStats = await sqliteDb.getAllPlayersStats();
+    const allStats = await database.getAllPlayersStats();
     
     // Sort based on type
     let sortedStats;

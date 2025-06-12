@@ -12,6 +12,7 @@ interface AuthState {
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuthState: () => Promise<void>;
+  clearAuth: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -103,6 +104,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: false,
         isLoading: false,
       });
+    }
+  },
+
+  clearAuth: async () => {
+    try {
+      console.log('Manually clearing all auth data');
+      await AsyncStorage.removeItem('token');
+      await AsyncStorage.removeItem('user');
+      set({
+        user: null,
+        token: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
+    } catch (error) {
+      console.error('Clear auth error:', error);
     }
   },
 }));

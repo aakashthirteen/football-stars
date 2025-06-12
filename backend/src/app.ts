@@ -11,19 +11,15 @@ import playerRoutes from './routes/players';
 import tournamentRoutes from './routes/tournaments';
 
 // Import database
-import { sqliteDb } from './models/sqliteDatabase';
+import { database } from './models/databaseFactory';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 
-// Initialize database
-sqliteDb.initialize().then(() => {
-  console.log('🗄️ Database initialized successfully');
-}).catch(err => {
-  console.error('❌ Database initialization failed:', err);
-});
+// Database will initialize automatically on creation
+console.log('🗄️ PostgreSQL database initialization started');
 
 // Middleware
 app.use(cors({

@@ -386,6 +386,156 @@ export class PostgresDatabase {
     return result.rows;
   }
 
+  // Additional methods for controller compatibility
+  async getTeamsByUserId(userId: string): Promise<Team[]> {
+    const result = await this.pool.query(`
+      SELECT t.*, 
+             COUNT(tp.player_id) as player_count,
+             COALESCE(
+               json_agg(
+                 json_build_object(
+                   'id', tp.id,
+                   'playerId', p.id,
+                   'player', json_build_object('name', p.name, 'position', p.position),
+                   'role', tp.role,
+                   'jerseyNumber', tp.jersey_number
+                 )
+               ) FILTER (WHERE tp.id IS NOT NULL), 
+               '[]'
+             ) as players
+      FROM teams t
+      LEFT JOIN team_players tp ON t.id = tp.team_id
+      LEFT JOIN players p ON tp.player_id = p.id
+      WHERE t.created_by = $1
+      GROUP BY t.id
+      ORDER BY t.created_at DESC
+    `, [userId]);
+    
+    return result.rows.map(row => ({
+      ...row,
+      players: row.players || []
+    }));
+  }
+
+  async getTeamPlayers(teamId: string): Promise<any[]> {
+    const result = await this.pool.query(`
+      SELECT tp.*, p.name as player_name, p.position
+      FROM team_players tp
+      JOIN players p ON tp.player_id = p.id
+      WHERE tp.team_id = $1
+    `, [teamId]);
+    return result.rows;
+  }
+
+  async getPlayerById(id: string): Promise<any | null> {
+    const result = await this.pool.query(
+      'SELECT * FROM players WHERE id = $1',
+      [id]
+    );
+    return result.rows[0] || null;
+  }
+
+  async getPlayerByUserId(userId: string): Promise<any | null> {
+    const result = await this.pool.query(
+      'SELECT * FROM players WHERE user_id = $1',
+      [userId]
+    );
+    return result.rows[0] || null;
+  }
+
+  async addPlayerToTeam(teamPlayer: any): Promise<any> {
+    const result = await this.pool.query(
+      'INSERT INTO team_players (team_id, player_id, role, jersey_number) VALUES ($1, $2, $3, $4) RETURNING *',
+      [teamPlayer.teamId, teamPlayer.playerId, teamPlayer.role, teamPlayer.jerseyNumber]
+    );
+    return result.rows[0];
+  }
+
+  async getMatchesByUserId(userId: string): Promise<Match[]> {
+    const result = await this.pool.query(`
+      SELECT m.*, 
+             ht.name as home_team_name,
+             at.name as away_team_name
+      FROM matches m
+      JOIN teams ht ON m.home_team_id = ht.id
+      JOIN teams at ON m.away_team_id = at.id
+      WHERE m.created_by = $1
+      ORDER BY m.match_date DESC
+    `, [userId]);
+    
+    return result.rows.map(row => ({
+      ...row,
+      homeTeam: { name: row.home_team_name },
+      awayTeam: { name: row.away_team_name },
+      events: []
+    }));
+  }
+
+  async getMatchEvents(matchId: string): Promise<MatchEvent[]> {
+    const result = await this.pool.query(`
+      SELECT me.*, p.name as player_name
+      FROM match_events me
+      JOIN players p ON me.player_id = p.id
+      WHERE me.match_id = $1
+      ORDER BY me.minute ASC
+    `, [matchId]);
+    return result.rows;
+  }
+
+  async updateMatch(id: string, updates: any): Promise<Match | null> {
+    const fields = Object.keys(updates).map((key, index) => `${key} = $${index + 2}`).join(', ');
+    const values = Object.values(updates);
+    
+    const result = await this.pool.query(
+      `UPDATE matches SET ${fields} WHERE id = $1 RETURNING *`,
+      [id, ...values]
+    );
+    return result.rows[0] || null;
+  }
+
+  async createMatchEvent(event: any): Promise<MatchEvent> {
+    const result = await this.pool.query(
+      'INSERT INTO match_events (match_id, player_id, team_id, event_type, minute, description) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [event.matchId, event.playerId, event.teamId, event.type, event.minute, event.description]
+    );
+    return result.rows[0];
+  }
+
+  async updatePlayer(id: string, updates: any): Promise<any | null> {
+    const fields = Object.keys(updates).map((key, index) => `${key} = $${index + 2}`).join(', ');
+    const values = Object.values(updates);
+    
+    const result = await this.pool.query(
+      `UPDATE players SET ${fields} WHERE id = $1 RETURNING *`,
+      [id, ...values]
+    );
+    return result.rows[0] || null;
+  }
+
+  async getTeamPlayersStats(teamId: string): Promise<any[]> {
+    const result = await this.pool.query(`
+      SELECT 
+        p.id as player_id,
+        p.name as player_name,
+        p.position,
+        COUNT(DISTINCT me1.id) as matches_played,
+        COUNT(CASE WHEN me2.event_type = 'GOAL' THEN 1 END) as goals,
+        COUNT(CASE WHEN me2.event_type = 'ASSIST' THEN 1 END) as assists,
+        COUNT(CASE WHEN me2.event_type = 'YELLOW_CARD' THEN 1 END) as yellow_cards,
+        COUNT(CASE WHEN me2.event_type = 'RED_CARD' THEN 1 END) as red_cards,
+        COALESCE(SUM(CASE WHEN m.status = 'COMPLETED' THEN m.duration ELSE 0 END), 0) as minutes_played
+      FROM team_players tp
+      JOIN players p ON tp.player_id = p.id
+      LEFT JOIN match_events me1 ON p.id = me1.player_id
+      LEFT JOIN matches m ON me1.match_id = m.id
+      LEFT JOIN match_events me2 ON p.id = me2.player_id
+      WHERE tp.team_id = $1
+      GROUP BY p.id, p.name, p.position
+    `, [teamId]);
+    
+    return result.rows;
+  }
+
   async close(): Promise<void> {
     await this.pool.end();
   }

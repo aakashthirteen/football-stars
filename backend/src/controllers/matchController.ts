@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { sqliteDb } from '../models/sqliteDatabase';
+import { database } from '../models/databaseFactory';
 import { AuthRequest, CreateMatchRequest, MatchEventRequest, Match, MatchEvent } from '../types';
 
 export const getUserMatches = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -10,13 +10,13 @@ export const getUserMatches = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    const matches = await sqliteDb.getMatchesByUserId(req.user.id);
+    const matches = await database.getMatchesByUserId(req.user.id);
     
     // Get teams and events for each match
     const matchesWithDetails = await Promise.all(matches.map(async match => {
-      const homeTeam = await sqliteDb.getTeamById(match.homeTeamId);
-      const awayTeam = await sqliteDb.getTeamById(match.awayTeamId);
-      const events = await sqliteDb.getMatchEvents(match.id);
+      const homeTeam = await database.getTeamById(match.homeTeamId);
+      const awayTeam = await database.getTeamById(match.awayTeamId);
+      const events = await database.getMatchEvents(match.id);
       
       return {
         ...match,
@@ -40,7 +40,7 @@ export const createMatch = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    const { homeTeamId, awayTeamId, venue, matchDate, duration }: CreateMatchRequest = req.body;
+    const { homeTeamId, awayTeamId, venue, matchDate, duration }: CreateMatchRequest = req.body as CreateMatchRequest;
 
     if (!homeTeamId || !awayTeamId || !matchDate) {
       res.status(400).json({ error: 'Home team, away team, and match date are required' });
@@ -53,8 +53,8 @@ export const createMatch = async (req: AuthRequest, res: Response): Promise<void
     }
 
     // Verify teams exist
-    const homeTeam = await sqliteDb.getTeamById(homeTeamId);
-    const awayTeam = await sqliteDb.getTeamById(awayTeamId);
+    const homeTeam = await database.getTeamById(homeTeamId);
+    const awayTeam = await database.getTeamById(awayTeamId);
 
     if (!homeTeam || !awayTeam) {
       res.status(404).json({ error: 'One or both teams not found' });
@@ -75,7 +75,14 @@ export const createMatch = async (req: AuthRequest, res: Response): Promise<void
       createdAt: new Date(),
     };
 
-    const createdMatch = await sqliteDb.createMatch(match);
+    const createdMatch = await database.createMatch(
+      homeTeamId, 
+      awayTeamId, 
+      venue || '', 
+      matchDate, 
+      duration || 90, 
+      req.user.id
+    );
 
     res.status(201).json({
       match: {
@@ -96,15 +103,15 @@ export const getMatchById = async (req: AuthRequest, res: Response): Promise<voi
   try {
     const { id } = req.params;
     
-    const match = await sqliteDb.getMatchById(id);
+    const match = await database.getMatchById(id);
     if (!match) {
       res.status(404).json({ error: 'Match not found' });
       return;
     }
 
-    const homeTeam = await sqliteDb.getTeamById(match.homeTeamId);
-    const awayTeam = await sqliteDb.getTeamById(match.awayTeamId);
-    const events = await sqliteDb.getMatchEvents(id);
+    const homeTeam = await database.getTeamById(match.homeTeamId);
+    const awayTeam = await database.getTeamById(match.awayTeamId);
+    const events = await database.getMatchEvents(id);
 
     const matchWithDetails = {
       ...match,
@@ -124,7 +131,7 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
   try {
     const { id } = req.params;
     
-    const match = await sqliteDb.getMatchById(id);
+    const match = await database.getMatchById(id);
     if (!match) {
       res.status(404).json({ error: 'Match not found' });
       return;
@@ -135,7 +142,7 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    const updatedMatch = await sqliteDb.updateMatch(id, { status: 'LIVE' });
+    const updatedMatch = await database.updateMatch(id, { status: 'LIVE' });
 
     res.json({
       match: updatedMatch,
@@ -150,14 +157,14 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
 export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { playerId, teamId, eventType, minute, description }: MatchEventRequest = req.body;
+    const { playerId, teamId, eventType, minute, description }: MatchEventRequest = req.body as MatchEventRequest;
 
     if (!playerId || !teamId || !eventType || minute === undefined) {
       res.status(400).json({ error: 'Player, team, event type, and minute are required' });
       return;
     }
 
-    const match = await sqliteDb.getMatchById(id);
+    const match = await database.getMatchById(id);
     if (!match) {
       res.status(404).json({ error: 'Match not found' });
       return;
@@ -180,7 +187,7 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
       createdAt: new Date(),
     };
 
-    const createdEvent = await sqliteDb.createMatchEvent(event);
+    const createdEvent = await database.createMatchEvent(event);
 
     // Update match score if it's a goal
     if (eventType === 'GOAL') {
@@ -190,7 +197,7 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
       } else {
         updates.awayScore = match.awayScore + 1;
       }
-      await sqliteDb.updateMatch(id, updates);
+      await database.updateMatch(id, updates);
     }
 
     res.status(201).json({

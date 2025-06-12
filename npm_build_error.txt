@@ -1,0 +1,632 @@
+npm run build
+
+> backend@1.0.0 build
+> tsc
+
+src/controllers/authController.ts:67:66 - error TS2551: Property 'password_hash' does not exist on type 'User'. Did you mean 'passwordHash'?
+
+67     const isPasswordValid = await comparePassword(password, user.password_hash);
+                                                                    ~~~~~~~~~~~~~
+
+  src/types/index.ts:5:3
+    5   passwordHash: string;
+        ~~~~~~~~~~~~
+    'passwordHash' is declared here.
+
+src/controllers/matchController.ts:43:11 - error TS2322: Type 'ReadableStream<any> | null' is not assignable to type 'CreateMatchRequest'.
+  Type 'null' is not assignable to type 'CreateMatchRequest'.
+
+43     const { homeTeamId, awayTeamId, venue, matchDate, duration }: CreateMatchRequest = req.body;
+             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/controllers/matchController.ts:78:41 - error TS2554: Expected 6 arguments, but got 1.
+
+78     const createdMatch = await database.createMatch(match);
+                                           ~~~~~~~~~~~
+
+  src/models/postgresDatabase.ts:291:41
+    291   async createMatch(homeTeamId: string, awayTeamId: string, venue: string, matchDate: string, duration: number, createdBy: string): Promise<Match> {
+                                                ~~~~~~~~~~~~~~~~~~
+    An argument for 'awayTeamId' was not provided.
+
+src/controllers/matchController.ts:97:24 - error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+
+97     const { id } = req.params;
+                          ~~~~~~
+
+src/controllers/matchController.ts:125:24 - error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+
+125     const { id } = req.params;
+                           ~~~~~~
+
+src/controllers/matchController.ts:152:24 - error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+
+152     const { id } = req.params;
+                           ~~~~~~
+
+src/controllers/matchController.ts:153:11 - error TS2322: Type 'ReadableStream<any> | null' is not assignable to type 'MatchEventRequest'.
+  Type 'null' is not assignable to type 'MatchEventRequest'.
+
+153     const { playerId, teamId, eventType, minute, description }: MatchEventRequest = req.body;
+              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/controllers/playerController.ts:39:7 - error TS2339: Property 'name' does not exist on type 'ReadableStream<any> | null'.
+
+39       name,
+         ~~~~
+
+src/controllers/playerController.ts:40:7 - error TS2339: Property 'position' does not exist on type 'ReadableStream<any> | null'.
+
+40       position,
+         ~~~~~~~~
+
+src/controllers/playerController.ts:41:7 - error TS2339: Property 'preferredFoot' does not exist on type 'ReadableStream<any> | null'.
+
+41       preferredFoot,
+         ~~~~~~~~~~~~~
+
+src/controllers/playerController.ts:42:7 - error TS2339: Property 'dateOfBirth' does not exist on type 'ReadableStream<any> | null'.
+
+42       dateOfBirth,
+         ~~~~~~~~~~~
+
+src/controllers/playerController.ts:43:7 - error TS2339: Property 'height' does not exist on type 'ReadableStream<any> | null'.
+
+43       height,
+         ~~~~~~
+
+src/controllers/playerController.ts:44:7 - error TS2339: Property 'weight' does not exist on type 'ReadableStream<any> | null'.
+
+44       weight,
+         ~~~~~~
+
+src/controllers/playerController.ts:45:7 - error TS2339: Property 'bio' does not exist on type 'ReadableStream<any> | null'.
+
+45       bio,
+         ~~~
+
+src/controllers/playerController.ts:46:7 - error TS2339: Property 'location' does not exist on type 'ReadableStream<any> | null'.
+
+46       location
+         ~~~~~~~~
+
+src/controllers/playerController.ts:90:24 - error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+
+90     const { id } = req.params;
+                          ~~~~~~
+
+src/controllers/statsController.ts:12:30 - error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+
+12     const { playerId } = req.params;
+                                ~~~~~~
+
+src/controllers/statsController.ts:91:28 - error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+
+91     const { teamId } = req.params;
+                              ~~~~~~
+
+src/controllers/statsController.ts:125:50 - error TS2339: Property 'query' does not exist on type 'AuthRequest'.
+
+125     const { type = 'goals', limit = '10' } = req.query;
+                                                     ~~~~~
+
+src/controllers/teamController.ts:46:11 - error TS2322: Type 'ReadableStream<any> | null' is not assignable to type 'CreateTeamRequest'.
+  Type 'null' is not assignable to type 'CreateTeamRequest'.
+
+46     const { name, description }: CreateTeamRequest = req.body;
+             ~~~~~~~~~~~~~~~~~~~~~
+
+src/controllers/teamController.ts:61:40 - error TS2554: Expected 3 arguments, but got 1.
+
+61     const createdTeam = await database.createTeam(team);
+                                          ~~~~~~~~~~
+
+  src/models/postgresDatabase.ts:228:34
+    228   async createTeam(name: string, description: string, createdBy: string): Promise<Team> {
+                                         ~~~~~~~~~~~~~~~~~~~
+    An argument for 'description' was not provided.
+
+src/controllers/teamController.ts:89:24 - error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+
+89     const { id } = req.params;
+                          ~~~~~~
+
+src/controllers/tournamentController.ts:62:7 - error TS2339: Property 'name' does not exist on type 'ReadableStream<any> | null'.
+
+62       name,
+         ~~~~
+
+src/controllers/tournamentController.ts:63:7 - error TS2339: Property 'description' does not exist on type 'ReadableStream<any> | null'.
+
+63       description,
+         ~~~~~~~~~~~
+
+src/controllers/tournamentController.ts:64:7 - error TS2339: Property 'tournamentType' does not exist on type 'ReadableStream<any> | null'.
+
+64       tournamentType,
+         ~~~~~~~~~~~~~~
+
+src/controllers/tournamentController.ts:65:7 - error TS2339: Property 'maxTeams' does not exist on type 'ReadableStream<any> | null'.
+
+65       maxTeams,
+         ~~~~~~~~
+
+src/controllers/tournamentController.ts:66:7 - error TS2339: Property 'entryFee' does not exist on type 'ReadableStream<any> | null'.
+
+66       entryFee,
+         ~~~~~~~~
+
+src/controllers/tournamentController.ts:67:7 - error TS2339: Property 'prizePool' does not exist on type 'ReadableStream<any> | null'.
+
+67       prizePool,
+         ~~~~~~~~~
+
+src/controllers/tournamentController.ts:68:7 - error TS2339: Property 'startDate' does not exist on type 'ReadableStream<any> | null'.
+
+68       startDate,
+         ~~~~~~~~~
+
+src/controllers/tournamentController.ts:69:7 - error TS2339: Property 'endDate' does not exist on type 'ReadableStream<any> | null'.
+
+69       endDate
+         ~~~~~~~
+
+src/controllers/tournamentController.ts:136:24 - error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+
+136     const { id } = req.params;
+                           ~~~~~~
+
+src/controllers/tournamentController.ts:174:34 - error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+
+174     const { tournamentId } = req.params;
+                                     ~~~~~~
+
+src/controllers/tournamentController.ts:175:13 - error TS2339: Property 'teamId' does not exist on type 'ReadableStream<any> | null'.
+
+175     const { teamId } = req.body;
+                ~~~~~~
+
+src/controllers/tournamentController.ts:211:34 - error TS2339: Property 'params' does not exist on type 'AuthRequest'.
+
+211     const { tournamentId } = req.params;
+                                     ~~~~~~
+
+src/middleware/auth.ts:12:24 - error TS7052: Element implicitly has an 'any' type because type 'Headers' has no index signature. Did you mean to call 'req.headers.get'?
+
+12     const authHeader = req.headers['authorization'];
+                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/routes/auth.ts:11:22 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response, next: NextFunction) => Promise<void>' is not assignable to parameter of type 'RequestHandlerParams<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response, next: NextFunction) => Promise<void>' is not assignable to type 'RequestHandler<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+        Types of parameters 'req' and 'req' are incompatible.
+          Type 'Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>' is missing the following properties from type 'AuthRequest': cache, credentials, destination, integrity, and 13 more.
+
+11 router.get('/debug', authenticateToken, (req: any, res) => {
+                        ~~~~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:153:5
+    153     <
+            ~
+    154         P = ParamsDictionary,
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ... 
+    162         ...handlers: Array<RequestHandlerParams<P, ResBody, ReqBody, ReqQuery, LocalsObj>>
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    163     ): T;
+        ~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/matches.ts:14:12 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response, next: NextFunction) => Promise<void>' is not assignable to parameter of type 'PathParams'.
+
+14 router.use(authenticateToken);
+              ~~~~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:153:5
+    153     <
+            ~
+    154         P = ParamsDictionary,
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ... 
+    162         ...handlers: Array<RequestHandlerParams<P, ResBody, ReqBody, ReqQuery, LocalsObj>>
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    163     ): T;
+        ~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/matches.ts:16:17 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+16 router.get('/', getUserMatches);
+                   ~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/matches.ts:17:18 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+17 router.post('/', createMatch);
+                    ~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/matches.ts:18:20 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+18 router.get('/:id', getMatchById);
+                      ~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/matches.ts:19:28 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+19 router.patch('/:id/start', startMatch);
+                              ~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/matches.ts:20:28 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+20 router.post('/:id/events', addMatchEvent);
+                              ~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/players.ts:12:12 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response, next: NextFunction) => Promise<void>' is not assignable to parameter of type 'PathParams'.
+
+12 router.use(authenticateToken);
+              ~~~~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:153:5
+    153     <
+            ~
+    154         P = ParamsDictionary,
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ... 
+    162         ...handlers: Array<RequestHandlerParams<P, ResBody, ReqBody, ReqQuery, LocalsObj>>
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    163     ): T;
+        ~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/players.ts:15:19 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+15 router.get('/me', getCurrentPlayer);
+                     ~~~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/players.ts:18:19 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+18 router.put('/me', updateCurrentPlayer);
+                     ~~~~~~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/players.ts:21:20 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+21 router.get('/:id', getPlayerById);
+                      ~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/stats.ts:14:12 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response, next: NextFunction) => Promise<void>' is not assignable to parameter of type 'PathParams'.
+
+14 router.use(authenticateToken);
+              ~~~~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:153:5
+    153     <
+            ~
+    154         P = ParamsDictionary,
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ... 
+    162         ...handlers: Array<RequestHandlerParams<P, ResBody, ReqBody, ReqQuery, LocalsObj>>
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    163     ): T;
+        ~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/stats.ts:17:19 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+17 router.get('/me', getCurrentUserStats);
+                     ~~~~~~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/stats.ts:20:33 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+20 router.get('/player/:playerId', getPlayerStats);
+                                   ~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/stats.ts:23:24 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+23 router.get('/players', getAllPlayersStats);
+                          ~~~~~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/stats.ts:26:29 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+26 router.get('/team/:teamId', getTeamPlayersStats);
+                               ~~~~~~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/stats.ts:29:28 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+29 router.get('/leaderboard', getLeaderboard);
+                              ~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/teams.ts:8:12 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response, next: NextFunction) => Promise<void>' is not assignable to parameter of type 'PathParams'.
+
+8 router.use(authenticateToken);
+             ~~~~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:153:5
+    153     <
+            ~
+    154         P = ParamsDictionary,
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ... 
+    162         ...handlers: Array<RequestHandlerParams<P, ResBody, ReqBody, ReqQuery, LocalsObj>>
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    163     ): T;
+        ~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/teams.ts:10:17 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+10 router.get('/', getUserTeams);
+                   ~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/teams.ts:11:18 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+11 router.post('/', createTeam);
+                    ~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/teams.ts:12:20 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+12 router.get('/:id', getTeamById);
+                      ~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/tournaments.ts:14:12 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response, next: NextFunction) => Promise<void>' is not assignable to parameter of type 'PathParams'.
+
+14 router.use(authenticateToken);
+              ~~~~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:153:5
+    153     <
+            ~
+    154         P = ParamsDictionary,
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ... 
+    162         ...handlers: Array<RequestHandlerParams<P, ResBody, ReqBody, ReqQuery, LocalsObj>>
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    163     ): T;
+        ~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/tournaments.ts:17:17 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+17 router.get('/', getTournaments);
+                   ~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/tournaments.ts:20:18 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+20 router.post('/', createTournament);
+                    ~~~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/tournaments.ts:23:20 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+23 router.get('/:id', getTournamentById);
+                      ~~~~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/tournaments.ts:26:40 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+26 router.post('/:tournamentId/register', registerTeamToTournament);
+                                          ~~~~~~~~~~~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/routes/tournaments.ts:29:40 - error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthRequest, res: Response) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthRequest, res: Response<any, Record<string, any>>) => Promise<void>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+
+29 router.get('/:tournamentId/standings', getTournamentStandings);
+                                          ~~~~~~~~~~~~~~~~~~~~~~
+
+  node_modules/@types/express-serve-static-core/index.d.ts:164:5
+    164     (path: PathParams, subApplication: Application): T;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The last overload is declared here.
+
+src/server.ts:5:27 - error TS2769: No overload matches this call.
+  Overload 1 of 6, '(port: number, hostname: string, backlog: number, callback?: (() => void) | undefined): Server<typeof IncomingMessage, typeof ServerResponse>', gave the following error.
+    Argument of type 'string | 3001' is not assignable to parameter of type 'number'.
+      Type 'string' is not assignable to type 'number'.
+  Overload 2 of 6, '(port: number, hostname: string, callback?: (() => void) | undefined): Server<typeof IncomingMessage, typeof ServerResponse>', gave the following error.
+    Argument of type 'string | 3001' is not assignable to parameter of type 'number'.
+      Type 'string' is not assignable to type 'number'.
+
+5 const server = app.listen(PORT, '0.0.0.0', () => {
+                            ~~~~
+
+
+src/utils/auth.ts:23:14 - error TS2769: No overload matches this call.
+  Overload 1 of 5, '(payload: string | object | Buffer<ArrayBufferLike>, secretOrPrivateKey: null, options?: (SignOptions & { algorithm: "none"; }) | undefined): string', gave the following error.
+    Argument of type 'string' is not assignable to parameter of type 'null'.
+  Overload 2 of 5, '(payload: string | object | Buffer<ArrayBufferLike>, secretOrPrivateKey: Buffer<ArrayBufferLike> | Secret | PrivateKeyInput | JsonWebKeyInput, options?: SignOptions | undefined): string', gave the following error.
+    Type 'string' is not assignable to type 'number | StringValue | undefined'.
+  Overload 3 of 5, '(payload: string | object | Buffer<ArrayBufferLike>, secretOrPrivateKey: Buffer<ArrayBufferLike> | Secret | PrivateKeyInput | JsonWebKeyInput, callback: SignCallback): void', gave the following error.
+    Object literal may only specify known properties, and 'expiresIn' does not exist in type 'SignCallback'.
+
+23   return jwt.sign({ userId }, secret, { expiresIn });
+                ~~~~
+
+
+
+Found 64 errors in 15 files.
+
+Errors  Files
+     1  src/controllers/authController.ts:67
+     6  src/controllers/matchController.ts:43
+     9  src/controllers/playerController.ts:39
+     3  src/controllers/statsController.ts:12
+     3  src/controllers/teamController.ts:46
+    12  src/controllers/tournamentController.ts:62
+     1  src/middleware/auth.ts:12
+     1  src/routes/auth.ts:11
+     6  src/routes/matches.ts:14
+     4  src/routes/players.ts:12
+     6  src/routes/stats.ts:14
+     4  src/routes/teams.ts:8
+     6  src/routes/tournaments.ts:14
+     1  src/server.ts:5
+     1  src/utils/auth.ts:23
+iMac:backend preetikumari$ 
