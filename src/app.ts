@@ -12,6 +12,7 @@ import tournamentRoutes from './routes/tournaments';
 
 // Import database
 import { database } from './models/databaseFactory';
+import { PostgresDatabase } from './models/postgresDatabase';
 
 // Load environment variables
 dotenv.config();
@@ -42,16 +43,17 @@ app.get('/health', (req, res) => {
 // Database test endpoint
 app.get('/api/test-db', async (req, res) => {
   try {
-    const result = await database.pool.query('SELECT COUNT(*) FROM users');
+    const db = database as PostgresDatabase;
+    const result = await db.pool.query('SELECT COUNT(*) FROM users');
     res.json({ 
       success: true, 
       userCount: result.rows[0].count,
       message: 'Database connected successfully'
     });
-  } catch (error) {
+  } catch (error: any) {
     res.status(500).json({ 
       success: false, 
-      error: error.message 
+      error: error.message || 'Database connection failed'
     });
   }
 });
