@@ -9,8 +9,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { apiService } from '../../services/api';
+import { Ionicons } from '@expo/vector-icons';
 
 interface CreateTeamScreenProps {
   navigation: any;
@@ -31,12 +33,27 @@ export default function CreateTeamScreen({ navigation }: CreateTeamScreenProps) 
     try {
       const response = await apiService.createTeam(teamName.trim(), description.trim());
       
-      Alert.alert('Success', 'Team created successfully!', [
-        {
-          text: 'OK',
-          onPress: () => navigation.goBack(),
-        },
-      ]);
+      Alert.alert(
+        '🎉 Team Created!', 
+        `Your team "${teamName}" has been created successfully. What would you like to do next?`,
+        [
+          {
+            text: 'Add Players',
+            onPress: () => {
+              if (response.team && response.team.id) {
+                navigation.replace('TeamDetails', { teamId: response.team.id });
+              } else {
+                navigation.goBack();
+              }
+            },
+          },
+          {
+            text: 'Back to Teams',
+            onPress: () => navigation.goBack(),
+            style: 'cancel',
+          },
+        ]
+      );
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to create team');
     } finally {
@@ -54,51 +71,101 @@ export default function CreateTeamScreen({ navigation }: CreateTeamScreenProps) 
           <TouchableOpacity 
             style={styles.backButton}
             onPress={() => navigation.goBack()}
+            disabled={isLoading}
           >
-            <Text style={styles.backButtonText}>← Back</Text>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.title}>Create New Team</Text>
+          <View>
+            <Text style={styles.title}>Create New Team</Text>
+            <Text style={styles.subtitle}>Build your dream squad</Text>
+          </View>
         </View>
 
         <View style={styles.form}>
-          <Text style={styles.label}>Team Name *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter team name (e.g., Thunderbolts FC)"
-            value={teamName}
-            onChangeText={setTeamName}
-            autoCapitalize="words"
-            maxLength={50}
-          />
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Team Name *</Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., Thunderbolts FC"
+                placeholderTextColor="#999"
+                value={teamName}
+                onChangeText={setTeamName}
+                autoCapitalize="words"
+                maxLength={50}
+                editable={!isLoading}
+              />
+              {teamName.length > 0 && (
+                <TouchableOpacity 
+                  style={styles.clearButton}
+                  onPress={() => setTeamName('')}
+                  disabled={isLoading}
+                >
+                  <Ionicons name="close-circle" size={20} color="#999" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={styles.charCount}>{teamName.length}/50</Text>
+          </View>
 
-          <Text style={styles.label}>Description (Optional)</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Tell us about your team..."
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-            maxLength={200}
-          />
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Description (Optional)</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Tell us about your team's vision, goals, or playing style..."
+              placeholderTextColor="#999"
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              maxLength={200}
+              editable={!isLoading}
+            />
+            <Text style={styles.charCount}>{description.length}/200</Text>
+          </View>
 
           <View style={styles.infoBox}>
-            <Text style={styles.infoTitle}>🎯 Team Benefits:</Text>
-            <Text style={styles.infoText}>• Organize matches and tournaments</Text>
-            <Text style={styles.infoText}>• Track team and player statistics</Text>
-            <Text style={styles.infoText}>• Invite friends to join your squad</Text>
-            <Text style={styles.infoText}>• Share highlights and achievements</Text>
+            <Text style={styles.infoTitle}>🎯 What you can do with your team:</Text>
+            <View style={styles.infoItem}>
+              <Ionicons name="football" size={20} color="#2E7D32" />
+              <Text style={styles.infoText}>Organize matches and tournaments</Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Ionicons name="stats-chart" size={20} color="#2E7D32" />
+              <Text style={styles.infoText}>Track team and player statistics</Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Ionicons name="people" size={20} color="#2E7D32" />
+              <Text style={styles.infoText}>Add up to 25 players to your squad</Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Ionicons name="trophy" size={20} color="#2E7D32" />
+              <Text style={styles.infoText}>Compete in local tournaments</Text>
+            </View>
           </View>
 
           <TouchableOpacity
             style={[styles.createButton, isLoading && styles.buttonDisabled]}
             onPress={handleCreateTeam}
+            disabled={isLoading || !teamName.trim()}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="add-circle" size={24} color="#fff" />
+                <Text style={styles.createButtonText}>Create Team</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => navigation.goBack()}
             disabled={isLoading}
           >
-            <Text style={styles.createButtonText}>
-              {isLoading ? 'Creating Team...' : '⚽ Create Team'}
-            </Text>
+            <Text style={styles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -117,75 +184,144 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#2E7D32',
     paddingTop: 60,
-    paddingBottom: 20,
+    paddingBottom: 30,
     paddingHorizontal: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   backButton: {
-    marginBottom: 10,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
+    position: 'absolute',
+    left: 24,
+    top: 60,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
+    textAlign: 'center',
+    marginTop: 40,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.8)',
+    textAlign: 'center',
+    marginTop: 4,
   },
   form: {
     padding: 24,
+  },
+  inputGroup: {
+    marginBottom: 20,
   },
   label: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
     marginBottom: 8,
-    marginTop: 16,
+  },
+  inputContainer: {
+    position: 'relative',
   },
   input: {
     backgroundColor: '#fff',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e0e0e0',
     fontSize: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   textArea: {
-    height: 100,
-    paddingTop: 12,
+    height: 120,
+    paddingTop: 14,
+  },
+  clearButton: {
+    position: 'absolute',
+    right: 12,
+    top: '50%',
+    transform: [{ translateY: -10 }],
+  },
+  charCount: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'right',
+    marginTop: 4,
   },
   infoBox: {
     backgroundColor: '#e8f5e8',
-    padding: 16,
-    borderRadius: 8,
+    padding: 20,
+    borderRadius: 16,
     marginTop: 24,
-    marginBottom: 24,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: '#c8e6c9',
   },
   infoTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2E7D32',
-    marginBottom: 8,
+    color: '#1B5E20',
+    marginBottom: 16,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   infoText: {
     fontSize: 14,
     color: '#2E7D32',
-    marginBottom: 4,
+    marginLeft: 12,
+    flex: 1,
   },
   createButton: {
     backgroundColor: '#2E7D32',
     paddingVertical: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
-    marginTop: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   buttonDisabled: {
     backgroundColor: '#a5a5a5',
+    opacity: 0.7,
   },
   createButtonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  cancelButton: {
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 12,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

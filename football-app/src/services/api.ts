@@ -1,10 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Configuration - Switch between Mock and Production
-const USE_MOCK = true; // 🔄 Back to mock mode to fix issues
-const RAILWAY_URL = 'https://your-railway-app-url.up.railway.app/api'; // Update with your Railway URL
-const LOCAL_URL = 'http://192.168.0.108:3001/api'; // ✅ Updated to correct IP address
-const API_BASE_URL = USE_MOCK ? 'MOCK' : LOCAL_URL; // 🔄 Using mock mode for now
+const USE_MOCK = true; // 🔄 TEMPORARILY USING MOCK DATA - Set to false when Railway is working
+const RAILWAY_URL = 'https://football-stars-production.up.railway.app/api'; // ✅ Your Railway URL
+const LOCAL_URL = 'http://192.168.0.108:3001/api';
+const API_BASE_URL = USE_MOCK ? 'MOCK' : RAILWAY_URL; // 🌐 Currently using MOCK data
+
+// Health check URL (outside of /api)
+const HEALTH_CHECK_URL = RAILWAY_URL.replace('/api', '/health');
 
 class ApiService {
   private async getAuthHeaders() {
@@ -866,6 +869,17 @@ class ApiService {
 
   async getTournamentStandings(tournamentId: string) {
     return this.request(`/tournaments/${tournamentId}/standings`);
+  }
+
+  // Health check
+  async checkHealth() {
+    try {
+      const response = await fetch(HEALTH_CHECK_URL);
+      const data = await response.json();
+      return { success: response.ok, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
   }
 }
 

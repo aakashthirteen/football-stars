@@ -7,9 +7,12 @@ import {
   FlatList,
   RefreshControl,
   Alert,
+  Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { apiService } from '../../services/api';
+import { Ionicons } from '@expo/vector-icons';
 
 interface TeamsScreenProps {
   navigation: any;
@@ -27,10 +30,16 @@ export default function TeamsScreen({ navigation }: TeamsScreenProps) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
   useFocusEffect(
     React.useCallback(() => {
       loadTeams();
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }).start();
     }, [])
   );
 
@@ -41,7 +50,7 @@ export default function TeamsScreen({ navigation }: TeamsScreenProps) {
       setTeams(response.teams || []);
     } catch (error: any) {
       console.error('Error loading teams:', error);
-      Alert.alert('Error', 'Failed to load teams');
+      Alert.alert('Error', 'Failed to load teams. Please check your connection.');
     } finally {
       setIsLoading(false);
     }
@@ -53,42 +62,83 @@ export default function TeamsScreen({ navigation }: TeamsScreenProps) {
     setRefreshing(false);
   };
 
-  const renderTeam = ({ item }: { item: Team }) => (
-    <TouchableOpacity 
-      style={styles.teamCard}
-      onPress={() => navigation.navigate('TeamDetails', { teamId: item.id })}
+  const renderTeam = ({ item, index }: { item: Team; index: number }) => (
+    <Animated.View
+      style={[
+        styles.teamCardWrapper,
+        {
+          opacity: fadeAnim,
+          transform: [
+            {
+              translateY: fadeAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [50, 0],
+              }),
+            },
+          ],
+        },
+      ]}
     >
-      <View style={styles.teamHeader}>
-        <Text style={styles.teamName}>{item.name}</Text>
-        <Text style={styles.teamMembers}>{item.players.length} players</Text>
-      </View>
-      {item.description && (
-        <Text style={styles.teamDescription} numberOfLines={2}>
-          {item.description}
-        </Text>
-      )}
-      <View style={styles.teamFooter}>
-        <View style={styles.captainInfo}>
-          {item.players.find(p => p.role === 'CAPTAIN') && (
-            <Text style={styles.captainText}>
-              👑 {item.players.find(p => p.role === 'CAPTAIN')?.player?.name || 'You'}
+      <TouchableOpacity 
+        style={styles.teamCard}
+        onPress={() => navigation.navigate('TeamDetails', { teamId: item.id })}
+        activeOpacity={0.8}
+      >
+        <View style={styles.teamBadge}>
+          <Text style={styles.teamBadgeText}>
+            {item.name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2)}
+          </Text>
+        </View>
+        
+        <View style={styles.teamContent}>
+          <View style={styles.teamHeader}>
+            <Text style={styles.teamName} numberOfLines={1}>{item.name}</Text>
+            <View style={styles.teamStats}>
+              <Ionicons name="people" size={16} color="#666" />
+              <Text style={styles.teamMembers}>{item.players.length}</Text>
+            </View>
+          </View>
+          
+          {item.description && (
+            <Text style={styles.teamDescription} numberOfLines={2}>
+              {item.description}
             </Text>
           )}
+          
+          <View style={styles.teamFooter}>
+            <View style={styles.captainInfo}>
+              {item.players.find(p => p.role === 'CAPTAIN') && (
+                <>
+                  <Ionicons name="star" size={14} color="#FFD700" />
+                  <Text style={styles.captainText}>
+                    {item.players.find(p => p.role === 'CAPTAIN')?.player?.name || 'Captain'}
+                  </Text>
+                </>
+              )}
+            </View>
+            <View style={styles.viewDetailsButton}>
+              <Text style={styles.viewDetails}>View</Text>
+              <Ionicons name="arrow-forward" size={16} color="#2E7D32" />
+            </View>
+          </View>
         </View>
-        <Text style={styles.viewDetails}>View Details →</Text>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>My Teams</Text>
+        <View>
+          <Text style={styles.title}>My Teams</Text>
+          <Text style={styles.subtitle}>Manage your squads</Text>
+        </View>
         <TouchableOpacity 
           style={styles.createButton}
           onPress={() => navigation.navigate('CreateTeam')}
         >
-          <Text style={styles.createButtonText}>+ Create Team</Text>
+          <Ionicons name="add" size={20} color="#fff" />
+          <Text style={styles.createButtonText}>Create</Text>
         </TouchableOpacity>
       </View>
 
@@ -102,18 +152,27 @@ export default function TeamsScreen({ navigation }: TeamsScreenProps) {
         }
         ListEmptyComponent={() => (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>⚽</Text>
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="people-outline" size={80} color="#ddd" />
+            </View>
             <Text style={styles.emptyText}>No teams yet</Text>
-            <Text style={styles.emptySubtext}>Create your first team to get started</Text>
+            <Text style={styles.emptySubtext}>Create your first team to organize matches,{`\n`}track stats, and build your squad!</Text>
             <TouchableOpacity 
               style={styles.createTeamButton}
               onPress={() => navigation.navigate('CreateTeam')}
             >
-              <Text style={styles.createTeamButtonText}>🏆 Create Your First Team</Text>
+              <Ionicons name="add-circle" size={24} color="#fff" />
+              <Text style={styles.createTeamButtonText}>Create Your First Team</Text>
             </TouchableOpacity>
           </View>
         )}
       />
+      
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#2E7D32" />
+        </View>
+      )}
     </View>
   );
 }
@@ -128,24 +187,44 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 24,
+    paddingTop: 60,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#333',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
   },
   createButton: {
     backgroundColor: '#2E7D32',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
+    paddingVertical: 10,
+    borderRadius: 25,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   createButtonText: {
     color: '#fff',
     fontWeight: '600',
+    fontSize: 15,
   },
   list: {
     padding: 24,
@@ -154,28 +233,58 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
   },
+  teamCardWrapper: {
+    marginBottom: 16,
+  },
   teamCard: {
     backgroundColor: '#fff',
+    borderRadius: 16,
+    flexDirection: 'row',
     padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
     elevation: 3,
+  },
+  teamBadge: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#2E7D32',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  teamBadgeText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  teamContent: {
+    flex: 1,
   },
   teamHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   teamName: {
     fontSize: 18,
     fontWeight: '600',
     color: '#333',
     flex: 1,
+    marginRight: 8,
+  },
+  teamStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#f0f2f5',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   teamMembers: {
     fontSize: 14,
@@ -185,7 +294,7 @@ const styles = StyleSheet.create({
   teamDescription: {
     fontSize: 14,
     color: '#888',
-    lineHeight: 18,
+    lineHeight: 20,
     marginBottom: 12,
   },
   teamFooter: {
@@ -194,47 +303,79 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   captainInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     flex: 1,
   },
   captainText: {
-    fontSize: 12,
-    color: '#2E7D32',
+    fontSize: 13,
+    color: '#666',
     fontWeight: '500',
+  },
+  viewDetailsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   viewDetails: {
     fontSize: 14,
     color: '#2E7D32',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingVertical: 80,
   },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#f0f2f5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
   },
   emptyText: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#666',
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#333',
     marginBottom: 8,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: '#999',
+    fontSize: 15,
+    color: '#666',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 32,
+    lineHeight: 22,
   },
   createTeamButton: {
     backgroundColor: '#2E7D32',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   createTeamButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.8)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -33,7 +33,7 @@ interface SkillVideo {
 }
 
 export default function ProfileScreen({ navigation }: ProfileScreenProps) {
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -116,6 +116,26 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     return 'Rookie';
   };
 
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          onPress: async () => {
+            await logout();
+          },
+          style: 'destructive',
+        },
+      ],
+    );
+  };
+
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.headerBackground}>
@@ -127,9 +147,14 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
           <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
             <Ionicons name="settings-outline" size={24} color="#fff" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowShareModal(true)}>
-            <Ionicons name="share-outline" size={24} color="#fff" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={() => navigation.navigate('Debug')} style={styles.debugButton}>
+              <Ionicons name="bug-outline" size={20} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowShareModal(true)}>
+              <Ionicons name="share-outline" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
         
         <View style={styles.profileInfo}>
@@ -453,6 +478,14 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
           >
             <Ionicons name="create-outline" size={20} color="#fff" />
             <Text style={styles.editProfileText}>Edit Profile</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.logoutButton}
+            onPress={handleLogout}
+          >
+            <Ionicons name="log-out-outline" size={20} color="#dc3545" />
+            <Text style={styles.logoutButtonText}>Logout</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -829,6 +862,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#dc3545',
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 12,
+  },
+  logoutButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#dc3545',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -878,5 +928,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#666',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  debugButton: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    padding: 6,
+    borderRadius: 15,
   },
 });
