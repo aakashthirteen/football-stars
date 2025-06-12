@@ -1,10 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Configuration - Switch between Mock and Production
-const USE_MOCK = true; // 🔄 TEMPORARILY USING MOCK DATA - Set to false when Railway is working
+const USE_MOCK = false; // 🚀 Using Railway production backend!
 const RAILWAY_URL = 'https://football-stars-production.up.railway.app/api'; // ✅ Your Railway URL
-const LOCAL_URL = 'http://192.168.0.108:3001/api';
-const API_BASE_URL = USE_MOCK ? 'MOCK' : RAILWAY_URL; // 🌐 Currently using MOCK data
+const LOCAL_URL = 'http://192.168.0.108:3001/api'; // Update with your Mac's IP
+const API_BASE_URL = USE_MOCK ? 'MOCK' : RAILWAY_URL; // 🌐 Using RAILWAY backend!
 
 // Health check URL (outside of /api)
 const HEALTH_CHECK_URL = RAILWAY_URL.replace('/api', '/health');
@@ -32,17 +32,37 @@ class ApiService {
       ...options,
     };
 
+    console.log('🔄 API Request:', {
+      url,
+      method: options.method || 'GET',
+      headers: config.headers,
+    });
+
     try {
       const response = await fetch(url, config);
-      const data = await response.json();
+      const text = await response.text();
+      
+      console.log('📡 API Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        text: text.substring(0, 200)
+      });
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error('⚠️ Failed to parse JSON:', text);
+        throw new Error('Invalid response from server');
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Something went wrong');
+        throw new Error(data.error || `Server error: ${response.status}`);
       }
 
       return data;
     } catch (error) {
-      console.error('API Error:', error);
+      console.error('❌ API Error:', error);
       throw error;
     }
   }

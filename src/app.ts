@@ -39,6 +39,23 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Database test endpoint
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const result = await database.pool.query('SELECT COUNT(*) FROM users');
+    res.json({ 
+      success: true, 
+      userCount: result.rows[0].count,
+      message: 'Database connected successfully'
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/teams', teamRoutes);

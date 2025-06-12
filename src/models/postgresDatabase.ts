@@ -4,7 +4,7 @@ import { User, Team, Match, TeamPlayer, MatchEvent, PlayerStats } from '../types
 
 // PostgreSQL Database Implementation for Railway deployment
 export class PostgresDatabase {
-  private pool: Pool;
+  public pool: Pool;
 
   constructor() {
     // Use Railway DATABASE_URL or fallback for local testing
