@@ -137,6 +137,17 @@ export class PostgresDatabase {
         )
       `);
 
+      // Tournament teams junction table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS tournament_teams (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          tournament_id UUID REFERENCES tournaments(id) ON DELETE CASCADE,
+          team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
+          registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(tournament_id, team_id)
+        )
+      `);
+
       // Seed initial data
       await this.seedData(client);
       
@@ -533,6 +544,109 @@ export class PostgresDatabase {
       GROUP BY p.id, p.name, p.position
     `, [teamId]);
     
+    return result.rows;
+  }
+
+  async getAllPlayers(): Promise<any[]> {
+    const result = await this.pool.query(
+      'SELECT * FROM players ORDER BY name ASC'
+    );
+    return result.rows;
+  }
+
+  async removePlayerFromTeam(teamId: string, playerId: string): Promise<void> {
+    await this.pool.query(
+      'DELETE FROM team_players WHERE team_id = $1 AND player_id = $2',
+      [teamId, playerId]
+    );
+  }
+
+  async createPlayer(userId: string, name: string, position: string, preferredFoot: string): Promise<any> {
+    const result = await this.pool.query(
+      'INSERT INTO players (user_id, name, position, preferred_foot, bio, location) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [userId, name, position, preferredFoot, 'Football enthusiast', 'Unknown']
+    );
+    return result.rows[0];
+  }
+
+  // Tournament operations
+  async createTournament(tournament: any): Promise<any> {
+    const result = await this.pool.query(
+      'INSERT INTO tournaments (id, name, description, tournament_type, start_date, end_date, max_teams, entry_fee, prize_pool, status, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
+      [tournament.id, tournament.name, tournament.description, tournament.tournamentType, tournament.startDate, tournament.endDate, tournament.maxTeams, tournament.entryFee, tournament.prizePool, tournament.status, tournament.createdBy]
+    );
+    return result.rows[0];
+  }
+
+  async getAllTournaments(): Promise<any[]> {
+    const result = await this.pool.query(`
+      SELECT id, name, description, tournament_type as "tournamentType", start_date as "startDate", 
+             end_date as "endDate", max_teams as "maxTeams", registered_teams as "registeredTeams",
+             entry_fee as "entryFee", prize_pool as "prizePool", status, created_by as "createdBy",
+             created_at as "createdAt"
+      FROM tournaments 
+      ORDER BY created_at DESC
+    `);
+    return result.rows;
+  }
+
+  async getTournamentById(id: string): Promise<any | null> {
+    const result = await this.pool.query(`
+      SELECT id, name, description, tournament_type as "tournamentType", start_date as "startDate", 
+             end_date as "endDate", max_teams as "maxTeams", registered_teams as "registeredTeams",
+             entry_fee as "entryFee", prize_pool as "prizePool", status, created_by as "createdBy",
+             created_at as "createdAt"
+      FROM tournaments 
+      WHERE id = $1
+    `, [id]);
+    return result.rows[0] || null;
+  }
+
+  async registerTeamToTournament(tournamentId: string, teamId: string): Promise<any> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      // Check if team is already registered
+      const existingRegistration = await client.query(
+        'SELECT id FROM tournament_teams WHERE tournament_id = $1 AND team_id = $2',
+        [tournamentId, teamId]
+      );
+      
+      if (existingRegistration.rows.length > 0) {
+        throw new Error('Team is already registered for this tournament');
+      }
+      
+      // Add team to tournament
+      const result = await client.query(
+        'INSERT INTO tournament_teams (tournament_id, team_id) VALUES ($1, $2) RETURNING *',
+        [tournamentId, teamId]
+      );
+      
+      // Update registered teams count
+      await client.query(
+        'UPDATE tournaments SET registered_teams = registered_teams + 1 WHERE id = $1',
+        [tournamentId]
+      );
+      
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async getTournamentTeams(tournamentId: string): Promise<any[]> {
+    const result = await this.pool.query(`
+      SELECT t.id, t.name, t.description, tt.registered_at
+      FROM tournament_teams tt
+      JOIN teams t ON tt.team_id = t.id
+      WHERE tt.tournament_id = $1
+      ORDER BY tt.registered_at ASC
+    `, [tournamentId]);
     return result.rows;
   }
 

@@ -32,6 +32,14 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     // Create user
     const createdUser = await database.createUser(email, passwordHash, name);
 
+    // Create player profile for the user
+    try {
+      await database.createPlayer(createdUser.id, name, 'MID', 'RIGHT');
+    } catch (error) {
+      console.error('Error creating player profile:', error);
+      // Continue with registration even if player creation fails
+    }
+
     // Generate token
     const token = generateToken(createdUser.id);
 

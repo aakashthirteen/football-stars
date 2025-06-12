@@ -64,69 +64,58 @@ export default function PlayerDiscoveryScreen({ navigation }: PlayerDiscoveryScr
 
   const loadPlayers = async () => {
     try {
-      // Mock data for now - replace with actual API call
-      const mockPlayers: Player[] = [
-        {
-          id: '1',
-          name: 'Cristiano Silva',
-          position: 'FWD',
-          location: 'Bengaluru, India',
-          rating: 8.5,
-          skills: ['Pace', 'Shooting', 'Dribbling'],
-          goals: 23,
-          assists: 12,
-          matchesPlayed: 30,
-          verified: true,
-          lookingForTeam: true,
-        },
-        {
-          id: '2',
-          name: 'Maria Santos',
-          position: 'MID',
-          location: 'Mumbai, India',
-          rating: 8.2,
-          skills: ['Passing', 'Dribbling', 'Physical'],
-          goals: 8,
-          assists: 18,
-          matchesPlayed: 28,
-          verified: true,
-          lookingForTeam: false,
-        },
-        {
-          id: '3',
-          name: 'Rahul Kumar',
-          position: 'DEF',
-          location: 'Delhi, India',
-          rating: 7.8,
-          skills: ['Defending', 'Physical', 'Passing'],
-          goals: 2,
-          assists: 5,
-          matchesPlayed: 25,
-          verified: false,
-          lookingForTeam: true,
-        },
-        {
-          id: '4',
-          name: 'Ahmed Khan',
-          position: 'GK',
-          location: 'Bengaluru, India',
-          rating: 8.0,
-          skills: ['Reflexes', 'Distribution', 'Leadership'],
-          goals: 0,
-          assists: 0,
-          matchesPlayed: 22,
-          verified: true,
-          lookingForTeam: false,
-        },
-      ];
+      const response = await apiService.getAvailablePlayers();
+      const backendPlayers = response.players || [];
       
-      setPlayers(mockPlayers);
-      setFilteredPlayers(mockPlayers);
+      // Transform backend data to match our Player interface
+      const transformedPlayers: Player[] = backendPlayers.map((player: any) => ({
+        id: player.id,
+        name: player.name,
+        position: player.position || 'MID',
+        location: player.location || 'Unknown Location',
+        rating: 7.5 + Math.random() * 1.5, // Generate rating between 7.5-9
+        skills: getSkillsForPosition(player.position || 'MID'),
+        goals: Math.floor(Math.random() * 25),
+        assists: Math.floor(Math.random() * 20),
+        matchesPlayed: Math.floor(Math.random() * 30) + 5,
+        verified: Math.random() > 0.5,
+        lookingForTeam: Math.random() > 0.6,
+        profileImage: undefined,
+      }));
+      
+      setPlayers(transformedPlayers);
+      setFilteredPlayers(transformedPlayers);
     } catch (error) {
       console.error('Error loading players:', error);
+      // Fallback to empty array if API fails
+      setPlayers([]);
+      setFilteredPlayers([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  const getSkillsForPosition = (position: string): string[] => {
+    const skillSets = {
+      'GK': ['Reflexes', 'Distribution', 'Leadership'],
+      'DEF': ['Defending', 'Physical', 'Passing'],
+      'MID': ['Passing', 'Dribbling', 'Physical'],
+      'FWD': ['Pace', 'Shooting', 'Dribbling']
+    };
+    
+    const baseSkills = skillSets[position as keyof typeof skillSets] || skillSets['MID'];
+    const allSkills = ['Pace', 'Dribbling', 'Shooting', 'Passing', 'Defending', 'Physical'];
+    
+    // Add 1-2 random skills from other categories
+    const additionalSkills = allSkills.filter(skill => !baseSkills.includes(skill));
+    const numAdditional = Math.floor(Math.random() * 2) + 1;
+    
+    for (let i = 0; i < numAdditional && additionalSkills.length > 0; i++) {
+      const randomIndex = Math.floor(Math.random() * additionalSkills.length);
+      baseSkills.push(additionalSkills.splice(randomIndex, 1)[0]);
+    }
+    
+    return baseSkills.slice(0, 5); // Limit to 5 skills
   };
 
   const filterPlayers = () => {

@@ -44,6 +44,15 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
     loadTeamDetails();
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      // Reload team details when screen comes into focus
+      loadTeamDetails();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
   const loadTeamDetails = async () => {
     try {
       setIsLoading(true);
@@ -95,6 +104,29 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
     return teamStats.find(stats => stats.playerId === playerId);
   };
 
+  const removePlayerFromTeam = async (playerId: string, playerName: string) => {
+    Alert.alert(
+      'Remove Player',
+      `Are you sure you want to remove ${playerName} from the team?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiService.removePlayerFromTeam(teamId, playerId);
+              Alert.alert('Success', `${playerName} has been removed from the team`);
+              loadTeamDetails(); // Refresh team details
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to remove player');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const renderPlayer = ({ item }: { item: Player }) => {
     const playerStats = getPlayerStats(item.id);
     
@@ -103,11 +135,19 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
         <View style={styles.playerInfo}>
           <View style={styles.playerHeader}>
             <Text style={styles.playerName}>{getRoleIcon(item.role)} {item.name}</Text>
-            {item.jerseyNumber && (
-              <View style={styles.jerseyBadge}>
-                <Text style={styles.jerseyNumber}>#{item.jerseyNumber}</Text>
-              </View>
-            )}
+            <View style={styles.playerHeaderRight}>
+              {item.jerseyNumber && (
+                <View style={styles.jerseyBadge}>
+                  <Text style={styles.jerseyNumber}>#{item.jerseyNumber}</Text>
+                </View>
+              )}
+              <TouchableOpacity 
+                style={styles.removeButton}
+                onPress={() => removePlayerFromTeam(item.id, item.name)}
+              >
+                <Text style={styles.removeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <View style={styles.playerDetails}>
             <View style={[styles.positionBadge, { backgroundColor: getPositionColor(item.position) }]}>
@@ -214,7 +254,10 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Squad ({team.players.length})</Text>
-            <TouchableOpacity style={styles.addPlayerButton}>
+            <TouchableOpacity 
+              style={styles.addPlayerButton}
+              onPress={() => navigation.navigate('AddPlayer', { teamId, teamName: team.name })}
+            >
               <Text style={styles.addPlayerText}>+ Invite Player</Text>
             </TouchableOpacity>
           </View>
@@ -236,11 +279,20 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
 
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.primaryButton}>
+          <TouchableOpacity 
+            style={styles.primaryButton}
+            onPress={() => navigation.navigate('Matches', { 
+              screen: 'CreateMatch',
+              params: { homeTeamId: teamId, homeTeamName: team.name }
+            })}
+          >
             <Text style={styles.primaryButtonText}>🏆 Create Match</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.secondaryButton}>
+          <TouchableOpacity 
+            style={styles.secondaryButton}
+            onPress={() => navigation.navigate('Leaderboard')}
+          >
             <Text style={styles.secondaryButtonText}>📊 View Stats</Text>
           </TouchableOpacity>
         </View>
@@ -377,11 +429,29 @@ const styles = StyleSheet.create({
     color: '#333',
     flex: 1,
   },
+  playerHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   jerseyBadge: {
     backgroundColor: '#f0f0f0',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
+  },
+  removeButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#ff4757',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removeButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   jerseyNumber: {
     fontSize: 12,

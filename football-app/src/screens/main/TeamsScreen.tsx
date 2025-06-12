@@ -30,6 +30,7 @@ export default function TeamsScreen({ navigation }: TeamsScreenProps) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedTab, setSelectedTab] = useState<'my' | 'all'>('my');
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
   useFocusEffect(
@@ -40,13 +41,19 @@ export default function TeamsScreen({ navigation }: TeamsScreenProps) {
         duration: 600,
         useNativeDriver: true,
       }).start();
-    }, [])
+    }, [selectedTab])
   );
+
+  const handleTabChange = (tab: 'my' | 'all') => {
+    setSelectedTab(tab);
+  };
 
   const loadTeams = async () => {
     try {
       setIsLoading(true);
-      const response = await apiService.getTeams();
+      const response = selectedTab === 'my' 
+        ? await apiService.getTeams()
+        : await apiService.getAllTeams();
       setTeams(response.teams || []);
     } catch (error: any) {
       console.error('Error loading teams:', error);
@@ -130,15 +137,38 @@ export default function TeamsScreen({ navigation }: TeamsScreenProps) {
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>My Teams</Text>
-          <Text style={styles.subtitle}>Manage your squads</Text>
+          <Text style={styles.title}>Teams</Text>
+          <Text style={styles.subtitle}>
+            {selectedTab === 'my' ? 'Manage your squads' : 'Discover teams to join'}
+          </Text>
         </View>
+        {selectedTab === 'my' && (
+          <TouchableOpacity 
+            style={styles.createButton}
+            onPress={() => navigation.navigate('CreateTeam')}
+          >
+            <Ionicons name="add" size={20} color="#fff" />
+            <Text style={styles.createButtonText}>Create</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View style={styles.tabContainer}>
         <TouchableOpacity 
-          style={styles.createButton}
-          onPress={() => navigation.navigate('CreateTeam')}
+          style={[styles.tab, selectedTab === 'my' && styles.activeTab]}
+          onPress={() => handleTabChange('my')}
         >
-          <Ionicons name="add" size={20} color="#fff" />
-          <Text style={styles.createButtonText}>Create</Text>
+          <Text style={[styles.tabText, selectedTab === 'my' && styles.activeTabText]}>
+            My Teams
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.tab, selectedTab === 'all' && styles.activeTab]}
+          onPress={() => handleTabChange('all')}
+        >
+          <Text style={[styles.tabText, selectedTab === 'all' && styles.activeTabText]}>
+            All Teams
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -155,15 +185,24 @@ export default function TeamsScreen({ navigation }: TeamsScreenProps) {
             <View style={styles.emptyIconContainer}>
               <Ionicons name="people-outline" size={80} color="#ddd" />
             </View>
-            <Text style={styles.emptyText}>No teams yet</Text>
-            <Text style={styles.emptySubtext}>Create your first team to organize matches,{`\n`}track stats, and build your squad!</Text>
-            <TouchableOpacity 
-              style={styles.createTeamButton}
-              onPress={() => navigation.navigate('CreateTeam')}
-            >
-              <Ionicons name="add-circle" size={24} color="#fff" />
-              <Text style={styles.createTeamButtonText}>Create Your First Team</Text>
-            </TouchableOpacity>
+            {selectedTab === 'my' ? (
+              <>
+                <Text style={styles.emptyText}>No teams yet</Text>
+                <Text style={styles.emptySubtext}>Create your first team to organize matches,{`\n`}track stats, and build your squad!</Text>
+                <TouchableOpacity 
+                  style={styles.createTeamButton}
+                  onPress={() => navigation.navigate('CreateTeam')}
+                >
+                  <Ionicons name="add-circle" size={24} color="#fff" />
+                  <Text style={styles.createTeamButtonText}>Create Your First Team</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.emptyText}>No teams available</Text>
+                <Text style={styles.emptySubtext}>No teams are currently visible.{`\n`}Check back later for new teams to join!</Text>
+              </>
+            )}
           </View>
         )}
       />
@@ -377,5 +416,36 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.8)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#f0f2f5',
+    marginHorizontal: 24,
+    marginTop: 12,
+    borderRadius: 8,
+    padding: 4,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  activeTab: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  tabText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#666',
+  },
+  activeTabText: {
+    color: '#2E7D32',
   },
 });

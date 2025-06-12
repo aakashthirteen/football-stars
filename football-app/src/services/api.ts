@@ -768,6 +768,28 @@ class ApiService {
     return this.request(`/teams/${id}`);
   }
 
+  async getAllTeams() {
+    return this.request('/teams/all');
+  }
+
+  async addPlayerToTeam(teamId: string, playerId: string, role?: string, jerseyNumber?: number) {
+    return this.request(`/teams/${teamId}/players`, {
+      method: 'POST',
+      body: JSON.stringify({ playerId, role, jerseyNumber }),
+    });
+  }
+
+  async removePlayerFromTeam(teamId: string, playerId: string) {
+    return this.request(`/teams/${teamId}/players/${playerId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getAvailablePlayers(teamId?: string) {
+    const query = teamId ? `?teamId=${teamId}` : '';
+    return this.request(`/teams/players/available${query}`);
+  }
+
   // Matches endpoints
   async getMatches() {
     return this.request('/matches');

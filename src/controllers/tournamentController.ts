@@ -10,41 +10,8 @@ export const getTournaments = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    // For now, return mock tournaments since we haven't fully implemented tournament storage
-    const mockTournaments = [
-      {
-        id: '1',
-        name: 'Summer League 2024',
-        description: 'Annual summer tournament for local teams',
-        tournamentType: 'LEAGUE',
-        startDate: '2024-06-01T00:00:00.000Z',
-        endDate: '2024-08-31T23:59:59.999Z',
-        maxTeams: 8,
-        registeredTeams: 6,
-        entryFee: 500,
-        prizePool: 3000,
-        status: 'UPCOMING',
-        createdBy: req.user.id,
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: '2',
-        name: 'Champions Cup',
-        description: 'Knockout tournament for the best teams',
-        tournamentType: 'KNOCKOUT',
-        startDate: '2024-05-15T00:00:00.000Z',
-        endDate: '2024-06-15T23:59:59.999Z',
-        maxTeams: 16,
-        registeredTeams: 12,
-        entryFee: 1000,
-        prizePool: 10000,
-        status: 'ACTIVE',
-        createdBy: req.user.id,
-        createdAt: new Date().toISOString()
-      }
-    ];
-
-    res.json({ tournaments: mockTournaments });
+    const tournaments = await database.getAllTournaments();
+    res.json({ tournaments });
   } catch (error) {
     console.error('Get tournaments error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -113,11 +80,10 @@ export const createTournament = async (req: AuthRequest, res: Response): Promise
       registeredTeams: 0
     };
 
-    // In a real implementation, we would save to database
-    // const createdTournament = await database.createTournament(tournament);
+    const createdTournament = await database.createTournament(tournament);
 
     res.status(201).json({
-      tournament,
+      tournament: createdTournament,
       message: 'Tournament created successfully'
     });
   } catch (error) {
@@ -135,29 +101,22 @@ export const getTournamentById = async (req: AuthRequest, res: Response): Promis
 
     const { id } = req.params;
 
-    // Mock tournament data
-    const mockTournament = {
-      id,
-      name: 'Summer League 2024',
-      description: 'Annual summer tournament for local teams',
-      tournamentType: 'LEAGUE',
-      startDate: '2024-06-01T00:00:00.000Z',
-      endDate: '2024-08-31T23:59:59.999Z',
-      maxTeams: 8,
-      registeredTeams: 6,
-      entryFee: 500,
-      prizePool: 3000,
-      status: 'UPCOMING',
-      createdBy: req.user.id,
-      createdAt: new Date().toISOString(),
-      teams: [
-        { id: '1', name: 'Local Rangers', points: 0, matches: 0, wins: 0, draws: 0, losses: 0 },
-        { id: '2', name: 'City United', points: 0, matches: 0, wins: 0, draws: 0, losses: 0 }
-      ],
+    const tournament = await database.getTournamentById(id);
+    if (!tournament) {
+      res.status(404).json({ error: 'Tournament not found' });
+      return;
+    }
+
+    // Get registered teams
+    const teams = await database.getTournamentTeams(id);
+    
+    const tournamentWithDetails = {
+      ...tournament,
+      teams,
       matches: []
     };
 
-    res.json({ tournament: mockTournament });
+    res.json({ tournament: tournamentWithDetails });
   } catch (error) {
     console.error('Get tournament by ID error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -179,6 +138,13 @@ export const registerTeamToTournament = async (req: AuthRequest, res: Response):
       return;
     }
 
+    // Verify tournament exists
+    const tournament = await database.getTournamentById(tournamentId);
+    if (!tournament) {
+      res.status(404).json({ error: 'Tournament not found' });
+      return;
+    }
+
     // Verify team exists
     const team = await database.getTeamById(teamId);
     if (!team) {
@@ -186,18 +152,30 @@ export const registerTeamToTournament = async (req: AuthRequest, res: Response):
       return;
     }
 
-    // In a real implementation, we would:
-    // 1. Check if tournament exists and is accepting registrations
-    // 2. Check if team is already registered
-    // 3. Check if tournament has space for more teams
-    // 4. Add team to tournament
+    // Check if tournament has space
+    if (tournament.registeredTeams >= tournament.maxTeams) {
+      res.status(400).json({ error: 'Tournament is full' });
+      return;
+    }
+
+    // Check if tournament is accepting registrations
+    if (tournament.status !== 'UPCOMING') {
+      res.status(400).json({ error: 'Tournament is not accepting registrations' });
+      return;
+    }
+
+    await database.registerTeamToTournament(tournamentId, teamId);
 
     res.json({
       message: 'Team registered to tournament successfully'
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Register team to tournament error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    if (error.message === 'Team is already registered for this tournament') {
+      res.status(400).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
   }
 };
 

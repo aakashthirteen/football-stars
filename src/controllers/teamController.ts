@@ -115,3 +115,155 @@ export const getTeamById = async (req: AuthRequest, res: Response): Promise<void
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export const getAllTeams = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const teams = await database.getAllTeams();
+    
+    // Get team players for each team
+    const teamsWithPlayers = await Promise.all(teams.map(async team => {
+      const teamPlayers = await database.getTeamPlayers(team.id);
+      const playersWithDetails = await Promise.all(teamPlayers.map(async tp => {
+        const player = await database.getPlayerById(tp.playerId);
+        return {
+          ...tp,
+          player,
+        };
+      }));
+      
+      return {
+        ...team,
+        players: playersWithDetails,
+        playerCount: playersWithDetails.length,
+      };
+    }));
+
+    res.json({ teams: teamsWithPlayers });
+  } catch (error) {
+    console.error('Get all teams error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const addPlayerToTeam = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id } = req.params;
+    const { playerId, role = 'PLAYER', jerseyNumber } = req.body;
+
+    if (!playerId) {
+      res.status(400).json({ error: 'Player ID is required' });
+      return;
+    }
+
+    // Check if team exists
+    const team = await database.getTeamById(id);
+    if (!team) {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+
+    // Check if player exists
+    const player = await database.getPlayerById(playerId);
+    if (!player) {
+      res.status(404).json({ error: 'Player not found' });
+      return;
+    }
+
+    // Check if player is already in team
+    const existingTeamPlayers = await database.getTeamPlayers(id);
+    const isPlayerInTeam = existingTeamPlayers.some(tp => tp.playerId === playerId);
+    if (isPlayerInTeam) {
+      res.status(400).json({ error: 'Player is already in this team' });
+      return;
+    }
+
+    // Auto-assign jersey number if not provided
+    let assignedJerseyNumber = jerseyNumber;
+    if (!assignedJerseyNumber) {
+      const usedNumbers = existingTeamPlayers.map(tp => tp.jerseyNumber).filter(num => num);
+      assignedJerseyNumber = 1;
+      while (usedNumbers.includes(assignedJerseyNumber)) {
+        assignedJerseyNumber++;
+      }
+    }
+
+    const teamPlayer = {
+      id: uuidv4(),
+      teamId: id,
+      playerId,
+      role: role as 'CAPTAIN' | 'VICE_CAPTAIN' | 'PLAYER',
+      jerseyNumber: assignedJerseyNumber,
+      joinedAt: new Date(),
+    };
+
+    await database.addPlayerToTeam(teamPlayer);
+
+    res.status(201).json({
+      message: 'Player added to team successfully',
+      teamPlayer,
+    });
+  } catch (error) {
+    console.error('Add player to team error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const removePlayerFromTeam = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id, playerId } = req.params;
+
+    // Check if team exists
+    const team = await database.getTeamById(id);
+    if (!team) {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+
+    // Check if player is in team
+    const teamPlayers = await database.getTeamPlayers(id);
+    const teamPlayer = teamPlayers.find(tp => tp.playerId === playerId);
+    if (!teamPlayer) {
+      res.status(404).json({ error: 'Player not found in team' });
+      return;
+    }
+
+    await database.removePlayerFromTeam(id, playerId);
+
+    res.json({ message: 'Player removed from team successfully' });
+  } catch (error) {
+    console.error('Remove player from team error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getAvailablePlayers = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { teamId } = req.query;
+    
+    const allPlayers = await database.getAllPlayers();
+    
+    if (teamId) {
+      // If team ID is provided, exclude players already in that team
+      const teamPlayers = await database.getTeamPlayers(teamId as string);
+      const teamPlayerIds = teamPlayers.map(tp => tp.playerId);
+      const availablePlayers = allPlayers.filter(player => !teamPlayerIds.includes(player.id));
+      res.json({ players: availablePlayers });
+    } else {
+      // Return all players
+      res.json({ players: allPlayers });
+    }
+  } catch (error) {
+    console.error('Get available players error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
