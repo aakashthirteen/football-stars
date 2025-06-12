@@ -1,0 +1,10 @@
+node_modules/
+.git/
+.DS_Store
+*.log
+.env
+football_app.db
+football-app/
+dist/
+.cache/
+.npm/
