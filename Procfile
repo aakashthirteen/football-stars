@@ -1,1 +1,1 @@
-web: npm run railway-start
+web: npm start
