@@ -10,20 +10,30 @@ export const getUserMatches = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    const matches = await database.getMatchesByUserId(req.user.id);
+    const matches = await database.getAllMatches(); // Get all matches for now
     
-    // Get teams and events for each match
+    // Get teams and events for each match with null safety
     const matchesWithDetails = await Promise.all(matches.map(async match => {
-      const homeTeam = await database.getTeamById(match.homeTeamId);
-      const awayTeam = await database.getTeamById(match.awayTeamId);
-      const events = await database.getMatchEvents(match.id);
-      
-      return {
-        ...match,
-        homeTeam,
-        awayTeam,
-        events,
-      };
+      try {
+        const homeTeam = await database.getTeamById(match.homeTeamId);
+        const awayTeam = await database.getTeamById(match.awayTeamId);
+        const events = await database.getMatchEvents(match.id);
+        
+        return {
+          ...match,
+          homeTeam: homeTeam || { name: 'Unknown Team' },
+          awayTeam: awayTeam || { name: 'Unknown Team' },
+          events: events || [],
+        };
+      } catch (error) {
+        console.error(`Error loading details for match ${match.id}:`, error);
+        return {
+          ...match,
+          homeTeam: { name: 'Unknown Team' },
+          awayTeam: { name: 'Unknown Team' },
+          events: [],
+        };
+      }
     }));
 
     res.json({ matches: matchesWithDetails });

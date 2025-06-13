@@ -17,10 +17,10 @@ interface MatchesScreenProps {
 
 interface Match {
   id: string;
-  homeTeam: { name: string };
-  awayTeam: { name: string };
-  homeScore: number;
-  awayScore: number;
+  homeTeam?: { name: string } | null;
+  awayTeam?: { name: string } | null;
+  homeScore?: number;
+  awayScore?: number;
   status: string;
   matchDate: string;
   venue?: string;
@@ -41,10 +41,18 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
     try {
       setIsLoading(true);
       const response = await apiService.getMatches();
-      setMatches(response.matches || []);
+      console.log('📊 Matches loaded:', response);
+      
+      // Ensure we have valid matches with proper structure
+      const validMatches = (response.matches || []).filter((match: any) => 
+        match && match.id && match.status && match.matchDate
+      );
+      
+      setMatches(validMatches);
     } catch (error: any) {
-      console.error('Error loading matches:', error);
-      Alert.alert('Error', 'Failed to load matches');
+      console.error('❌ Error loading matches:', error);
+      Alert.alert('Error', 'Failed to load matches. Please try again.');
+      setMatches([]);
     } finally {
       setIsLoading(false);
     }
@@ -75,48 +83,63 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    try {
+      if (!dateString) return 'Date TBD';
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid Date';
+      return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Date Error';
+    }
   };
 
-  const renderMatch = ({ item }: { item: Match }) => (
-    <TouchableOpacity 
-      style={styles.matchCard}
-      onPress={() => navigation.navigate('MatchScoring', { matchId: item.id })}
-    >
-      <View style={styles.matchHeader}>
-        <Text style={styles.matchDate}>{formatDate(item.matchDate)}</Text>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-          <Text style={styles.statusIcon}>{getStatusIcon(item.status)}</Text>
-          <Text style={styles.statusText}>{item.status}</Text>
-        </View>
-      </View>
-      
-      <View style={styles.matchDetails}>
-        <View style={styles.team}>
-          <Text style={styles.teamName}>{item.homeTeam.name}</Text>
-          <Text style={styles.score}>{item.homeScore}</Text>
+  const renderMatch = ({ item }: { item: Match }) => {
+    // Add null safety for team names
+    const homeTeamName = item.homeTeam?.name || 'Home Team';
+    const awayTeamName = item.awayTeam?.name || 'Away Team';
+    const homeScore = item.homeScore ?? 0;
+    const awayScore = item.awayScore ?? 0;
+
+    return (
+      <TouchableOpacity 
+        style={styles.matchCard}
+        onPress={() => navigation.navigate('MatchScoring', { matchId: item.id })}
+      >
+        <View style={styles.matchHeader}>
+          <Text style={styles.matchDate}>{formatDate(item.matchDate)}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+            <Text style={styles.statusIcon}>{getStatusIcon(item.status)}</Text>
+            <Text style={styles.statusText}>{item.status}</Text>
+          </View>
         </View>
         
-        <Text style={styles.vs}>vs</Text>
-        
-        <View style={styles.team}>
-          <Text style={styles.score}>{item.awayScore}</Text>
-          <Text style={styles.teamName}>{item.awayTeam.name}</Text>
+        <View style={styles.matchDetails}>
+          <View style={styles.team}>
+            <Text style={styles.teamName}>{homeTeamName}</Text>
+            <Text style={styles.score}>{homeScore}</Text>
+          </View>
+          
+          <Text style={styles.vs}>vs</Text>
+          
+          <View style={styles.team}>
+            <Text style={styles.score}>{awayScore}</Text>
+            <Text style={styles.teamName}>{awayTeamName}</Text>
+          </View>
         </View>
-      </View>
 
-      {item.venue && (
-        <Text style={styles.venue}>📍 {item.venue}</Text>
-      )}
+        {item.venue && (
+          <Text style={styles.venue}>📍 {item.venue}</Text>
+        )}
 
-      <View style={styles.matchFooter}>
-        <Text style={styles.tapToView}>
-          {item.status === 'LIVE' ? 'Tap to Score Live' : 'Tap to View'}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
+        <View style={styles.matchFooter}>
+          <Text style={styles.tapToView}>
+            {item.status === 'LIVE' ? 'Tap to Score Live' : 'Tap to View'}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.container}>
