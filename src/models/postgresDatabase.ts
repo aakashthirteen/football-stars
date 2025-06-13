@@ -313,11 +313,19 @@ export class PostgresDatabase {
 
   // Match operations
   async createMatch(homeTeamId: string, awayTeamId: string, venue: string, matchDate: string, duration: number, createdBy: string): Promise<Match> {
+    console.log('💾 Inserting match into database:', {
+      homeTeamId, awayTeamId, venue, matchDate, duration, createdBy
+    });
+    
     const result = await this.pool.query(
       'INSERT INTO matches (home_team_id, away_team_id, venue, match_date, duration, created_by, home_score, away_score, status) VALUES ($1, $2, $3, $4, $5, $6, 0, 0, $7) RETURNING *',
       [homeTeamId, awayTeamId, venue, matchDate, duration, createdBy, 'SCHEDULED']
     );
-    return { ...result.rows[0], events: [] };
+    
+    const createdMatch = result.rows[0];
+    console.log('✅ Match inserted successfully:', createdMatch);
+    
+    return { ...createdMatch, events: [] };
   }
 
   async getAllMatches(): Promise<Match[]> {
@@ -533,6 +541,8 @@ export class PostgresDatabase {
   }
 
   async getMatchesByUserId(userId: string): Promise<Match[]> {
+    console.log('🔍 Querying matches for user:', userId);
+    
     const result = await this.pool.query(`
       SELECT m.*, 
              ht.name as home_team_name,
@@ -543,6 +553,16 @@ export class PostgresDatabase {
       WHERE m.created_by = $1
       ORDER BY m.match_date DESC
     `, [userId]);
+    
+    console.log(`📊 Database query returned ${result.rows.length} matches`);
+    if (result.rows.length > 0) {
+      console.log('📋 Raw match data:', result.rows.map(row => ({
+        id: row.id,
+        created_by: row.created_by,
+        home_team_name: row.home_team_name,
+        away_team_name: row.away_team_name
+      })));
+    }
     
     return result.rows.map(row => ({
       ...row,

@@ -14,6 +14,16 @@ export const getUserMatches = async (req: AuthRequest, res: Response): Promise<v
     const matches = await database.getMatchesByUserId(req.user.id);
     console.log(`📊 Found ${matches.length} matches from database`);
     
+    if (matches.length > 0) {
+      console.log('📋 Match details:', matches.map(m => ({
+        id: m.id,
+        status: m.status,
+        homeTeam: (m as any).homeTeam?.name,
+        awayTeam: (m as any).awayTeam?.name,
+        createdBy: (m as any).created_by || m.createdBy
+      })));
+    }
+    
     // Since getMatchesByUserId now includes team names via LEFT JOIN, we can use it directly
     const matchesWithEvents = await Promise.all(matches.map(async match => {
       try {
@@ -117,6 +127,15 @@ export const createMatch = async (req: AuthRequest, res: Response): Promise<void
       createdAt: new Date(),
     };
 
+    console.log('🏗️ Creating match with data:', {
+      homeTeamId,
+      awayTeamId, 
+      venue: venue || '', 
+      matchDate, 
+      duration: duration || 90, 
+      createdBy: req.user.id
+    });
+
     const createdMatch = await database.createMatch(
       homeTeamId, 
       awayTeamId, 
@@ -126,13 +145,19 @@ export const createMatch = async (req: AuthRequest, res: Response): Promise<void
       req.user.id
     );
 
+    console.log('✅ Match created in database:', createdMatch);
+
+    const responseMatch = {
+      ...createdMatch,
+      homeTeam,
+      awayTeam,
+      events: [],
+    };
+
+    console.log('📤 Sending match response:', responseMatch);
+
     res.status(201).json({
-      match: {
-        ...createdMatch,
-        homeTeam,
-        awayTeam,
-        events: [],
-      },
+      match: responseMatch,
       message: 'Match created successfully',
     });
   } catch (error) {
