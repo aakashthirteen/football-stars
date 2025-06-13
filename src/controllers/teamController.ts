@@ -155,6 +155,8 @@ export const addPlayerToTeam = async (req: AuthRequest, res: Response): Promise<
     const { id } = req.params;
     const { playerId, role = 'PLAYER', jerseyNumber } = req.body;
 
+    console.log('🏃‍♂️ Adding player to team:', { teamId: id, playerId, role, jerseyNumber });
+
     if (!playerId) {
       res.status(400).json({ error: 'Player ID is required' });
       return;
@@ -163,6 +165,7 @@ export const addPlayerToTeam = async (req: AuthRequest, res: Response): Promise<
     // Check if team exists
     const team = await database.getTeamById(id);
     if (!team) {
+      console.log('❌ Team not found:', id);
       res.status(404).json({ error: 'Team not found' });
       return;
     }
@@ -170,6 +173,7 @@ export const addPlayerToTeam = async (req: AuthRequest, res: Response): Promise<
     // Check if player exists
     const player = await database.getPlayerById(playerId);
     if (!player) {
+      console.log('❌ Player not found:', playerId);
       res.status(404).json({ error: 'Player not found' });
       return;
     }
@@ -178,6 +182,7 @@ export const addPlayerToTeam = async (req: AuthRequest, res: Response): Promise<
     const existingTeamPlayers = await database.getTeamPlayers(id);
     const isPlayerInTeam = existingTeamPlayers.some(tp => tp.playerId === playerId);
     if (isPlayerInTeam) {
+      console.log('❌ Player already in team:', playerId);
       res.status(400).json({ error: 'Player is already in this team' });
       return;
     }
@@ -187,8 +192,15 @@ export const addPlayerToTeam = async (req: AuthRequest, res: Response): Promise<
     if (!assignedJerseyNumber) {
       const usedNumbers = existingTeamPlayers.map(tp => tp.jerseyNumber).filter(num => num);
       assignedJerseyNumber = 1;
-      while (usedNumbers.includes(assignedJerseyNumber)) {
+      while (usedNumbers.includes(assignedJerseyNumber) && assignedJerseyNumber <= 99) {
         assignedJerseyNumber++;
+      }
+    } else {
+      // Check if jersey number is already taken
+      const isJerseyTaken = existingTeamPlayers.some(tp => tp.jerseyNumber === assignedJerseyNumber);
+      if (isJerseyTaken) {
+        res.status(400).json({ error: `Jersey number ${assignedJerseyNumber} is already taken` });
+        return;
       }
     }
 
@@ -201,15 +213,29 @@ export const addPlayerToTeam = async (req: AuthRequest, res: Response): Promise<
       joinedAt: new Date(),
     };
 
-    await database.addPlayerToTeam(teamPlayer);
+    console.log('💾 Saving team player:', teamPlayer);
+    const savedTeamPlayer = await database.addPlayerToTeam(teamPlayer);
+    console.log('✅ Player added successfully:', savedTeamPlayer);
 
     res.status(201).json({
       message: 'Player added to team successfully',
-      teamPlayer,
+      teamPlayer: savedTeamPlayer,
     });
-  } catch (error) {
-    console.error('Add player to team error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+  } catch (error: any) {
+    console.error('❌ Add player to team error:', error);
+    
+    // Handle specific database errors
+    if (error.code === '23505') { // Unique constraint violation
+      if (error.constraint === 'team_players_team_id_player_id_key') {
+        res.status(400).json({ error: 'Player is already in this team' });
+      } else if (error.constraint === 'team_players_team_id_jersey_number_key') {
+        res.status(400).json({ error: 'Jersey number is already taken' });
+      } else {
+        res.status(400).json({ error: 'Duplicate entry detected' });
+      }
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
   }
 };
 
