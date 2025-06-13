@@ -40,14 +40,37 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
   const loadMatches = async () => {
     try {
       setIsLoading(true);
+      console.log('🔄 Loading matches...');
+      
       const response = await apiService.getMatches();
-      console.log('📊 Matches loaded:', response);
+      console.log('📊 Raw matches response:', JSON.stringify(response, null, 2));
+      
+      if (!response) {
+        console.log('❌ No response received');
+        setMatches([]);
+        return;
+      }
+      
+      const matchesArray = response.matches || [];
+      console.log(`📋 Found ${matchesArray.length} matches`);
+      
+      // Log each match for debugging
+      matchesArray.forEach((match: any, index: number) => {
+        console.log(`Match ${index + 1}:`, {
+          id: match.id,
+          homeTeam: match.homeTeam?.name,
+          awayTeam: match.awayTeam?.name,
+          status: match.status,
+          date: match.matchDate
+        });
+      });
       
       // Ensure we have valid matches with proper structure
-      const validMatches = (response.matches || []).filter((match: any) => 
+      const validMatches = matchesArray.filter((match: any) => 
         match && match.id && match.status && match.matchDate
       );
       
+      console.log(`✅ ${validMatches.length} valid matches after filtering`);
       setMatches(validMatches);
     } catch (error: any) {
       console.error('❌ Error loading matches:', error);

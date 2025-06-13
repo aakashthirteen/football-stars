@@ -10,35 +10,31 @@ export const getUserMatches = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    const matches = await database.getAllMatches(); // Get all matches for now
+    console.log('🔍 Getting matches for user:', req.user.id);
+    const matches = await database.getMatchesByUserId(req.user.id);
+    console.log(`📊 Found ${matches.length} matches from database`);
     
-    // Get teams and events for each match with null safety
-    const matchesWithDetails = await Promise.all(matches.map(async match => {
+    // Since getMatchesByUserId now includes team names via LEFT JOIN, we can use it directly
+    const matchesWithEvents = await Promise.all(matches.map(async match => {
       try {
-        const homeTeam = await database.getTeamById(match.homeTeamId);
-        const awayTeam = await database.getTeamById(match.awayTeamId);
-        const events = await database.getMatchEvents(match.id);
-        
+        const events = await database.getMatchEvents(match.id) || [];
         return {
           ...match,
-          homeTeam: homeTeam || { name: 'Unknown Team' },
-          awayTeam: awayTeam || { name: 'Unknown Team' },
-          events: events || [],
+          events,
         };
       } catch (error) {
-        console.error(`Error loading details for match ${match.id}:`, error);
+        console.error(`Error loading events for match ${match.id}:`, error);
         return {
           ...match,
-          homeTeam: { name: 'Unknown Team' },
-          awayTeam: { name: 'Unknown Team' },
           events: [],
         };
       }
     }));
 
-    res.json({ matches: matchesWithDetails });
+    console.log(`✅ Returning ${matchesWithEvents.length} matches with details`);
+    res.json({ matches: matchesWithEvents });
   } catch (error) {
-    console.error('Get matches error:', error);
+    console.error('❌ Get matches error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

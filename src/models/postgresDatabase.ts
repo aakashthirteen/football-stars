@@ -326,15 +326,15 @@ export class PostgresDatabase {
              ht.name as home_team_name,
              at.name as away_team_name
       FROM matches m
-      JOIN teams ht ON m.home_team_id = ht.id
-      JOIN teams at ON m.away_team_id = at.id
+      LEFT JOIN teams ht ON m.home_team_id = ht.id
+      LEFT JOIN teams at ON m.away_team_id = at.id
       ORDER BY m.match_date DESC
     `);
     
     return result.rows.map(row => ({
       ...row,
-      homeTeam: { name: row.home_team_name },
-      awayTeam: { name: row.away_team_name },
+      homeTeam: { name: row.home_team_name || 'Unknown Home Team' },
+      awayTeam: { name: row.away_team_name || 'Unknown Away Team' },
       events: []
     }));
   }
@@ -517,16 +517,16 @@ export class PostgresDatabase {
              ht.name as home_team_name,
              at.name as away_team_name
       FROM matches m
-      JOIN teams ht ON m.home_team_id = ht.id
-      JOIN teams at ON m.away_team_id = at.id
+      LEFT JOIN teams ht ON m.home_team_id = ht.id
+      LEFT JOIN teams at ON m.away_team_id = at.id
       WHERE m.created_by = $1
       ORDER BY m.match_date DESC
     `, [userId]);
     
     return result.rows.map(row => ({
       ...row,
-      homeTeam: { name: row.home_team_name },
-      awayTeam: { name: row.away_team_name },
+      homeTeam: { name: row.home_team_name || 'Unknown Home Team' },
+      awayTeam: { name: row.away_team_name || 'Unknown Away Team' },
       events: []
     }));
   }
