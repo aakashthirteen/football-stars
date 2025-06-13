@@ -12,20 +12,12 @@ export const getUserTeams = async (req: AuthRequest, res: Response): Promise<voi
 
     const teams = await database.getTeamsByUserId(req.user.id);
     
-    // Get team players for each team
+    // Get team players for each team (now includes full player details)
     const teamsWithPlayers = await Promise.all(teams.map(async team => {
       const teamPlayers = await database.getTeamPlayers(team.id);
-      const playersWithDetails = await Promise.all(teamPlayers.map(async tp => {
-        const player = await database.getPlayerById(tp.playerId);
-        return {
-          ...tp,
-          player,
-        };
-      }));
-      
       return {
         ...team,
-        players: playersWithDetails,
+        players: teamPlayers,
       };
     }));
 
@@ -94,19 +86,13 @@ export const getTeamById = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    // Get team players
+    // Get team players (now includes full player details)
     const teamPlayers = await database.getTeamPlayers(id);
-    const playersWithDetails = await Promise.all(teamPlayers.map(async tp => {
-      const player = await database.getPlayerById(tp.playerId);
-      return {
-        ...tp,
-        player,
-      };
-    }));
+    console.log(`📊 Found ${teamPlayers.length} players for team ${id}`);
 
     const teamWithPlayers = {
       ...team,
-      players: playersWithDetails,
+      players: teamPlayers,
     };
 
     res.json({ team: teamWithPlayers });
@@ -120,21 +106,13 @@ export const getAllTeams = async (req: AuthRequest, res: Response): Promise<void
   try {
     const teams = await database.getAllTeams();
     
-    // Get team players for each team
+    // Get team players for each team (now includes full player details)
     const teamsWithPlayers = await Promise.all(teams.map(async team => {
       const teamPlayers = await database.getTeamPlayers(team.id);
-      const playersWithDetails = await Promise.all(teamPlayers.map(async tp => {
-        const player = await database.getPlayerById(tp.playerId);
-        return {
-          ...tp,
-          player,
-        };
-      }));
-      
       return {
         ...team,
-        players: playersWithDetails,
-        playerCount: playersWithDetails.length,
+        players: teamPlayers,
+        playerCount: teamPlayers.length,
       };
     }));
 
@@ -180,7 +158,7 @@ export const addPlayerToTeam = async (req: AuthRequest, res: Response): Promise<
 
     // Check if player is already in team
     const existingTeamPlayers = await database.getTeamPlayers(id);
-    const isPlayerInTeam = existingTeamPlayers.some(tp => tp.playerId === playerId);
+    const isPlayerInTeam = existingTeamPlayers.some(tp => tp.player_id === playerId);
     if (isPlayerInTeam) {
       console.log('❌ Player already in team:', playerId);
       res.status(400).json({ error: 'Player is already in this team' });
@@ -190,14 +168,14 @@ export const addPlayerToTeam = async (req: AuthRequest, res: Response): Promise<
     // Auto-assign jersey number if not provided
     let assignedJerseyNumber = jerseyNumber;
     if (!assignedJerseyNumber) {
-      const usedNumbers = existingTeamPlayers.map(tp => tp.jerseyNumber).filter(num => num);
+      const usedNumbers = existingTeamPlayers.map(tp => tp.jersey_number).filter(num => num);
       assignedJerseyNumber = 1;
       while (usedNumbers.includes(assignedJerseyNumber) && assignedJerseyNumber <= 99) {
         assignedJerseyNumber++;
       }
     } else {
       // Check if jersey number is already taken
-      const isJerseyTaken = existingTeamPlayers.some(tp => tp.jerseyNumber === assignedJerseyNumber);
+      const isJerseyTaken = existingTeamPlayers.some(tp => tp.jersey_number === assignedJerseyNumber);
       if (isJerseyTaken) {
         res.status(400).json({ error: `Jersey number ${assignedJerseyNumber} is already taken` });
         return;
@@ -248,26 +226,37 @@ export const removePlayerFromTeam = async (req: AuthRequest, res: Response): Pro
 
     const { id, playerId } = req.params;
 
+    console.log('🗑️ Removing player from team:', { teamId: id, playerId });
+
     // Check if team exists
     const team = await database.getTeamById(id);
     if (!team) {
+      console.log('❌ Team not found:', id);
       res.status(404).json({ error: 'Team not found' });
       return;
     }
 
     // Check if player is in team
     const teamPlayers = await database.getTeamPlayers(id);
-    const teamPlayer = teamPlayers.find(tp => tp.playerId === playerId);
+    console.log('👥 Current team players:', teamPlayers.map(tp => ({ 
+      id: tp.id, 
+      playerId: tp.player_id, 
+      playerName: tp.player?.name 
+    })));
+    
+    const teamPlayer = teamPlayers.find(tp => tp.player_id === playerId);
     if (!teamPlayer) {
+      console.log('❌ Player not found in team. Looking for playerId:', playerId);
       res.status(404).json({ error: 'Player not found in team' });
       return;
     }
 
+    console.log('✅ Found player in team, removing...');
     await database.removePlayerFromTeam(id, playerId);
 
     res.json({ message: 'Player removed from team successfully' });
   } catch (error) {
-    console.error('Remove player from team error:', error);
+    console.error('❌ Remove player from team error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

@@ -479,12 +479,31 @@ export class PostgresDatabase {
 
   async getTeamPlayers(teamId: string): Promise<any[]> {
     const result = await this.pool.query(`
-      SELECT tp.*, p.name as player_name, p.position
+      SELECT tp.*, 
+             p.name as player_name, 
+             p.position,
+             p.user_id,
+             p.preferred_foot,
+             p.bio,
+             p.location
       FROM team_players tp
-      JOIN players p ON tp.player_id = p.id
+      LEFT JOIN players p ON tp.player_id = p.id
       WHERE tp.team_id = $1
+      ORDER BY tp.role DESC, tp.jersey_number ASC
     `, [teamId]);
-    return result.rows;
+    
+    return result.rows.map(row => ({
+      ...row,
+      player: {
+        id: row.player_id,
+        name: row.player_name || 'Unknown Player',
+        position: row.position || 'Unknown',
+        userId: row.user_id,
+        preferredFoot: row.preferred_foot,
+        bio: row.bio,
+        location: row.location
+      }
+    }));
   }
 
   async getPlayerById(id: string): Promise<any | null> {
