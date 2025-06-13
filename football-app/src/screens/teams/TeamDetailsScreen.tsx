@@ -57,11 +57,32 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
     try {
       setIsLoading(true);
       const response = await apiService.getTeamById(teamId);
-      setTeam(response.team);
+      console.log('📊 Team details response:', JSON.stringify(response, null, 2));
+      
+      // Transform the player data to match our interface
+      if (response.team && response.team.players) {
+        const transformedPlayers = response.team.players.map((tp: any) => ({
+          id: tp.player_id || tp.playerId,
+          name: tp.player?.name || tp.player_name || 'Unknown Player',
+          position: tp.player?.position || tp.position || 'Unknown',
+          jerseyNumber: tp.jersey_number || tp.jerseyNumber,
+          role: tp.role || 'PLAYER'
+        }));
+        
+        console.log('🔄 Transformed players:', transformedPlayers);
+        
+        setTeam({
+          ...response.team,
+          players: transformedPlayers
+        });
+      } else {
+        setTeam(response.team);
+      }
       
       // Load team stats after getting team details
       await loadTeamStats();
     } catch (error: any) {
+      console.error('❌ Error loading team details:', error);
       Alert.alert('Error', 'Failed to load team details');
       navigation.goBack();
     } finally {
@@ -101,7 +122,9 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
   };
 
   const getPlayerStats = (playerId: string) => {
-    return teamStats.find(stats => stats.playerId === playerId);
+    const stats = teamStats.find(stats => stats.playerId === playerId);
+    console.log(`📈 Stats for player ${playerId}:`, stats);
+    return stats;
   };
 
   const removePlayerFromTeam = async (playerId: string, playerName: string) => {

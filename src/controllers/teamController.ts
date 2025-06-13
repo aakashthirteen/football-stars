@@ -89,12 +89,14 @@ export const getTeamById = async (req: AuthRequest, res: Response): Promise<void
     // Get team players (now includes full player details)
     const teamPlayers = await database.getTeamPlayers(id);
     console.log(`📊 Found ${teamPlayers.length} players for team ${id}`);
+    console.log('👥 Team players data:', JSON.stringify(teamPlayers, null, 2));
 
     const teamWithPlayers = {
       ...team,
       players: teamPlayers,
     };
 
+    console.log('🏆 Final team response:', JSON.stringify(teamWithPlayers, null, 2));
     res.json({ team: teamWithPlayers });
   } catch (error) {
     console.error('Get team error:', error);
