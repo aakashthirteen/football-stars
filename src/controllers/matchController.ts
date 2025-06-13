@@ -43,25 +43,34 @@ export const endMatch = async (req: AuthRequest, res: Response): Promise<void> =
   try {
     const { id } = req.params;
     
+    console.log('🏁 Ending match:', id);
+    
     const match = await database.getMatchById(id);
     if (!match) {
+      console.log('❌ Match not found:', id);
       res.status(404).json({ error: 'Match not found' });
       return;
     }
 
+    console.log('📊 Current match status:', match.status);
+    
     if (match.status !== 'LIVE') {
-      res.status(400).json({ error: 'Match can only be ended from live status' });
+      console.log('❌ Match not live, cannot end. Status:', match.status);
+      res.status(400).json({ error: `Match can only be ended from live status. Current status: ${match.status}` });
       return;
     }
 
+    console.log('✅ Updating match status to COMPLETED');
     const updatedMatch = await database.updateMatch(id, { status: 'COMPLETED' });
+    
+    console.log('🎉 Match ended successfully:', updatedMatch?.status);
 
     res.json({
       match: updatedMatch,
       message: 'Match ended successfully',
     });
   } catch (error) {
-    console.error('End match error:', error);
+    console.error('❌ End match error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -179,6 +188,18 @@ export const getMatchById = async (req: AuthRequest, res: Response): Promise<voi
       homeScore: match.homeScore || 0,
       awayScore: match.awayScore || 0,
     };
+
+    console.log('⚽ Match details with teams and players:', {
+      id: matchWithDetails.id,
+      homeTeam: {
+        name: matchWithDetails.homeTeam?.name,
+        playersCount: (matchWithDetails.homeTeam as any)?.players?.length || 0
+      },
+      awayTeam: {
+        name: matchWithDetails.awayTeam?.name,
+        playersCount: (matchWithDetails.awayTeam as any)?.players?.length || 0
+      }
+    });
 
     res.json({ match: matchWithDetails });
   } catch (error) {

@@ -135,14 +135,25 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       
       // Add null safety for team data
       if (!matchData.homeTeam) {
-        matchData.homeTeam = { name: 'Home Team' };
+        matchData.homeTeam = { name: 'Home Team', players: [] };
+      } else if (!matchData.homeTeam.players) {
+        matchData.homeTeam.players = [];
       }
+      
       if (!matchData.awayTeam) {
-        matchData.awayTeam = { name: 'Away Team' };
+        matchData.awayTeam = { name: 'Away Team', players: [] };
+      } else if (!matchData.awayTeam.players) {
+        matchData.awayTeam.players = [];
       }
+      
       if (!matchData.events) {
         matchData.events = [];
       }
+      
+      console.log('👥 Team players count:', {
+        homeTeam: matchData.homeTeam.players?.length || 0,
+        awayTeam: matchData.awayTeam.players?.length || 0
+      });
       
       setMatch(matchData);
       setIsLive(matchData.status === 'LIVE');
