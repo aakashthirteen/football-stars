@@ -148,6 +148,19 @@ export class PostgresDatabase {
         )
       `);
 
+      // Tournament matches table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS tournament_matches (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          tournament_id UUID REFERENCES tournaments(id) ON DELETE CASCADE,
+          match_id UUID REFERENCES matches(id) ON DELETE CASCADE,
+          round_number INTEGER,
+          group_name VARCHAR(10),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(tournament_id, match_id)
+        )
+      `);
+
       // Seed initial data
       await this.seedData(client);
       
@@ -330,7 +343,9 @@ export class PostgresDatabase {
     const result = await this.pool.query(`
       SELECT m.*, 
              ht.name as home_team_name,
-             at.name as away_team_name
+             ht.id as home_team_id,
+             at.name as away_team_name,
+             at.id as away_team_id
       FROM matches m
       JOIN teams ht ON m.home_team_id = ht.id
       JOIN teams at ON m.away_team_id = at.id
@@ -339,10 +354,44 @@ export class PostgresDatabase {
     
     if (result.rows[0]) {
       const match = result.rows[0];
+      
+      // Get team players for both teams
+      const homePlayersResult = await this.pool.query(`
+        SELECT p.id, p.name, p.position, tp.jersey_number
+        FROM team_players tp
+        JOIN players p ON tp.player_id = p.id
+        WHERE tp.team_id = $1
+      `, [match.home_team_id]);
+      
+      const awayPlayersResult = await this.pool.query(`
+        SELECT p.id, p.name, p.position, tp.jersey_number
+        FROM team_players tp
+        JOIN players p ON tp.player_id = p.id
+        WHERE tp.team_id = $1
+      `, [match.away_team_id]);
+      
       return {
         ...match,
-        homeTeam: { name: match.home_team_name },
-        awayTeam: { name: match.away_team_name },
+        homeTeam: { 
+          id: match.home_team_id,
+          name: match.home_team_name,
+          players: homePlayersResult.rows.map(p => ({
+            id: p.id,
+            name: p.name,
+            position: p.position,
+            jerseyNumber: p.jersey_number
+          }))
+        },
+        awayTeam: { 
+          id: match.away_team_id,
+          name: match.away_team_name,
+          players: awayPlayersResult.rows.map(p => ({
+            id: p.id,
+            name: p.name,
+            position: p.position,
+            jerseyNumber: p.jersey_number
+          }))
+        },
         events: []
       };
     }
@@ -484,13 +533,17 @@ export class PostgresDatabase {
 
   async getMatchEvents(matchId: string): Promise<MatchEvent[]> {
     const result = await this.pool.query(`
-      SELECT me.*, p.name as player_name
+      SELECT me.*, 
+             json_build_object('id', p.id, 'name', p.name, 'position', p.position) as player
       FROM match_events me
       JOIN players p ON me.player_id = p.id
       WHERE me.match_id = $1
       ORDER BY me.minute ASC
     `, [matchId]);
-    return result.rows;
+    return result.rows.map(row => ({
+      ...row,
+      player: row.player
+    }));
   }
 
   async updateMatch(id: string, updates: any): Promise<Match | null> {
@@ -507,7 +560,7 @@ export class PostgresDatabase {
   async createMatchEvent(event: any): Promise<MatchEvent> {
     const result = await this.pool.query(
       'INSERT INTO match_events (match_id, player_id, team_id, event_type, minute, description) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [event.matchId, event.playerId, event.teamId, event.type, event.minute, event.description]
+      [event.matchId, event.playerId, event.teamId, event.eventType, event.minute, event.description]
     );
     return result.rows[0];
   }
@@ -650,7 +703,186 @@ export class PostgresDatabase {
     return result.rows;
   }
 
+  async getTournamentStandings(tournamentId: string): Promise<any[]> {
+    const result = await this.pool.query(`
+      WITH tournament_team_stats AS (
+        SELECT 
+          t.id as team_id,
+          t.name as team_name,
+          COUNT(DISTINCT m.id) as matches_played,
+          COUNT(DISTINCT CASE 
+            WHEN (m.home_team_id = t.id AND m.home_score > m.away_score) OR 
+                 (m.away_team_id = t.id AND m.away_score > m.home_score) 
+            THEN m.id 
+          END) as wins,
+          COUNT(DISTINCT CASE 
+            WHEN m.home_score = m.away_score 
+            THEN m.id 
+          END) as draws,
+          COUNT(DISTINCT CASE 
+            WHEN (m.home_team_id = t.id AND m.home_score < m.away_score) OR 
+                 (m.away_team_id = t.id AND m.away_score < m.home_score) 
+            THEN m.id 
+          END) as losses,
+          COALESCE(SUM(CASE WHEN m.home_team_id = t.id THEN m.home_score ELSE 0 END) +
+                   SUM(CASE WHEN m.away_team_id = t.id THEN m.away_score ELSE 0 END), 0) as goals_for,
+          COALESCE(SUM(CASE WHEN m.home_team_id = t.id THEN m.away_score ELSE 0 END) +
+                   SUM(CASE WHEN m.away_team_id = t.id THEN m.home_score ELSE 0 END), 0) as goals_against
+        FROM tournament_teams tt
+        JOIN teams t ON tt.team_id = t.id
+        LEFT JOIN tournament_matches tm ON tm.tournament_id = tt.tournament_id
+        LEFT JOIN matches m ON tm.match_id = m.id 
+          AND m.status = 'COMPLETED'
+          AND (m.home_team_id = t.id OR m.away_team_id = t.id)
+        WHERE tt.tournament_id = $1
+        GROUP BY t.id, t.name
+      )
+      SELECT 
+        ROW_NUMBER() OVER (ORDER BY 
+          (wins * 3 + draws) DESC, 
+          (goals_for - goals_against) DESC, 
+          goals_for DESC,
+          team_name ASC
+        ) as position,
+        team_id,
+        team_name,
+        matches_played as matches,
+        wins,
+        draws,
+        losses,
+        goals_for::integer as "goalsFor",
+        goals_against::integer as "goalsAgainst",
+        (goals_for - goals_against)::integer as "goalDifference",
+        (wins * 3 + draws) as points
+      FROM tournament_team_stats
+      ORDER BY position
+    `, [tournamentId]);
+    return result.rows;
+  }
+
   async close(): Promise<void> {
     await this.pool.end();
+  }
+
+  async searchPlayers(filters: { query?: string; position?: string; location?: string; limit: number }): Promise<any[]> {
+    let query = `
+      SELECT DISTINCT p.*, 
+             COALESCE(ps.matches_played, 0) as matches_played,
+             COALESCE(ps.goals, 0) as goals,
+             COALESCE(ps.assists, 0) as assists
+      FROM players p
+      LEFT JOIN (
+        SELECT 
+          player_id,
+          COUNT(DISTINCT match_id) as matches_played,
+          COUNT(CASE WHEN event_type = 'GOAL' THEN 1 END) as goals,
+          COUNT(CASE WHEN event_type = 'ASSIST' THEN 1 END) as assists
+        FROM match_events
+        GROUP BY player_id
+      ) ps ON p.id = ps.player_id
+      WHERE 1=1
+    `;
+    
+    const params: any[] = [];
+    let paramCount = 0;
+
+    // Add search query filter
+    if (filters.query) {
+      paramCount++;
+      query += ` AND (LOWER(p.name) LIKE LOWER(${paramCount}) OR LOWER(p.bio) LIKE LOWER(${paramCount}))`;
+      params.push(`%${filters.query}%`);
+    }
+
+    // Add position filter
+    if (filters.position && filters.position !== 'All') {
+      paramCount++;
+      query += ` AND p.position = ${paramCount}`;
+      params.push(filters.position);
+    }
+
+    // Add location filter
+    if (filters.location) {
+      paramCount++;
+      query += ` AND LOWER(p.location) LIKE LOWER(${paramCount})`;
+      params.push(`%${filters.location}%`);
+    }
+
+    // Add ordering and limit
+    query += ` ORDER BY ps.goals DESC, ps.assists DESC, p.name ASC LIMIT ${paramCount + 1}`;
+    params.push(filters.limit);
+
+    const result = await this.pool.query(query, params);
+    return result.rows;
+  }
+
+  async generateTournamentFixtures(tournamentId: string, createdBy: string): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      // Get tournament details
+      const tournament = await this.getTournamentById(tournamentId);
+      if (!tournament) {
+        throw new Error('Tournament not found');
+      }
+
+      // Get registered teams
+      const teams = await this.getTournamentTeams(tournamentId);
+      if (teams.length < 2) {
+        throw new Error('Not enough teams to generate fixtures');
+      }
+
+      if (tournament.tournamentType === 'LEAGUE') {
+        // Generate round-robin fixtures
+        for (let i = 0; i < teams.length; i++) {
+          for (let j = i + 1; j < teams.length; j++) {
+            const matchDate = new Date(tournament.startDate);
+            matchDate.setDate(matchDate.getDate() + (i + j) * 7); // Space matches by a week
+            
+            // Create match
+            const matchResult = await client.query(
+              'INSERT INTO matches (home_team_id, away_team_id, venue, match_date, duration, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+              [teams[i].id, teams[j].id, 'TBD', matchDate.toISOString(), 90, createdBy]
+            );
+            
+            // Link match to tournament
+            await client.query(
+              'INSERT INTO tournament_matches (tournament_id, match_id, round_number) VALUES ($1, $2, $3)',
+              [tournamentId, matchResult.rows[0].id, 1]
+            );
+          }
+        }
+      } else if (tournament.tournamentType === 'KNOCKOUT') {
+        // Generate knockout fixtures (first round only)
+        const matchupsCount = Math.floor(teams.length / 2);
+        for (let i = 0; i < matchupsCount; i++) {
+          const matchDate = new Date(tournament.startDate);
+          matchDate.setDate(matchDate.getDate() + i); // One match per day
+          
+          const matchResult = await client.query(
+            'INSERT INTO matches (home_team_id, away_team_id, venue, match_date, duration, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+            [teams[i * 2].id, teams[i * 2 + 1].id, 'TBD', matchDate.toISOString(), 90, createdBy]
+          );
+          
+          await client.query(
+            'INSERT INTO tournament_matches (tournament_id, match_id, round_number) VALUES ($1, $2, $3)',
+            [tournamentId, matchResult.rows[0].id, 1]
+          );
+        }
+      }
+      
+      // Update tournament status to ACTIVE
+      await client.query(
+        'UPDATE tournaments SET status = $1 WHERE id = $2',
+        ['ACTIVE', tournamentId]
+      );
+      
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }

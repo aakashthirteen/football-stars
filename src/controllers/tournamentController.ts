@@ -188,39 +188,57 @@ export const getTournamentStandings = async (req: AuthRequest, res: Response): P
 
     const { tournamentId } = req.params;
 
-    // Mock standings data
-    const mockStandings = [
-      {
-        position: 1,
-        teamId: '1',
-        teamName: 'Local Rangers',
-        matches: 3,
-        wins: 3,
-        draws: 0,
-        losses: 0,
-        goalsFor: 8,
-        goalsAgainst: 2,
-        goalDifference: 6,
-        points: 9
-      },
-      {
-        position: 2,
-        teamId: '2',
-        teamName: 'City United',
-        matches: 3,
-        wins: 2,
-        draws: 1,
-        losses: 0,
-        goalsFor: 6,
-        goalsAgainst: 3,
-        goalDifference: 3,
-        points: 7
-      }
-    ];
+    // Verify tournament exists
+    const tournament = await database.getTournamentById(tournamentId);
+    if (!tournament) {
+      res.status(404).json({ error: 'Tournament not found' });
+      return;
+    }
 
-    res.json({ standings: mockStandings });
+    // Get tournament standings from database
+    const standings = await database.getTournamentStandings(tournamentId);
+
+    res.json({ standings });
   } catch (error) {
     console.error('Get tournament standings error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const generateTournamentFixtures = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { tournamentId } = req.params;
+
+    // Verify tournament exists
+    const tournament = await database.getTournamentById(tournamentId);
+    if (!tournament) {
+      res.status(404).json({ error: 'Tournament not found' });
+      return;
+    }
+
+    // Check if user is tournament creator
+    if (tournament.createdBy !== req.user.id) {
+      res.status(403).json({ error: 'Only tournament creator can generate fixtures' });
+      return;
+    }
+
+    // Check if tournament is in UPCOMING status
+    if (tournament.status !== 'UPCOMING') {
+      res.status(400).json({ error: 'Fixtures can only be generated for upcoming tournaments' });
+      return;
+    }
+
+    // Generate fixtures
+    await database.generateTournamentFixtures(tournamentId, req.user.id);
+
+    res.json({ message: 'Tournament fixtures generated successfully' });
+  } catch (error: any) {
+    console.error('Generate tournament fixtures error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
   }
 };

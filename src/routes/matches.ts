@@ -4,7 +4,8 @@ import {
   createMatch, 
   getMatchById, 
   startMatch, 
-  addMatchEvent 
+  addMatchEvent,
+  endMatch 
 } from '../controllers/matchController';
 import { authenticateToken } from '../middleware/auth';
 
@@ -17,6 +18,7 @@ router.get('/', getUserMatches);
 router.post('/', createMatch);
 router.get('/:id', getMatchById);
 router.patch('/:id/start', startMatch);
+router.patch('/:id/end', endMatch);
 router.post('/:id/events', addMatchEvent);
 
 export default router;

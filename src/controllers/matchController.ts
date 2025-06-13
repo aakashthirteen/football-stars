@@ -33,6 +33,33 @@ export const getUserMatches = async (req: AuthRequest, res: Response): Promise<v
   }
 };
 
+export const endMatch = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    
+    const match = await database.getMatchById(id);
+    if (!match) {
+      res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+
+    if (match.status !== 'LIVE') {
+      res.status(400).json({ error: 'Match can only be ended from live status' });
+      return;
+    }
+
+    const updatedMatch = await database.updateMatch(id, { status: 'COMPLETED' });
+
+    res.json({
+      match: updatedMatch,
+      message: 'Match ended successfully',
+    });
+  } catch (error) {
+    console.error('End match error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const createMatch = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) {

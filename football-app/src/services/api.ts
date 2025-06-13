@@ -831,6 +831,12 @@ class ApiService {
     });
   }
 
+  async endMatch(id: string) {
+    return this.request(`/matches/${id}/end`, {
+      method: 'PATCH',
+    });
+  }
+
   // Stats endpoints
   async getCurrentUserStats() {
     return this.request('/stats/me');
@@ -875,6 +881,22 @@ class ApiService {
 
   async getPlayerById(playerId: string) {
     return this.request(`/players/${playerId}`);
+  }
+
+  async searchPlayers(params: {
+    query?: string;
+    position?: string;
+    location?: string;
+    limit?: number;
+  }) {
+    const queryParams = new URLSearchParams();
+    if (params.query) queryParams.append('query', params.query);
+    if (params.position) queryParams.append('position', params.position);
+    if (params.location) queryParams.append('location', params.location);
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    
+    const queryString = queryParams.toString();
+    return this.request(`/players/search${queryString ? `?${queryString}` : ''}`);
   }
 
   // Tournament endpoints

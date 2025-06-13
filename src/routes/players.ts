@@ -4,12 +4,16 @@ import {
   getCurrentPlayer,
   updateCurrentPlayer,
   getPlayerById,
+  searchPlayers,
 } from '../controllers/playerController';
 
 const router = express.Router();
 
 // All routes require authentication
 router.use(authenticateToken);
+
+// Search players (must come before /:id)
+router.get('/search', searchPlayers);
 
 // Get current user's player profile
 router.get('/me', getCurrentPlayer);

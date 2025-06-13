@@ -101,3 +101,26 @@ export const getPlayerById = async (req: AuthRequest, res: Response): Promise<vo
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export const searchPlayers = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { query, position, location, limit = 20 } = req.query;
+    
+    const players = await database.searchPlayers({
+      query: query as string,
+      position: position as string,
+      location: location as string,
+      limit: parseInt(limit as string, 10)
+    });
+
+    res.json({ players });
+  } catch (error) {
+    console.error('Search players error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

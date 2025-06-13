@@ -43,7 +43,6 @@ export default function PlayerDiscoveryScreen({ navigation }: PlayerDiscoveryScr
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPosition, setSelectedPosition] = useState('All');
   const [players, setPlayers] = useState<Player[]>([]);
-  const [filteredPlayers, setFilteredPlayers] = useState<Player[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -59,12 +58,20 @@ export default function PlayerDiscoveryScreen({ navigation }: PlayerDiscoveryScr
   }, []);
 
   useEffect(() => {
-    filterPlayers();
-  }, [searchQuery, selectedPosition, players]);
+    const delayDebounceFn = setTimeout(() => {
+      loadPlayers();
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery, selectedPosition]);
 
   const loadPlayers = async () => {
     try {
-      const response = await apiService.getAvailablePlayers();
+      const response = await apiService.searchPlayers({
+        query: searchQuery,
+        position: selectedPosition === 'All' ? undefined : selectedPosition,
+        limit: 50
+      });
       const backendPlayers = response.players || [];
       
       // Transform backend data to match our Player interface
@@ -75,21 +82,19 @@ export default function PlayerDiscoveryScreen({ navigation }: PlayerDiscoveryScr
         location: player.location || 'Unknown Location',
         rating: 7.5 + Math.random() * 1.5, // Generate rating between 7.5-9
         skills: getSkillsForPosition(player.position || 'MID'),
-        goals: Math.floor(Math.random() * 25),
-        assists: Math.floor(Math.random() * 20),
-        matchesPlayed: Math.floor(Math.random() * 30) + 5,
+        goals: player.goals || 0,
+        assists: player.assists || 0,
+        matchesPlayed: player.matches_played || 0,
         verified: Math.random() > 0.5,
         lookingForTeam: Math.random() > 0.6,
         profileImage: undefined,
       }));
       
       setPlayers(transformedPlayers);
-      setFilteredPlayers(transformedPlayers);
     } catch (error) {
       console.error('Error loading players:', error);
       // Fallback to empty array if API fails
       setPlayers([]);
-      setFilteredPlayers([]);
     } finally {
       setLoading(false);
     }
@@ -116,24 +121,6 @@ export default function PlayerDiscoveryScreen({ navigation }: PlayerDiscoveryScr
     }
     
     return baseSkills.slice(0, 5); // Limit to 5 skills
-  };
-
-  const filterPlayers = () => {
-    let filtered = players;
-    
-    if (selectedPosition !== 'All') {
-      filtered = filtered.filter(p => p.position === selectedPosition);
-    }
-    
-    if (searchQuery) {
-      filtered = filtered.filter(p => 
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.skills.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
-    }
-    
-    setFilteredPlayers(filtered);
   };
 
   const getPositionColor = (position: string) => {
@@ -378,7 +365,7 @@ export default function PlayerDiscoveryScreen({ navigation }: PlayerDiscoveryScr
       
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
         <FlatList
-          data={filteredPlayers}
+          data={players}
           renderItem={renderPlayerCard}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.playersList}
