@@ -38,9 +38,14 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
 
   const loadTeams = async () => {
     try {
+      console.log('🏟️ Loading teams for match creation...');
       const response = await apiService.getTeams();
-      setTeams(response.teams || []);
+      console.log('📊 Teams response:', response);
+      const teamsArray = response.teams || [];
+      console.log(`✅ Found ${teamsArray.length} teams available for matches`);
+      setTeams(teamsArray);
     } catch (error) {
+      console.error('❌ Error loading teams:', error);
       Alert.alert('Error', 'Failed to load teams');
     }
   };
