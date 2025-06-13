@@ -314,10 +314,10 @@ export class PostgresDatabase {
   // Match operations
   async createMatch(homeTeamId: string, awayTeamId: string, venue: string, matchDate: string, duration: number, createdBy: string): Promise<Match> {
     const result = await this.pool.query(
-      'INSERT INTO matches (home_team_id, away_team_id, venue, match_date, duration, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [homeTeamId, awayTeamId, venue, matchDate, duration, createdBy]
+      'INSERT INTO matches (home_team_id, away_team_id, venue, match_date, duration, created_by, home_score, away_score, status) VALUES ($1, $2, $3, $4, $5, $6, 0, 0, $7) RETURNING *',
+      [homeTeamId, awayTeamId, venue, matchDate, duration, createdBy, 'SCHEDULED']
     );
-    return { ...result.rows[0], events: [], homeTeam: { name: 'Home Team' }, awayTeam: { name: 'Away Team' } };
+    return { ...result.rows[0], events: [] };
   }
 
   async getAllMatches(): Promise<Match[]> {

@@ -140,21 +140,48 @@ export const getMatchById = async (req: AuthRequest, res: Response): Promise<voi
   try {
     const { id } = req.params;
     
+    if (!id) {
+      res.status(400).json({ error: 'Match ID is required' });
+      return;
+    }
+    
     const match = await database.getMatchById(id);
     if (!match) {
       res.status(404).json({ error: 'Match not found' });
       return;
     }
 
-    const homeTeam = await database.getTeamById(match.homeTeamId);
-    const awayTeam = await database.getTeamById(match.awayTeamId);
-    const events = await database.getMatchEvents(id);
+    // Get teams with null safety
+    let homeTeam, awayTeam;
+    try {
+      homeTeam = await database.getTeamById(match.homeTeamId);
+      awayTeam = await database.getTeamById(match.awayTeamId);
+    } catch (teamError) {
+      console.error('Error loading teams:', teamError);
+    }
+    
+    // Ensure we have default team objects if teams are missing
+    if (!homeTeam) {
+      homeTeam = { id: match.homeTeamId, name: 'Home Team' };
+    }
+    if (!awayTeam) {
+      awayTeam = { id: match.awayTeamId, name: 'Away Team' };
+    }
+    
+    let events: any[] = [];
+    try {
+      events = await database.getMatchEvents(id) || [];
+    } catch (eventsError) {
+      console.error('Error loading match events:', eventsError);
+    }
 
     const matchWithDetails = {
       ...match,
       homeTeam,
       awayTeam,
       events,
+      homeScore: match.homeScore || 0,
+      awayScore: match.awayScore || 0,
     };
 
     res.json({ match: matchWithDetails });

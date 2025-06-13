@@ -66,7 +66,13 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
         duration: parseInt(duration) || 90,
       };
 
+      console.log('🏗️ Creating match with data:', matchData);
       const response = await apiService.createMatch(matchData);
+      console.log('✅ Match created successfully:', response);
+      
+      if (!response || !response.match || !response.match.id) {
+        throw new Error('Invalid response from server - no match ID received');
+      }
       
       Alert.alert('Success', 'Match created successfully!', [
         {
@@ -84,7 +90,15 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
         },
       ]);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to create match');
+      console.error('❌ Error creating match:', error);
+      Alert.alert(
+        'Error', 
+        error.message || 'Failed to create match. Please try again.',
+        [
+          { text: 'Retry', onPress: () => handleCreateMatch() },
+          { text: 'Cancel' }
+        ]
+      );
     } finally {
       setIsLoading(false);
     }

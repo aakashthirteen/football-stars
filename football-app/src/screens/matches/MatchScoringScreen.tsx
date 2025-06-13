@@ -118,18 +118,56 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   const loadMatchDetails = async () => {
     try {
-      const response = await apiService.getMatchById(matchId);
-      setMatch(response.match);
-      setIsLive(response.match.status === 'LIVE');
-      if (response.match.status === 'LIVE') {
-        const matchStart = new Date(response.match.matchDate);
-        const now = new Date();
-        const elapsed = Math.floor((now.getTime() - matchStart.getTime()) / (1000 * 60));
-        setCurrentMinute(Math.max(0, elapsed));
+      console.log('🔍 Loading match details for ID:', matchId);
+      
+      if (!matchId) {
+        throw new Error('No match ID provided');
       }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to load match details');
-      navigation.goBack();
+      
+      const response = await apiService.getMatchById(matchId);
+      console.log('📊 Match details response:', response);
+      
+      if (!response || !response.match) {
+        throw new Error('Invalid match data received');
+      }
+      
+      const matchData = response.match;
+      
+      // Add null safety for team data
+      if (!matchData.homeTeam) {
+        matchData.homeTeam = { name: 'Home Team' };
+      }
+      if (!matchData.awayTeam) {
+        matchData.awayTeam = { name: 'Away Team' };
+      }
+      if (!matchData.events) {
+        matchData.events = [];
+      }
+      
+      setMatch(matchData);
+      setIsLive(matchData.status === 'LIVE');
+      
+      if (matchData.status === 'LIVE' && matchData.matchDate) {
+        try {
+          const matchStart = new Date(matchData.matchDate);
+          const now = new Date();
+          const elapsed = Math.floor((now.getTime() - matchStart.getTime()) / (1000 * 60));
+          setCurrentMinute(Math.max(0, elapsed));
+        } catch (dateError) {
+          console.error('Error calculating match time:', dateError);
+          setCurrentMinute(0);
+        }
+      }
+    } catch (error: any) {
+      console.error('❌ Error loading match details:', error);
+      Alert.alert(
+        'Error', 
+        error.message || 'Failed to load match details. Please try again.',
+        [
+          { text: 'Retry', onPress: () => loadMatchDetails() },
+          { text: 'Go Back', onPress: () => navigation.goBack() }
+        ]
+      );
     } finally {
       setIsLoading(false);
     }
