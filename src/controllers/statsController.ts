@@ -45,10 +45,18 @@ export const getCurrentUserStats = async (req: AuthRequest, res: Response): Prom
     }
 
     // Get the player profile for the current user
-    const player = await database.getPlayerByUserId(req.user.id);
+    let player = await database.getPlayerByUserId(req.user.id);
+    
+    // If no player profile exists, create one automatically
     if (!player) {
-      res.status(404).json({ error: 'Player profile not found for current user' });
-      return;
+      console.log('Creating player profile for user:', req.user.id);
+      try {
+        player = await database.createPlayer(req.user.id, req.user.name, 'MID', 'RIGHT');
+      } catch (createError) {
+        console.error('Error creating player profile:', createError);
+        res.status(500).json({ error: 'Failed to create player profile' });
+        return;
+      }
     }
 
     const stats = await database.getPlayerStats(player.id);

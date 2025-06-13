@@ -9,10 +9,18 @@ export const getCurrentPlayer = async (req: AuthRequest, res: Response): Promise
       return;
     }
 
-    const player = await database.getPlayerByUserId(req.user.id);
+    let player = await database.getPlayerByUserId(req.user.id);
+    
+    // If no player profile exists, create one automatically
     if (!player) {
-      res.status(404).json({ error: 'Player profile not found' });
-      return;
+      console.log('Creating player profile for user:', req.user.id);
+      try {
+        player = await database.createPlayer(req.user.id, req.user.name, 'MID', 'RIGHT');
+      } catch (createError) {
+        console.error('Error creating player profile:', createError);
+        res.status(500).json({ error: 'Failed to create player profile' });
+        return;
+      }
     }
 
     res.json({ player });
@@ -29,10 +37,18 @@ export const updateCurrentPlayer = async (req: AuthRequest, res: Response): Prom
       return;
     }
 
-    const player = await database.getPlayerByUserId(req.user.id);
+    let player = await database.getPlayerByUserId(req.user.id);
+    
+    // If no player profile exists, create one automatically
     if (!player) {
-      res.status(404).json({ error: 'Player profile not found' });
-      return;
+      console.log('Creating player profile for user:', req.user.id);
+      try {
+        player = await database.createPlayer(req.user.id, req.user.name, 'MID', 'RIGHT');
+      } catch (createError) {
+        console.error('Error creating player profile:', createError);
+        res.status(500).json({ error: 'Failed to create player profile' });
+        return;
+      }
     }
 
     const {

@@ -54,7 +54,15 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         { id: '2', homeTeam: 'United', awayTeam: 'City', time: '5h' },
       ]);
     } catch (error) {
+      console.error('❌ API Error:', error);
       console.error('Error loading dashboard:', error);
+      // Set default stats if loading fails
+      setPlayerStats({
+        goals: 0,
+        assists: 0,
+        matchesPlayed: 0,
+        position: 'MID'
+      });
     } finally {
       setRefreshing(false);
     }
