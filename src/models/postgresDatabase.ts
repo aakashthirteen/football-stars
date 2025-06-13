@@ -359,15 +359,17 @@ export class PostgresDatabase {
       const homePlayersResult = await this.pool.query(`
         SELECT p.id, p.name, p.position, tp.jersey_number
         FROM team_players tp
-        JOIN players p ON tp.player_id = p.id
+        LEFT JOIN players p ON tp.player_id = p.id
         WHERE tp.team_id = $1
+        ORDER BY tp.jersey_number ASC
       `, [match.home_team_id]);
       
       const awayPlayersResult = await this.pool.query(`
         SELECT p.id, p.name, p.position, tp.jersey_number
         FROM team_players tp
-        JOIN players p ON tp.player_id = p.id
+        LEFT JOIN players p ON tp.player_id = p.id
         WHERE tp.team_id = $1
+        ORDER BY tp.jersey_number ASC
       `, [match.away_team_id]);
       
       return {
@@ -377,8 +379,8 @@ export class PostgresDatabase {
           name: match.home_team_name,
           players: homePlayersResult.rows.map(p => ({
             id: p.id,
-            name: p.name,
-            position: p.position,
+            name: p.name || 'Unknown Player',
+            position: p.position || 'Unknown',
             jerseyNumber: p.jersey_number
           }))
         },
@@ -387,8 +389,8 @@ export class PostgresDatabase {
           name: match.away_team_name,
           players: awayPlayersResult.rows.map(p => ({
             id: p.id,
-            name: p.name,
-            position: p.position,
+            name: p.name || 'Unknown Player',
+            position: p.position || 'Unknown',
             jerseyNumber: p.jersey_number
           }))
         },
