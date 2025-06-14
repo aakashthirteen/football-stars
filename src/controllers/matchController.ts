@@ -415,20 +415,30 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
       createdAt: new Date(),
     };
 
+    console.log('📝 Creating match event in database...');
     const createdEvent = await database.createMatchEvent(event);
+    console.log('✅ Match event created successfully:', createdEvent);
 
     // Update match score if it's a goal
     if (eventType === 'GOAL') {
+      console.log('⚽ Updating match score for goal...');
       let updates: Partial<Match> = {};
       const currentHomeScore = (match as any).homeScore || (match as any).home_score || 0;
       const currentAwayScore = (match as any).awayScore || (match as any).away_score || 0;
       
+      console.log('📊 Current scores:', { currentHomeScore, currentAwayScore });
+      
       if (teamId === homeTeamId) {
         updates.homeScore = currentHomeScore + 1;
+        console.log('🏠 Incrementing home team score to:', updates.homeScore);
       } else {
         updates.awayScore = currentAwayScore + 1;
+        console.log('✈️ Incrementing away team score to:', updates.awayScore);
       }
+      
+      console.log('💾 Updating match with:', updates);
       await database.updateMatch(id, updates);
+      console.log('✅ Match score updated successfully');
     }
 
     res.status(201).json({
@@ -436,7 +446,9 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
       message: 'Match event added successfully',
     });
   } catch (error) {
-    console.error('Add match event error:', error);
+    console.error('💥 Add match event error:', error);
+    console.error('💥 Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('💥 Error message:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'Internal server error' });
   }
 };
