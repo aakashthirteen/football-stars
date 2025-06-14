@@ -12,6 +12,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { apiService } from '../../services/api';
+import PitchFormation from '../../components/PitchFormation';
 
 const { width } = Dimensions.get('window');
 
@@ -176,6 +177,33 @@ export default function MatchOverviewScreen({ navigation, route }: MatchOverview
             </View>
           </LinearGradient>
         </Animated.View>
+
+        {/* Pitch Formation */}
+        {match && match.homeTeam && match.awayTeam && (
+          <Animated.View 
+            style={[
+              styles.pitchFormationCard,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              },
+            ]}
+          >
+            <LinearGradient colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']} style={styles.pitchFormationGradient}>
+              <Text style={styles.sectionTitle}>Formation</Text>
+              <PitchFormation
+                homeTeam={match.homeTeam}
+                awayTeam={match.awayTeam}
+                onPlayerPress={(player) => {
+                  console.log('Player pressed:', player.name);
+                  // Future: Navigate to player profile
+                }}
+                showPlayerNames={true}
+                style={styles.pitchOverview}
+              />
+            </LinearGradient>
+          </Animated.View>
+        )}
 
         {/* Match Events Timeline */}
         {match.events && match.events.length > 0 && (
@@ -629,5 +657,18 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  // Pitch Formation Styles
+  pitchFormationCard: {
+    marginBottom: 24,
+  },
+  pitchFormationGradient: {
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  pitchOverview: {
+    backgroundColor: 'transparent',
   },
 });

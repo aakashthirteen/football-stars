@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { apiService } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
+import PitchFormation from '../../components/PitchFormation';
 
 const { width } = Dimensions.get('window');
 
@@ -673,6 +674,22 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             </View>
           </Animated.View>
         </View>
+
+        {/* Pitch Formation */}
+        {match && match.homeTeam && match.awayTeam && (
+          <View style={styles.pitchFormationContainer}>
+            <Text style={styles.pitchFormationTitle}>Formation</Text>
+            <PitchFormation
+              homeTeam={match.homeTeam}
+              awayTeam={match.awayTeam}
+              onPlayerPress={(player) => {
+                console.log('Player pressed:', player.name);
+                // Future: Navigate to player profile
+              }}
+              showPlayerNames={true}
+            />
+          </View>
+        )}
 
         {/* Match Controls */}
         {!isLive && match.status === 'SCHEDULED' && (
@@ -1543,5 +1560,17 @@ const styles = StyleSheet.create({
   playerPositionList: {
     fontSize: 11,
     color: '#666',
+  },
+  // Pitch Formation Styles
+  pitchFormationContainer: {
+    marginHorizontal: 20,
+    marginVertical: 16,
+  },
+  pitchFormationTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+    textAlign: 'center',
   },
 });
