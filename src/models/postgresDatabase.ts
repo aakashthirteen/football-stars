@@ -210,6 +210,60 @@ export class PostgresDatabase {
         [team1Id, playerId, 'CAPTAIN', 10]
       );
 
+      // Create additional test players for realistic teams
+      const additionalPlayers = [
+        // Team 1 (Local Rangers) players
+        { name: 'Alex Smith', position: 'GK', team: team1Id, jersey: 1, role: 'PLAYER' },
+        { name: 'Mike Johnson', position: 'DEF', team: team1Id, jersey: 2, role: 'PLAYER' },
+        { name: 'Chris Wilson', position: 'DEF', team: team1Id, jersey: 3, role: 'PLAYER' },
+        { name: 'David Brown', position: 'DEF', team: team1Id, jersey: 4, role: 'PLAYER' },
+        { name: 'Tom Davis', position: 'MID', team: team1Id, jersey: 5, role: 'PLAYER' },
+        { name: 'Ryan Miller', position: 'MID', team: team1Id, jersey: 6, role: 'PLAYER' },
+        { name: 'Jake Garcia', position: 'MID', team: team1Id, jersey: 7, role: 'PLAYER' },
+        { name: 'Sam Martinez', position: 'FWD', team: team1Id, jersey: 8, role: 'PLAYER' },
+        { name: 'Luke Anderson', position: 'FWD', team: team1Id, jersey: 9, role: 'PLAYER' },
+        { name: 'Ben Taylor', position: 'FWD', team: team1Id, jersey: 11, role: 'PLAYER' },
+        
+        // Team 2 (Sunday Warriors) players  
+        { name: 'Carlos Rodriguez', position: 'GK', team: team2Id, jersey: 1, role: 'CAPTAIN' },
+        { name: 'Mario Gomez', position: 'DEF', team: team2Id, jersey: 2, role: 'PLAYER' },
+        { name: 'Diego Silva', position: 'DEF', team: team2Id, jersey: 3, role: 'PLAYER' },
+        { name: 'Pablo Hernandez', position: 'DEF', team: team2Id, jersey: 4, role: 'PLAYER' },
+        { name: 'Eduardo Lopez', position: 'MID', team: team2Id, jersey: 5, role: 'PLAYER' },
+        { name: 'Javier Morales', position: 'MID', team: team2Id, jersey: 6, role: 'PLAYER' },
+        { name: 'Andres Ruiz', position: 'MID', team: team2Id, jersey: 7, role: 'PLAYER' },
+        { name: 'Fernando Castro', position: 'FWD', team: team2Id, jersey: 8, role: 'PLAYER' },
+        { name: 'Ricardo Vargas', position: 'FWD', team: team2Id, jersey: 9, role: 'PLAYER' },
+        { name: 'Miguel Santos', position: 'FWD', team: team2Id, jersey: 10, role: 'PLAYER' },
+        { name: 'Alejandro Ramirez', position: 'FWD', team: team2Id, jersey: 11, role: 'PLAYER' }
+      ];
+
+      // Create users and players for each additional player
+      for (const playerData of additionalPlayers) {
+        // Create user for each player
+        const userEmail = `${playerData.name.toLowerCase().replace(' ', '.')}@test.com`;
+        const playerUserInsert = await client.query(
+          'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id',
+          [userEmail, hashedPassword, playerData.name]
+        );
+        const playerUserId = playerUserInsert.rows[0].id;
+
+        // Create player profile
+        const playerProfileInsert = await client.query(
+          'INSERT INTO players (user_id, name, position, bio, location) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+          [playerUserId, playerData.name, playerData.position, `${playerData.position} player`, 'Mumbai']
+        );
+        const newPlayerId = playerProfileInsert.rows[0].id;
+
+        // Add player to team
+        await client.query(
+          'INSERT INTO team_players (team_id, player_id, role, jersey_number) VALUES ($1, $2, $3, $4)',
+          [playerData.team, newPlayerId, playerData.role, playerData.jersey]
+        );
+      }
+
+      console.log('👥 Created additional test players for both teams');
+
       // Create test match
       const matchDate = new Date();
       matchDate.setDate(matchDate.getDate() + 1); // Tomorrow
@@ -219,7 +273,7 @@ export class PostgresDatabase {
         [team1Id, team2Id, 'Central Park', matchDate, userId]
       );
 
-      console.log('✅ Test data seeded successfully');
+      console.log('✅ Test data seeded successfully with full team rosters');
     }
   }
 
@@ -348,6 +402,8 @@ export class PostgresDatabase {
   }
 
   async getMatchById(id: string): Promise<Match | null> {
+    console.log('🔍 Getting match by ID:', id);
+    
     const result = await this.pool.query(`
       SELECT m.*, 
              ht.name as home_team_name,
@@ -362,8 +418,16 @@ export class PostgresDatabase {
     
     if (result.rows[0]) {
       const match = result.rows[0];
+      console.log('⚽ Match found:', {
+        id: match.id,
+        homeTeamId: match.home_team_id,
+        awayTeamId: match.away_team_id,
+        homeTeamName: match.home_team_name,
+        awayTeamName: match.away_team_name
+      });
       
       // Get team players for both teams
+      console.log('👥 Fetching players for home team:', match.home_team_id);
       const homePlayersResult = await this.pool.query(`
         SELECT p.id, p.name, p.position, tp.jersey_number
         FROM team_players tp
@@ -372,6 +436,7 @@ export class PostgresDatabase {
         ORDER BY tp.jersey_number ASC
       `, [match.home_team_id]);
       
+      console.log('👥 Fetching players for away team:', match.away_team_id);
       const awayPlayersResult = await this.pool.query(`
         SELECT p.id, p.name, p.position, tp.jersey_number
         FROM team_players tp
@@ -380,31 +445,49 @@ export class PostgresDatabase {
         ORDER BY tp.jersey_number ASC
       `, [match.away_team_id]);
       
+      console.log('📊 Player query results:', {
+        homePlayersCount: homePlayersResult.rows.length,
+        awayPlayersCount: awayPlayersResult.rows.length,
+        homePlayers: homePlayersResult.rows.map(p => ({ id: p.id, name: p.name, position: p.position })),
+        awayPlayers: awayPlayersResult.rows.map(p => ({ id: p.id, name: p.name, position: p.position }))
+      });
+      
+      const homeTeamPlayers = homePlayersResult.rows.map(p => ({
+        id: p.id,
+        name: p.name || 'Unknown Player',
+        position: p.position || 'Unknown',
+        jerseyNumber: p.jersey_number
+      }));
+      
+      const awayTeamPlayers = awayPlayersResult.rows.map(p => ({
+        id: p.id,
+        name: p.name || 'Unknown Player',
+        position: p.position || 'Unknown',
+        jerseyNumber: p.jersey_number
+      }));
+      
+      console.log('✅ Final player arrays:', {
+        homeTeamPlayersCount: homeTeamPlayers.length,
+        awayTeamPlayersCount: awayTeamPlayers.length
+      });
+      
       return {
         ...match,
         homeTeam: { 
           id: match.home_team_id,
           name: match.home_team_name,
-          players: homePlayersResult.rows.map(p => ({
-            id: p.id,
-            name: p.name || 'Unknown Player',
-            position: p.position || 'Unknown',
-            jerseyNumber: p.jersey_number
-          }))
+          players: homeTeamPlayers
         },
         awayTeam: { 
           id: match.away_team_id,
           name: match.away_team_name,
-          players: awayPlayersResult.rows.map(p => ({
-            id: p.id,
-            name: p.name || 'Unknown Player',
-            position: p.position || 'Unknown',
-            jerseyNumber: p.jersey_number
-          }))
+          players: awayTeamPlayers
         },
         events: []
       };
     }
+    
+    console.log('❌ No match found with ID:', id);
     return null;
   }
 

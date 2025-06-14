@@ -5,7 +5,8 @@ import {
   getMatchById, 
   startMatch, 
   addMatchEvent,
-  endMatch 
+  endMatch,
+  populateTeamsWithPlayers
 } from '../controllers/matchController';
 import { authenticateToken } from '../middleware/auth';
 
@@ -16,6 +17,7 @@ router.use(authenticateToken);
 
 router.get('/', getUserMatches);
 router.post('/', createMatch);
+router.post('/populate-teams', populateTeamsWithPlayers);
 router.get('/:id', getMatchById);
 router.patch('/:id/start', startMatch);
 router.patch('/:id/end', endMatch);
