@@ -57,6 +57,30 @@ export interface Match {
   createdAt: Date;
 }
 
+export interface MatchWithDetails extends Match {
+  homeTeam?: {
+    id: string;
+    name: string;
+    players: Array<{
+      id: string;
+      name: string;
+      position: string;
+      jerseyNumber?: number;
+    }>;
+  };
+  awayTeam?: {
+    id: string;
+    name: string;
+    players: Array<{
+      id: string;
+      name: string;
+      position: string;
+      jerseyNumber?: number;
+    }>;
+  };
+  events?: MatchEvent[];
+}
+
 export interface MatchEvent {
   id: string;
   matchId: string;

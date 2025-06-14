@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { database } from '../models/databaseFactory';
-import { AuthRequest, CreateMatchRequest, MatchEventRequest, Match, MatchEvent } from '../types';
+import { AuthRequest, CreateMatchRequest, MatchEventRequest, Match, MatchWithDetails, MatchEvent } from '../types';
 
 export const getUserMatches = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -200,12 +200,12 @@ export const getMatchById = async (req: AuthRequest, res: Response): Promise<voi
     console.log('⚽ Match details with teams and players:', {
       id: matchWithDetails.id,
       homeTeam: {
-        name: (matchWithDetails as any).home_team_name,
-        playersCount: (matchWithDetails as any).homeTeamPlayers?.length || 0
+        name: matchWithDetails.homeTeam?.name || 'Unknown',
+        playersCount: matchWithDetails.homeTeam?.players?.length || 0
       },
       awayTeam: {
-        name: (matchWithDetails as any).away_team_name,
-        playersCount: (matchWithDetails as any).awayTeamPlayers?.length || 0
+        name: matchWithDetails.awayTeam?.name || 'Unknown',
+        playersCount: matchWithDetails.awayTeam?.players?.length || 0
       }
     });
 

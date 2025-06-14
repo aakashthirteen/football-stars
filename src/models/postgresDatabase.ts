@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import bcrypt from 'bcryptjs';
-import { User, Team, Match, TeamPlayer, MatchEvent, PlayerStats } from '../types';
+import { User, Team, Match, MatchWithDetails, TeamPlayer, MatchEvent, PlayerStats } from '../types';
 
 // PostgreSQL Database Implementation for Railway deployment
 export class PostgresDatabase {
@@ -401,7 +401,7 @@ export class PostgresDatabase {
     }));
   }
 
-  async getMatchById(id: string): Promise<Match | null> {
+  async getMatchById(id: string): Promise<MatchWithDetails | null> {
     console.log('🔍 Getting match by ID:', id);
     
     const result = await this.pool.query(`

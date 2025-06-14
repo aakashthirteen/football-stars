@@ -1,0 +1,1 @@
+- Please be honest with me in creating this application. Don't just say that everything is perfect, idea is perfect, the UI is perfect etc. No! Criticise my thinking, give me ideas from your end. We have to make this project work anyhow. Ask me questions wherever you feel necessary. 
