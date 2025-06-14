@@ -331,7 +331,75 @@ class ApiService {
       }
       
       if (parts[3] === 'events') {
-        // Add match event
+        // Add match event - get all matches to find the right one
+        const allMatches = [
+          {
+            id: '1',
+            homeTeam: { 
+              id: 'home-team-1',
+              name: 'Local Rangers',
+              players: [
+                { id: '1', name: 'John Doe', position: 'MID', jerseyNumber: 10 },
+                { id: '2', name: 'Mike Johnson', position: 'DEF', jerseyNumber: 5 }
+              ]
+            },
+            awayTeam: { 
+              id: 'away-team-1',
+              name: 'City United',
+              players: [
+                { id: '3', name: 'Alex Smith', position: 'FWD', jerseyNumber: 9 },
+                { id: '4', name: 'Tom Wilson', position: 'GK', jerseyNumber: 1 }
+              ]
+            },
+            homeScore: 2,
+            awayScore: 1,
+            status: 'COMPLETED',
+            matchDate: new Date(Date.now() - 86400000).toISOString(),
+            venue: 'Central Park',
+            events: []
+          },
+          {
+            id: '2',
+            homeTeam: { 
+              id: 'home-team-2',
+              name: 'Sunday Warriors',
+              players: [
+                { id: '5', name: 'Jane Smith', position: 'FWD', jerseyNumber: 9 },
+                { id: '6', name: 'Bob Brown', position: 'MID', jerseyNumber: 8 }
+              ]
+            },
+            awayTeam: { 
+              id: 'away-team-2',
+              name: 'FC Legends',
+              players: [
+                { id: '7', name: 'Chris Wilson', position: 'DEF', jerseyNumber: 4 },
+                { id: '8', name: 'Dave Johnson', position: 'GK', jerseyNumber: 1 }
+              ]
+            },
+            homeScore: 0,
+            awayScore: 0,
+            status: 'LIVE',
+            matchDate: new Date().toISOString(),
+            venue: 'Sports Complex',
+            events: []
+          },
+          ...(global.mockMatches || [])
+        ];
+
+        const match = allMatches.find(m => m.id === matchId);
+        if (!match) {
+          throw new Error('Match not found');
+        }
+
+        // Find the player by ID in both teams
+        let player = null;
+        if (match.homeTeam && match.homeTeam.players) {
+          player = match.homeTeam.players.find(p => p.id === body.playerId);
+        }
+        if (!player && match.awayTeam && match.awayTeam.players) {
+          player = match.awayTeam.players.find(p => p.id === body.playerId);
+        }
+
         const newEvent = {
           id: Math.random().toString(),
           matchId: matchId,
@@ -340,9 +408,38 @@ class ApiService {
           eventType: body.eventType,
           minute: body.minute,
           description: body.description,
-          player: { name: 'Player Name' },
+          player: player ? { name: player.name, position: player.position } : { name: 'Unknown Player' },
           createdAt: new Date().toISOString()
         };
+
+        // Add event to match's events array
+        if (!match.events) {
+          match.events = [];
+        }
+        match.events.push(newEvent);
+
+        // Update score if it's a goal
+        if (body.eventType === 'GOAL') {
+          if (body.teamId === match.homeTeam.id) {
+            match.homeScore = (match.homeScore || 0) + 1;
+          } else if (body.teamId === match.awayTeam.id) {
+            match.awayScore = (match.awayScore || 0) + 1;
+          }
+        }
+
+        // Store the updated match back (for persistence)
+        if (!global.mockMatches) {
+          global.mockMatches = [];
+        }
+        
+        const existingIndex = global.mockMatches.findIndex(m => m.id === matchId);
+        if (existingIndex >= 0) {
+          // Update existing match
+          global.mockMatches[existingIndex] = match;
+        } else {
+          // Add new/updated match to global store
+          global.mockMatches.push(match);
+        }
         
         return {
           event: newEvent,
@@ -350,11 +447,12 @@ class ApiService {
         };
       }
       
-      // Get single match
+      // Get single match - use the same data structure as the event handler
       const allMatches = [
         {
           id: '1',
           homeTeam: { 
+            id: 'home-team-1',
             name: 'Local Rangers',
             players: [
               { id: '1', name: 'John Doe', position: 'MID', jerseyNumber: 10 },
@@ -362,6 +460,7 @@ class ApiService {
             ]
           },
           awayTeam: { 
+            id: 'away-team-1',
             name: 'City United',
             players: [
               { id: '3', name: 'Alex Smith', position: 'FWD', jerseyNumber: 9 },
@@ -379,13 +478,14 @@ class ApiService {
               eventType: 'GOAL',
               minute: 15,
               player: { name: 'John Doe' },
-              teamId: 'team-1'
+              teamId: 'home-team-1'
             }
           ]
         },
         {
           id: '2',
           homeTeam: { 
+            id: 'home-team-2',
             name: 'Sunday Warriors',
             players: [
               { id: '5', name: 'Jane Smith', position: 'FWD', jerseyNumber: 9 },
@@ -393,6 +493,7 @@ class ApiService {
             ]
           },
           awayTeam: { 
+            id: 'away-team-2',
             name: 'FC Legends',
             players: [
               { id: '7', name: 'Chris Wilson', position: 'DEF', jerseyNumber: 4 },
@@ -409,7 +510,17 @@ class ApiService {
         ...(global.mockMatches || [])
       ];
       
-      const match = allMatches.find(m => m.id === matchId);
+      // Check if there's an updated version in global.mockMatches first
+      let match = null;
+      if (global.mockMatches) {
+        match = global.mockMatches.find(m => m.id === matchId);
+      }
+      
+      // If not found in global, check the default matches
+      if (!match) {
+        match = allMatches.find(m => m.id === matchId);
+      }
+      
       if (match) {
         return { match };
       }
