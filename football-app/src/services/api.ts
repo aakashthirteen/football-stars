@@ -1065,6 +1065,18 @@ class ApiService {
     matchId: string;
     raterId: string;
   }>) {
+    // Use debug endpoint first to see what's being sent
+    try {
+      const debugResponse = await this.request(`/matches/${matchId}/ratings/debug`, {
+        method: 'POST',
+        body: JSON.stringify({ ratings }),
+      });
+      console.log('🔍 Debug response:', debugResponse);
+    } catch (debugError) {
+      console.log('🔍 Debug endpoint error:', debugError);
+    }
+    
+    // Now try the real endpoint
     return this.request(`/matches/${matchId}/ratings`, {
       method: 'POST',
       body: JSON.stringify({ ratings }),
