@@ -370,6 +370,20 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
     
     console.log('📥 Request data:', { id, playerId, teamId, eventType, minute, description });
 
+    // Check for recent duplicate events (within last 5 seconds)
+    const duplicateCheck = await database.pool.query(`
+      SELECT id FROM match_events 
+      WHERE match_id = $1 AND player_id = $2 AND event_type = $3 
+      AND created_at > NOW() - INTERVAL '5 seconds'
+      LIMIT 1
+    `, [id, playerId, eventType]);
+    
+    if (duplicateCheck.rows.length > 0) {
+      console.log('🚫 Duplicate event blocked - same event within 5 seconds');
+      res.status(400).json({ error: 'Duplicate event - please wait before adding another event' });
+      return;
+    }
+
     if (!playerId || !teamId || !eventType || minute === undefined) {
       res.status(400).json({ error: 'Player, team, event type, and minute are required' });
       return;

@@ -1,136 +1,362 @@
-  awayTeam: 'Eleven Aces',
+terrific-success
 
-  awayPlayerCount: 1,
 
-  awayPlayerSample: {
+production
+Architecture
+Observability
+Logs
+Settings
 
-    id: '9f95b788-336b-4de0-9453-078742fc4ce1',
+26 days or $4.92 left
 
-    name: 'The Falcon',
 
-    position: 'MID',
+Share
 
-    jerseyNumber: 1
+
+
+
+
+
+
+
+Activity
+
+football-stars
+
+Deployment successful
+
+70 mins ago
+
+football-stars
+
+Deployment successful
+
+74 mins ago
+
+football-stars
+
+Deployment successful
+
+78 mins ago
+
+football-stars
+
+Deployment successful
+
+83 mins ago
+
+football-stars
+
+Deployment successful
+
+87 mins ago
+
+football-stars
+
+Deployment successful
+
+2 hours ago
+
+football-stars
+
+Deployment successful
+
+2 hours ago
+
+football-stars
+
+Deployment successful
+
+2 hours ago
+
+
+Fetch More
+
+football-stars
+Deployments
+Variables
+Metrics
+Settings
+football-stars-production.up.railway.app
+asia-southeast1-eqsg3a
+1 Replica
+
+
+
+
+History
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+football-stars
+/
+74a958d
+Jun 14, 2025 4:50 PM
+
+Active
+
+football-stars-production.up.railway.app
+
+Details
+Build Logs
+Deploy Logs
+HTTP Logs
+
+Filter
+Filter logs using "", (), AND, OR, -
+
+
+
+
+Load More
+
+    status: 'SCHEDULED',
+
+    homeTeam: 'The Falcon',
+
+    homeTeam: 'The Falcon',
+
+    awayTeam: 'Eleven Aces',
+
+    awayTeam: 'Eleven Aces',
+
+    createdBy: '41e17194-e600-474a-834a-958a0a83aa16'
+
+    createdBy: '41e17194-e600-474a-834a-958a0a83aa16'
+
+  },
+
+  },
+
+  {
+
+  {
+
+    id: '629bf3b1-f462-42cc-82e8-969d4869e51f',
+
+    id: 'c99a09fa-c7b7-4bc8-93d4-28390e351187',
+
+    status: 'COMPLETED',
+
+    status: 'SCHEDULED',
+
+    homeTeam: 'The Falcon',
+
+    awayTeam: 'Eleven Aces',
+
+    homeTeam: 'The Falcon',
+
+    createdBy: '41e17194-e600-474a-834a-958a0a83aa16'
+
+    awayTeam: 'Eleven Aces',
+
+  },
+
+    createdBy: '41e17194-e600-474a-834a-958a0a83aa16'
+
+  {
+
+  },
+
+    id: 'c574cf20-2813-4ed9-8f7a-5cf34db87742',
+
+  {
+
+    status: 'LIVE',
+
+    id: 'edbd7db6-1f0f-4f39-8698-d981f1a2a637',
+
+    homeTeam: 'The Falcon',
+
+    status: 'SCHEDULED',
+
+    awayTeam: 'Eleven Aces',
+
+    homeTeam: 'The Falcon',
+
+    createdBy: '41e17194-e600-474a-834a-958a0a83aa16'
+
+    awayTeam: 'Eleven Aces',
+
+  },
+
+    createdBy: '41e17194-e600-474a-834a-958a0a83aa16'
+
+  {
+
+  },
+
+    id: '2d7d8aba-bbf1-4caf-8f2b-99bb0be6733d',
+
+  {
+
+    status: 'SCHEDULED',
+
+    id: '1cf2350c-7f1d-47d2-872d-b68777bf01a5',
+
+    homeTeam: 'The Falcon',
+
+    status: 'SCHEDULED',
+
+    homeTeam: 'Eleven Aces',
+
+    awayTeam: 'The Falcon',
+
+    createdBy: '41e17194-e600-474a-834a-958a0a83aa16'
+
+  },
+
+  {
+
+    id: '09435fc9-2b24-4bb5-8c64-23ff8bd37bfd',
+
+    status: 'SCHEDULED',
+
+    homeTeam: 'Eleven Aces',
+
+    awayTeam: 'The Falcon',
+
+    createdBy: '41e17194-e600-474a-834a-958a0a83aa16'
+
+  },
+
+  {
+
+    id: '46b64b01-3c6e-4d00-b061-e3bd6fc6a912',
+
+    status: 'SCHEDULED',
+
+    homeTeam: 'The Falcon',
+
+    awayTeam: 'Eleven Aces',
+
+    createdBy: '41e17194-e600-474a-834a-958a0a83aa16'
 
   }
 
-}
+]
 
-🔍 Team validation: {
+📊 Database query returned 20 matches
 
-  requestTeamId: 'cc9fa632-3771-4837-ab3e-424ce318fdc1',
+📋 Raw match data: [
 
-  homeTeamId: 'cc9fa632-3771-4837-ab3e-424ce318fdc1',
+  {
 
-  awayTeamId: '4ec010ab-d47e-458e-ac70-d7b81654241b',
+    id: '0a9e77c3-b15a-4c66-b07a-7edb41bc0049',
 
-  homeTeamFromObj: 'cc9fa632-3771-4837-ab3e-424ce318fdc1',
+    created_by: '41e17194-e600-474a-834a-958a0a83aa16',
 
-  awayTeamFromObj: '4ec010ab-d47e-458e-ac70-d7b81654241b',
+    home_team_name: 'The Falcon',
 
-  matchData: {
+    away_team_name: 'Eleven Aces'
 
-    homeTeamId: undefined,
+  },
 
-    home_team_id: 'cc9fa632-3771-4837-ab3e-424ce318fdc1',
+  {
 
-    awayTeamId: undefined,
+    id: 'ef0a61aa-4ebc-4e50-85f8-f48bab23a38d',
 
-    away_team_id: '4ec010ab-d47e-458e-ac70-d7b81654241b'
+    created_by: '41e17194-e600-474a-834a-958a0a83aa16',
 
-  }
+    home_team_name: 'The Falcon',
 
-}
+    away_team_name: 'Eleven Aces'
 
-📝 Creating match event in database...
+  },
 
-🎯 Event details: {
+  {
 
-  id: '5b5056bc-3e7a-404f-b754-fef253ad9b5a',
+    id: '192a3759-02b1-4429-8219-f8c698174a5d',
 
-  matchId: 'e906c0e0-cf8b-4fda-a843-36a050618dc3',
+    created_by: '41e17194-e600-474a-834a-958a0a83aa16',
 
-  playerId: '1408735f-a5e2-4554-9dee-c0bb0b71f65b',
+    home_team_name: 'Eleven Aces',
 
-  teamId: 'cc9fa632-3771-4837-ab3e-424ce318fdc1',
+    away_team_name: 'The Falcon'
 
-  eventType: 'GOAL',
+    created_by: '41e17194-e600-474a-834a-958a0a83aa16',
 
-  minute: 120,
+  },
 
-  description: 'GOAL by The Falcon',
+    status: 'COMPLETED',
 
-  createdAt: 2025-06-14T11:09:22.897Z
+  {
 
-}
+    home_team_name: 'The Falcon',
 
-✅ Match event created successfully: 5712b9d4-81c7-4739-b185-2faa6767dd53
+    id: '9258c45f-5a55-4dbe-bf91-1828289e644f',
 
-⚽ Updating match score for goal...
+    homeTeam: 'The Falcon',
 
-📊 Current scores: { currentHomeScore: 1, currentAwayScore: 0 }
+    createdBy: '41e17194-e600-474a-834a-958a0a83aa16'
 
-🏠 Incrementing home team score to: 2
+    away_team_name: 'Eleven Aces'
 
-💾 Updating match with: { home_score: 2, homeScore: 2 }
+    created_by: '41e17194-e600-474a-834a-958a0a83aa16',
 
-💥 Add match event error: error: column "homescore" of relation "matches" does not exist
+    awayTeam: 'Eleven Aces',
 
-    at /app/node_modules/pg-pool/index.js:45:11
+  },
 
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+  },
 
-    at async PostgresDatabase.updateMatch (/app/dist/models/postgresDatabase.js:572:24)
+    home_team_name: 'The Falcon',
 
-    at async addMatchEvent (/app/dist/controllers/matchController.js:372:13) {
+    createdBy: '41e17194-e600-474a-834a-958a0a83aa16'
 
-  length: 131,
+  {
 
-  severity: 'ERROR',
+  },
 
-  code: '42703',
+    away_team_name: 'Eleven Aces'
 
-  detail: undefined,
+  {
 
-  hint: undefined,
+    home_team_name: 'Eleven Aces',
 
-  position: '37',
+    id: 'c574cf20-2813-4ed9-8f7a-5cf34db87742',
 
-  internalPosition: undefined,
+  {
 
-  internalQuery: undefined,
+  },
 
-  where: undefined,
+    created_by: '41e17194-e600-474a-834a-958a0a83aa16',
 
-  schema: undefined,
+    id: '2d7d8aba-bbf1-4caf-8f2b-99bb0be6733d',
 
-  table: undefined,
+    away_team_name: 'The Falcon'
 
-  column: undefined,
+    id: 'ef0a61aa-4ebc-4e50-85f8-f48bab23a38d',
 
-  dataType: undefined,
+  {
 
-  constraint: undefined,
+    status: 'COMPLETED',
 
-  file: 'analyze.c',
+    home_team_name: 'The Falcon',
 
-  line: '2527',
+  },
 
-  routine: 'transformUpdateTargetList'
+    status: 'SCHEDULED',
 
-}
+    id: '3800fc39-520d-495c-b74c-3d4d30c7c7fc',
 
-💥 Error stack: error: column "homescore" of relation "matches" does not exist
-
-    at /app/node_modules/pg-pool/index.js:45:11
-
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-
-    at async PostgresDatabase.updateMatch (/app/dist/models/postgresDatabase.js:572:24)
-
-    at async addMatchEvent (/app/dist/controllers/matchController.js:372:13)
-
-💥 Error message: column "homescore" of relation "matches" does not exist
+    homeTeam: 'The Falcon',
 
 
 football-stars | Railway
