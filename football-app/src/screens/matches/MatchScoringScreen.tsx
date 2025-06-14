@@ -212,7 +212,16 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   };
 
   const addEvent = async (playerId: string, eventType: string) => {
-    if (!selectedTeam || !match) return;
+    console.log('🎯 addEvent called with:', { playerId, eventType });
+    console.log('🎯 selectedTeam:', selectedTeam);
+    console.log('🎯 match:', match);
+    
+    // Frontend debugging confirmed working
+    
+    if (!selectedTeam || !match) {
+      console.log('❌ Missing selectedTeam or match');
+      return;
+    }
 
     try {
       const player = selectedTeam.players.find((p: Player) => p.id === playerId);
@@ -223,6 +232,19 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         minute: currentMinute,
         description: `${eventType} by ${selectedTeam.name}`,
       };
+
+      console.log('🚀 Sending event data to API:', {
+        matchId,
+        eventData,
+        selectedTeam: {
+          id: selectedTeam.id,
+          name: selectedTeam.name
+        },
+        match: {
+          homeTeam: match.homeTeam,
+          awayTeam: match.awayTeam
+        }
+      });
 
       await apiService.addMatchEvent(matchId, eventData);
       

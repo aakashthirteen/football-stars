@@ -825,6 +825,8 @@ class ApiService {
     minute: number;
     description?: string;
   }) {
+    console.log('🌐 API addMatchEvent called:', { matchId, eventData });
+    
     return this.request(`/matches/${matchId}/events`, {
       method: 'POST',
       body: JSON.stringify(eventData),

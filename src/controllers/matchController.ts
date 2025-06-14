@@ -364,8 +364,11 @@ export const populateTeamsWithPlayers = async (req: AuthRequest, res: Response):
 
 export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    console.log('🚨 addMatchEvent called - UPDATED VERSION RUNNING!');
     const { id } = req.params;
     const { playerId, teamId, eventType, minute, description }: MatchEventRequest = req.body as MatchEventRequest;
+    
+    console.log('📥 Request data:', { id, playerId, teamId, eventType, minute, description });
 
     if (!playerId || !teamId || !eventType || minute === undefined) {
       res.status(400).json({ error: 'Player, team, event type, and minute are required' });
