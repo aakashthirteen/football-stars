@@ -372,7 +372,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         <View style={styles.eventDetails}>
           <Text style={styles.eventPlayerName}>{event.player?.name}</Text>
           <Text style={styles.eventType}>
-            {event.eventType.replace('_', ' ')}
+            {event.eventType ? event.eventType.replace('_', ' ') : 'Unknown Event'}
           </Text>
         </View>
       </View>
@@ -605,7 +605,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
           </View>
           
           <Text style={styles.modalSubtitle}>
-            {selectedTeam?.name} - {selectedEventType.replace('_', ' ')}
+            {selectedTeam?.name} - {selectedEventType ? selectedEventType.replace('_', ' ') : 'Unknown Event'}
           </Text>
           
           <View style={{ padding: 10, backgroundColor: '#f0f0f0', margin: 10, borderRadius: 8 }}>
