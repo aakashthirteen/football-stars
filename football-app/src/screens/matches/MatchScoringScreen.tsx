@@ -162,7 +162,8 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
           const matchStart = new Date(matchDateValue);
           const now = new Date();
           const elapsed = Math.floor((now.getTime() - matchStart.getTime()) / (1000 * 60));
-          setCurrentMinute(Math.max(0, elapsed));
+          // Cap at reasonable match time (max 120 minutes including extra time)
+          setCurrentMinute(Math.max(0, Math.min(elapsed, 120)));
         } catch (dateError) {
           console.error('Error calculating match time:', dateError);
           setCurrentMinute(0);
@@ -349,6 +350,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const getEventIcon = (eventType: string) => {
     switch (eventType) {
       case 'GOAL': return '⚽';
+      case 'ASSIST': return '🤝';
       case 'YELLOW_CARD': return '🟨';
       case 'RED_CARD': return '🟥';
       case 'SUBSTITUTION': return '🔄';
@@ -538,6 +540,24 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                 <Ionicons name="football" size={24} color="#fff" />
                 <Text style={styles.quickActionText}>{match.awayTeam.name}</Text>
                 <Text style={styles.quickActionLabel}>Goal</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.quickAction, styles.assistAction]}
+                onPress={() => openEventModal(match.homeTeam, 'ASSIST')}
+              >
+                <Ionicons name="hand-right" size={24} color="#fff" />
+                <Text style={styles.quickActionText}>{match.homeTeam.name}</Text>
+                <Text style={styles.quickActionLabel}>Assist</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.quickAction, styles.assistAction]}
+                onPress={() => openEventModal(match.awayTeam, 'ASSIST')}
+              >
+                <Ionicons name="hand-right" size={24} color="#fff" />
+                <Text style={styles.quickActionText}>{match.awayTeam.name}</Text>
+                <Text style={styles.quickActionLabel}>Assist</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
@@ -837,6 +857,9 @@ const styles = StyleSheet.create({
   },
   goalAction: {
     backgroundColor: '#4CAF50',
+  },
+  assistAction: {
+    backgroundColor: '#2196F3',
   },
   cardAction: {
     backgroundColor: '#FF9800',

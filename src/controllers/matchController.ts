@@ -416,8 +416,9 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
     };
 
     console.log('📝 Creating match event in database...');
+    console.log('🎯 Event details:', event);
     const createdEvent = await database.createMatchEvent(event);
-    console.log('✅ Match event created successfully:', createdEvent);
+    console.log('✅ Match event created successfully:', createdEvent?.id);
 
     // Update match score if it's a goal
     if (eventType === 'GOAL') {
@@ -430,9 +431,11 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
       
       if (teamId === homeTeamId) {
         updates.home_score = currentHomeScore + 1;
+        updates.homeScore = currentHomeScore + 1;  // For frontend compatibility
         console.log('🏠 Incrementing home team score to:', updates.home_score);
       } else {
         updates.away_score = currentAwayScore + 1;
+        updates.awayScore = currentAwayScore + 1;  // For frontend compatibility
         console.log('✈️ Incrementing away team score to:', updates.away_score);
       }
       
