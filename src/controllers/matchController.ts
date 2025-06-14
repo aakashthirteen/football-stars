@@ -379,14 +379,21 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     // Verify team is part of this match
-    const homeTeamId = match.homeTeamId;
-    const awayTeamId = match.awayTeamId;
+    const homeTeamId = match.homeTeam?.id || (match as any).home_team_id;
+    const awayTeamId = match.awayTeam?.id || (match as any).away_team_id;
     
     console.log('🔍 Team validation:', {
       requestTeamId: teamId,
       homeTeamId,
       awayTeamId,
-      matchData: { homeTeamId: (match as any).homeTeamId, home_team_id: (match as any).home_team_id }
+      homeTeamFromObj: match.homeTeam?.id,
+      awayTeamFromObj: match.awayTeam?.id,
+      matchData: { 
+        homeTeamId: (match as any).homeTeamId, 
+        home_team_id: (match as any).home_team_id,
+        awayTeamId: (match as any).awayTeamId,
+        away_team_id: (match as any).away_team_id
+      }
     });
     
     if (teamId !== homeTeamId && teamId !== awayTeamId) {
