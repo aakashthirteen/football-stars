@@ -711,6 +711,14 @@ export class PostgresDatabase {
     
     return result.rows.map(row => ({
       ...row,
+      // Proper field mapping from snake_case to camelCase
+      homeScore: row.home_score || 0,
+      awayScore: row.away_score || 0,
+      homeTeamId: row.home_team_id,
+      awayTeamId: row.away_team_id,
+      matchDate: row.match_date,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
       homeTeam: { name: row.home_team_name || 'Unknown Home Team' },
       awayTeam: { name: row.away_team_name || 'Unknown Away Team' },
       events: []
