@@ -700,6 +700,11 @@ export class PostgresDatabase {
     `, [matchId]);
     return result.rows.map(row => ({
       ...row,
+      eventType: row.event_type,
+      matchId: row.match_id,
+      playerId: row.player_id,
+      teamId: row.team_id,
+      createdAt: row.created_at,
       player: row.player
     }));
   }

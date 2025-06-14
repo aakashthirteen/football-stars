@@ -751,60 +751,63 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             
             {showLineups && (
               <View style={styles.lineupsContent}>
-                {/* Home Team */}
-                <View style={styles.teamLineup}>
-                  <Text style={styles.teamLineupsTitle}>{match.homeTeam?.name}</Text>
-                  <View style={styles.playersGrid}>
+                {/* Team Names Side by Side */}
+                <View style={styles.teamNamesRow}>
+                  <Text style={styles.teamNameHeader}>{match.homeTeam?.name}</Text>
+                  <Text style={styles.teamNameHeader}>{match.awayTeam?.name}</Text>
+                </View>
+                
+                {/* Players Lists Side by Side */}
+                <View style={styles.playersRow}>
+                  {/* Home Team Players */}
+                  <View style={styles.teamPlayersList}>
                     {match.homeTeam?.players?.map((player: any, index: number) => (
                       <TouchableOpacity 
                         key={player.id || index} 
-                        style={styles.lineupPlayer}
+                        style={styles.playerListItem}
                         onPress={() => {
                           // Navigate to player profile (placeholder for now)
                           console.log('Navigate to player profile:', player.id, player.name);
                         }}
                       >
                         <View style={[
-                          styles.playerJerseyMini, 
+                          styles.playerJerseyList, 
                           { backgroundColor: getPositionColor(player.position) }
                         ]}>
-                          <Text style={styles.playerNumberMini}>{player.jerseyNumber || index + 1}</Text>
+                          <Text style={styles.playerNumberList}>{player.jerseyNumber || index + 1}</Text>
                         </View>
-                        <View style={styles.playerInfoMini}>
-                          <Text style={styles.playerNameMini} numberOfLines={1}>
-                            {player.name?.split(' ')[0] || 'Player'}
+                        <View style={styles.playerInfoList}>
+                          <Text style={styles.playerNameList} numberOfLines={1}>
+                            {player.name || 'Player'}
                           </Text>
-                          <Text style={styles.playerPositionMini}>{player.position}</Text>
+                          <Text style={styles.playerPositionList}>{player.position}</Text>
                         </View>
                       </TouchableOpacity>
                     ))}
                   </View>
-                </View>
-                
-                {/* Away Team */}
-                <View style={styles.teamLineup}>
-                  <Text style={styles.teamLineupsTitle}>{match.awayTeam?.name}</Text>
-                  <View style={styles.playersGrid}>
+                  
+                  {/* Away Team Players */}
+                  <View style={styles.teamPlayersList}>
                     {match.awayTeam?.players?.map((player: any, index: number) => (
                       <TouchableOpacity 
                         key={player.id || index} 
-                        style={styles.lineupPlayer}
+                        style={styles.playerListItem}
                         onPress={() => {
                           // Navigate to player profile (placeholder for now)
                           console.log('Navigate to player profile:', player.id, player.name);
                         }}
                       >
                         <View style={[
-                          styles.playerJerseyMini, 
+                          styles.playerJerseyList, 
                           { backgroundColor: getPositionColor(player.position) }
                         ]}>
-                          <Text style={styles.playerNumberMini}>{player.jerseyNumber || index + 1}</Text>
+                          <Text style={styles.playerNumberList}>{player.jerseyNumber || index + 1}</Text>
                         </View>
-                        <View style={styles.playerInfoMini}>
-                          <Text style={styles.playerNameMini} numberOfLines={1}>
-                            {player.name?.split(' ')[0] || 'Player'}
+                        <View style={styles.playerInfoList}>
+                          <Text style={styles.playerNameList} numberOfLines={1}>
+                            {player.name || 'Player'}
                           </Text>
-                          <Text style={styles.playerPositionMini}>{player.position}</Text>
+                          <Text style={styles.playerPositionList}>{player.position}</Text>
                         </View>
                       </TouchableOpacity>
                     ))}
@@ -1478,6 +1481,67 @@ const styles = StyleSheet.create({
   },
   playerPositionMini: {
     fontSize: 12,
+    color: '#666',
+  },
+  // New List-Based Lineup Styles
+  teamNamesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  teamNameHeader: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+    textAlign: 'center',
+  },
+  playersRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  teamPlayersList: {
+    flex: 1,
+  },
+  playerListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#f0f2f5',
+  },
+  playerJerseyList: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  playerNumberList: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  playerInfoList: {
+    flex: 1,
+  },
+  playerNameList: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  playerPositionList: {
+    fontSize: 11,
     color: '#666',
   },
 });
