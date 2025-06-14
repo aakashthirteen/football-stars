@@ -16,6 +16,8 @@ import { useAuthStore } from '../../store/authStore';
 import { apiService } from '../../services/api';
 import { PlayerStats } from '../../types';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { STADIUM_GRADIENTS, getPlayerPositionGradient } from '../../utils/gradients';
 
 const { width } = Dimensions.get('window');
 
@@ -137,7 +139,10 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   };
 
   const renderHeader = () => (
-    <View style={styles.header}>
+    <LinearGradient
+      colors={STADIUM_GRADIENTS.DARK_HEADER}
+      style={styles.header}
+    >
       <View style={styles.headerBackground}>
         <View style={styles.headerPattern} />
       </View>
@@ -163,9 +168,12 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
               source={{ uri: 'https://via.placeholder.com/120' }}
               style={styles.avatar}
             />
-            <View style={styles.levelBadge}>
+            <LinearGradient
+              colors={STADIUM_GRADIENTS.GOLD_CAPTAIN}
+              style={styles.levelBadge}
+            >
               <Text style={styles.levelText}>{getPlayerLevel()}</Text>
-            </View>
+            </LinearGradient>
           </View>
           
           <Text style={styles.userName}>{user?.name}</Text>
@@ -191,7 +199,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
           )}
         </View>
       </View>
-    </View>
+    </LinearGradient>
   );
 
   const renderTabs = () => (

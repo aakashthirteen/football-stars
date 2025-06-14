@@ -7,12 +7,13 @@ import {
   FlatList,
   RefreshControl,
   Alert,
-  Animated,
   ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { apiService } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { STADIUM_GRADIENTS } from '../../utils/gradients';
 
 interface TeamsScreenProps {
   navigation: any;
@@ -31,16 +32,10 @@ export default function TeamsScreen({ navigation }: TeamsScreenProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'my' | 'all'>('my');
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
   useFocusEffect(
     React.useCallback(() => {
       loadTeams();
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }).start();
     }, [selectedTab])
   );
 
@@ -69,147 +64,230 @@ export default function TeamsScreen({ navigation }: TeamsScreenProps) {
     setRefreshing(false);
   };
 
-  const renderTeam = ({ item, index }: { item: Team; index: number }) => (
-    <Animated.View
-      style={[
-        styles.teamCardWrapper,
-        {
-          opacity: fadeAnim,
-          transform: [
-            {
-              translateY: fadeAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [50, 0],
-              }),
-            },
-          ],
-        },
-      ]}
-    >
+  const getTeamGradient = (teamName: string) => {
+    const gradients = [
+      ['#1B5E20', '#2E7D32'],
+      ['#0D47A1', '#1976D2'],
+      ['#B71C1C', '#D32F2F'],
+      ['#E65100', '#FF9800'],
+      ['#4A148C', '#7B1FA2'],
+    ];
+    const index = teamName.charCodeAt(0) % gradients.length;
+    return gradients[index];
+  };
+
+  const renderTeam = ({ item, index }: { item: Team; index: number }) => {
+    return (
       <TouchableOpacity 
-        style={styles.teamCard}
         onPress={() => navigation.navigate('TeamDetails', { teamId: item.id })}
         activeOpacity={0.8}
+        style={{ marginBottom: 16 }}
       >
-        <View style={styles.teamBadge}>
-          <Text style={styles.teamBadgeText}>
-            {item.name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2)}
-          </Text>
-        </View>
-        
-        <View style={styles.teamContent}>
+        <LinearGradient
+          colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']}
+          style={styles.teamCard}
+        >
+          <View style={styles.glowOverlay} />
+          
           <View style={styles.teamHeader}>
-            <Text style={styles.teamName} numberOfLines={1}>{item.name}</Text>
-            <View style={styles.teamStats}>
-              <Ionicons name="people" size={16} color="#666" />
-              <Text style={styles.teamMembers}>{item.players.length}</Text>
-            </View>
-          </View>
-          
-          {item.description && (
-            <Text style={styles.teamDescription} numberOfLines={2}>
-              {item.description}
-            </Text>
-          )}
-          
-          <View style={styles.teamFooter}>
-            <View style={styles.captainInfo}>
-              {item.players.find(p => p.role === 'CAPTAIN') && (
-                <>
-                  <Ionicons name="star" size={14} color="#FFD700" />
-                  <Text style={styles.captainText}>
-                    {item.players.find(p => p.role === 'CAPTAIN')?.player?.name || 'Captain'}
-                  </Text>
-                </>
+            <LinearGradient
+              colors={getTeamGradient(item.name)}
+              style={styles.teamIconContainer}
+            >
+              <Ionicons name="shield" size={28} color="#fff" />
+            </LinearGradient>
+            
+            <View style={styles.teamInfo}>
+              <Text style={styles.teamName} numberOfLines={1}>{item.name}</Text>
+              {item.description && (
+                <Text style={styles.teamDescription} numberOfLines={2}>
+                  {item.description}
+                </Text>
               )}
             </View>
-            <View style={styles.viewDetailsButton}>
-              <Text style={styles.viewDetails}>View</Text>
-              <Ionicons name="arrow-forward" size={16} color="#2E7D32" />
+            
+            <View style={styles.teamStats}>
+              <View style={styles.statItem}>
+                <Ionicons name="people" size={16} color="#4CAF50" />
+                <Text style={styles.statText}>{item.players?.length || 0}</Text>
+              </View>
             </View>
           </View>
-        </View>
+          
+          <View style={styles.teamFooter}>
+            <View style={styles.badges}>
+              {item.players?.some(p => p.role === 'CAPTAIN') && (
+                <LinearGradient
+                  colors={STADIUM_GRADIENTS.GOLD_CAPTAIN}
+                  style={styles.badge}
+                >
+                  <Ionicons name="star" size={12} color="#fff" />
+                  <Text style={styles.badgeText}>Captain</Text>
+                </LinearGradient>
+              )}
+            </View>
+            
+            <LinearGradient
+              colors={STADIUM_GRADIENTS.GREEN_SUCCESS}
+              style={styles.viewButton}
+            >
+              <Text style={styles.viewButtonText}>View</Text>
+              <Ionicons name="arrow-forward" size={14} color="#fff" />
+            </LinearGradient>
+          </View>
+        </LinearGradient>
       </TouchableOpacity>
-    </Animated.View>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Teams</Text>
-          <Text style={styles.subtitle}>
-            {selectedTab === 'my' ? 'Manage your squads' : 'Discover teams to join'}
-          </Text>
+      {/* Header */}
+      <LinearGradient
+        colors={STADIUM_GRADIENTS.DARK_HEADER}
+        style={styles.header}
+      >
+        <View style={styles.headerContent}>
+          <View>
+            <Text style={styles.title}>Teams</Text>
+            <Text style={styles.subtitle}>
+              {selectedTab === 'my' ? 'Manage your squads' : 'Discover teams to join'}
+            </Text>
+          </View>
+          
+          {selectedTab === 'my' && (
+            <TouchableOpacity 
+              onPress={() => navigation.navigate('CreateTeam')}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={STADIUM_GRADIENTS.GREEN_PRIMARY}
+                style={styles.createButton}
+              >
+                <Ionicons name="add" size={20} color="#fff" />
+                <Text style={styles.createButtonText}>Create</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
         </View>
-        {selectedTab === 'my' && (
-          <TouchableOpacity 
-            style={styles.createButton}
-            onPress={() => navigation.navigate('CreateTeam')}
-          >
-            <Ionicons name="add" size={20} color="#fff" />
-            <Text style={styles.createButtonText}>Create</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      </LinearGradient>
 
+      {/* Tab Selector */}
       <View style={styles.tabContainer}>
-        <TouchableOpacity 
-          style={[styles.tab, selectedTab === 'my' && styles.activeTab]}
-          onPress={() => handleTabChange('my')}
-        >
-          <Text style={[styles.tabText, selectedTab === 'my' && styles.activeTabText]}>
-            My Teams
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tab, selectedTab === 'all' && styles.activeTab]}
-          onPress={() => handleTabChange('all')}
-        >
-          <Text style={[styles.tabText, selectedTab === 'all' && styles.activeTabText]}>
-            All Teams
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.tabWrapper}>
+          <TouchableOpacity 
+            style={[styles.tab, selectedTab === 'my' && styles.activeTab]}
+            onPress={() => handleTabChange('my')}
+            activeOpacity={0.8}
+          >
+            {selectedTab === 'my' ? (
+              <LinearGradient
+                colors={STADIUM_GRADIENTS.GREEN_PRIMARY}
+                style={styles.tabGradient}
+              >
+                <Ionicons name="people" size={16} color="#fff" />
+                <Text style={styles.activeTabText}>My Teams</Text>
+              </LinearGradient>
+            ) : (
+              <View style={styles.tabContent}>
+                <Ionicons name="people-outline" size={16} color="rgba(255, 255, 255, 0.6)" />
+                <Text style={styles.tabText}>My Teams</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.tab, selectedTab === 'all' && styles.activeTab]}
+            onPress={() => handleTabChange('all')}
+            activeOpacity={0.8}
+          >
+            {selectedTab === 'all' ? (
+              <LinearGradient
+                colors={STADIUM_GRADIENTS.GREEN_PRIMARY}
+                style={styles.tabGradient}
+              >
+                <Ionicons name="globe" size={16} color="#fff" />
+                <Text style={styles.activeTabText}>All Teams</Text>
+              </LinearGradient>
+            ) : (
+              <View style={styles.tabContent}>
+                <Ionicons name="globe-outline" size={16} color="rgba(255, 255, 255, 0.6)" />
+                <Text style={styles.tabText}>All Teams</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
+      {/* Teams List */}
       <FlatList
         data={teams}
         renderItem={renderTeam}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.list, teams.length === 0 && styles.emptyContainer]}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            tintColor="#4CAF50"
+            colors={['#4CAF50']}
+          />
         }
+        showsVerticalScrollIndicator={false}
         ListEmptyComponent={() => (
           <View style={styles.emptyState}>
-            <View style={styles.emptyIconContainer}>
-              <Ionicons name="people-outline" size={80} color="#ddd" />
-            </View>
-            {selectedTab === 'my' ? (
-              <>
-                <Text style={styles.emptyText}>No teams yet</Text>
-                <Text style={styles.emptySubtext}>Create your first team to organize matches,{`\n`}track stats, and build your squad!</Text>
-                <TouchableOpacity 
-                  style={styles.createTeamButton}
-                  onPress={() => navigation.navigate('CreateTeam')}
-                >
-                  <Ionicons name="add-circle" size={24} color="#fff" />
-                  <Text style={styles.createTeamButtonText}>Create Your First Team</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Text style={styles.emptyText}>No teams available</Text>
-                <Text style={styles.emptySubtext}>No teams are currently visible.{`\n`}Check back later for new teams to join!</Text>
-              </>
-            )}
+            <LinearGradient
+              colors={STADIUM_GRADIENTS.CARD_DARK}
+              style={styles.emptyContainer}
+            >
+              <View style={styles.emptyIconContainer}>
+                <Ionicons name="shield-outline" size={80} color="rgba(255, 255, 255, 0.3)" />
+              </View>
+              
+              {selectedTab === 'my' ? (
+                <>
+                  <Text style={styles.emptyText}>No teams yet</Text>
+                  <Text style={styles.emptySubtext}>
+                    Create your first team to organize matches,{'\n'}
+                    track stats, and build your squad!
+                  </Text>
+                  <TouchableOpacity 
+                    onPress={() => navigation.navigate('CreateTeam')}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={['#4CAF50', '#2E7D32']}
+                      style={styles.createTeamButton}
+                    >
+                      <Ionicons name="add-circle" size={24} color="#fff" />
+                      <Text style={styles.createTeamButtonText}>Create Your First Team</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.emptyText}>No teams available</Text>
+                  <Text style={styles.emptySubtext}>
+                    No teams are currently visible.{'\n'}
+                    Check back later for new teams to join!
+                  </Text>
+                </>
+              )}
+            </LinearGradient>
           </View>
         )}
       />
       
+      {/* Loading Overlay */}
       {isLoading && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#2E7D32" />
+          <LinearGradient
+            colors={['rgba(10, 14, 39, 0.9)', 'rgba(26, 31, 58, 0.9)']}
+            style={styles.loadingContainer}
+          >
+            <ActivityIndicator size="large" color="#4CAF50" />
+            <Text style={styles.loadingText}>Loading teams...</Text>
+          </LinearGradient>
         </View>
       )}
     </View>
@@ -219,193 +297,244 @@ export default function TeamsScreen({ navigation }: TeamsScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#0A0E27',
   },
   header: {
+    paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 24,
-    paddingTop: 60,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
   },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#fff',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 4,
   },
   createButton: {
-    backgroundColor: '#2E7D32',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 25,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
+    gap: 8,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   createButtonText: {
     color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
-    fontSize: 15,
   },
-  list: {
-    padding: 24,
+  tabContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
-  emptyContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
-  teamCardWrapper: {
-    marginBottom: 16,
-  },
-  teamCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
+  tabWrapper: {
     flexDirection: 'row',
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  teamBadge: {
-    width: 60,
-    height: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 30,
-    backgroundColor: '#2E7D32',
+    padding: 4,
+  },
+  tab: {
+    flex: 1,
+  },
+  activeTab: {
+    // Handled by gradient
+  },
+  tabGradient: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 26,
+    gap: 8,
   },
-  teamBadgeText: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  tabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  tabText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontWeight: '500',
+  },
+  activeTabText: {
+    fontSize: 14,
     color: '#fff',
+    fontWeight: '600',
   },
-  teamContent: {
-    flex: 1,
+  list: {
+    padding: 20,
+  },
+  teamCard: {
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: 'rgba(76, 175, 80, 0.3)',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+    overflow: 'hidden',
+  },
+  glowOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: '#4CAF50',
+    opacity: 0.6,
   },
   teamHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 16,
+  },
+  teamIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  teamInfo: {
+    flex: 1,
   },
   teamName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    flex: 1,
-    marginRight: 8,
-  },
-  teamStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#f0f2f5',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  teamMembers: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 4,
   },
   teamDescription: {
     fontSize: 14,
-    color: '#888',
+    color: 'rgba(255, 255, 255, 0.7)',
     lineHeight: 20,
-    marginBottom: 12,
+  },
+  teamStats: {
+    alignItems: 'center',
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4CAF50',
   },
   teamFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  captainInfo: {
+  badges: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    flex: 1,
-  },
-  captainText: {
-    fontSize: 13,
-    color: '#666',
-    fontWeight: '500',
-  },
-  viewDetailsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
     gap: 4,
   },
-  viewDetails: {
-    fontSize: 14,
-    color: '#2E7D32',
+  badgeText: {
+    fontSize: 12,
     fontWeight: '600',
+    color: '#fff',
+  },
+  viewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  viewButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+    borderRadius: 20,
+    marginHorizontal: 20,
   },
   emptyState: {
-    alignItems: 'center',
-    paddingVertical: 80,
+    flex: 1,
   },
   emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#f0f2f5',
-    alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: 24,
   },
   emptyText: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
     marginBottom: 8,
   },
   emptySubtext: {
-    fontSize: 15,
-    color: '#666',
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
+    lineHeight: 24,
     marginBottom: 32,
-    lineHeight: 22,
   },
   createTeamButton: {
-    backgroundColor: '#2E7D32',
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 30,
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 30,
     gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   createTeamButtonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+    color: '#fff',
   },
   loadingOverlay: {
     position: 'absolute',
@@ -413,39 +542,19 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.8)',
-    alignItems: 'center',
     justifyContent: 'center',
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#f0f2f5',
-    marginHorizontal: 24,
-    marginTop: 12,
-    borderRadius: 8,
-    padding: 4,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 6,
     alignItems: 'center',
   },
-  activeTab: {
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+  loadingContainer: {
+    padding: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  tabText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#666',
-  },
-  activeTabText: {
-    color: '#2E7D32',
+  loadingText: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 16,
   },
 });
