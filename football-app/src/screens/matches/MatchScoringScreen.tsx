@@ -212,16 +212,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   };
 
   const addEvent = async (playerId: string, eventType: string) => {
-    console.log('🎯 addEvent called with:', { playerId, eventType });
-    console.log('🎯 selectedTeam:', selectedTeam);
-    console.log('🎯 match:', match);
-    
-    // Frontend debugging confirmed working
-    
-    if (!selectedTeam || !match) {
-      console.log('❌ Missing selectedTeam or match');
-      return;
-    }
+    if (!selectedTeam || !match) return;
 
     try {
       const player = selectedTeam.players.find((p: Player) => p.id === playerId);
@@ -233,25 +224,14 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         description: `${eventType} by ${selectedTeam.name}`,
       };
 
-      console.log('🚀 Sending event data to API:', {
-        matchId,
-        eventData,
-        selectedTeam: {
-          id: selectedTeam.id,
-          name: selectedTeam.name
-        },
-        match: {
-          homeTeam: match.homeTeam,
-          awayTeam: match.awayTeam
-        }
-      });
+      // Event data ready for API
 
       await apiService.addMatchEvent(matchId, eventData);
       
       // Generate commentary
       const templates = COMMENTARY_TEMPLATES[eventType as keyof typeof COMMENTARY_TEMPLATES] || [];
       const template = templates[Math.floor(Math.random() * templates.length)];
-      const commentary = template.replace('{player}', player?.name || 'Unknown');
+      const commentary = template ? template.replace('{player}', player?.name || 'Unknown') : `${eventType} by ${player?.name || 'Unknown'}`;
       showCommentary(commentary);
       
       // Animate and vibrate for goals
