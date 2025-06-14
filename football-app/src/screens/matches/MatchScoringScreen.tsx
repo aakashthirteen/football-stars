@@ -79,8 +79,6 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const [selectedTeam, setSelectedTeam] = useState<any>(null);
   const [selectedEventType, setSelectedEventType] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
-  const [addingEvent, setAddingEvent] = useState(false);
-  const processedEvents = useRef(new Set<string>());
   const [latestCommentary, setLatestCommentary] = useState<string>('');
   const [showQuickActions, setShowQuickActions] = useState(true);
   
@@ -154,6 +152,17 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         awayTeam: matchData.awayTeam.players?.length || 0
       });
       
+      // Ensure scores are properly mapped from database fields
+      matchData.homeScore = matchData.homeScore || matchData.home_score || 0;
+      matchData.awayScore = matchData.awayScore || matchData.away_score || 0;
+      
+      console.log('📊 Final scores:', { 
+        homeScore: matchData.homeScore, 
+        awayScore: matchData.awayScore,
+        home_score: matchData.home_score,
+        away_score: matchData.away_score
+      });
+      
       setMatch(matchData);
       setIsLive(matchData.status === 'LIVE');
       
@@ -215,23 +224,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   };
 
   const addEvent = async (playerId: string, eventType: string) => {
-    console.log('🎯 addEvent called:', { playerId, eventType, addingEvent, currentMinute });
+    if (!selectedTeam || !match) return;
     
-    if (!selectedTeam || !match || addingEvent) {
-      console.log('🚫 addEvent blocked:', { hasTeam: !!selectedTeam, hasMatch: !!match, addingEvent });
-      return;
-    }
-    
-    // Create unique event key to prevent duplicates
-    const eventKey = `${playerId}-${eventType}-${currentMinute}`;
-    if (processedEvents.current.has(eventKey)) {
-      console.log('🚫 Duplicate event prevented:', eventKey);
-      return;
-    }
-    
-    console.log('✅ Processing event:', eventKey);
-    processedEvents.current.add(eventKey);
-    setAddingEvent(true);
+    console.log('🎯 Adding event:', { playerId, eventType, teamId: selectedTeam.id });
 
     try {
       const player = selectedTeam.players.find((p: Player) => p.id === playerId);
@@ -262,19 +257,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       }
 
       await loadMatchDetails();
-      setShowEventModal(false);
-      
-      // Clear processed events after successful submission
-      setTimeout(() => {
-        processedEvents.current.clear();
-      }, 2000);
       
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to add event');
-      // Remove failed event from processed set
-      processedEvents.current.delete(eventKey);
-    } finally {
-      setAddingEvent(false);
     }
   };
 
@@ -338,12 +323,13 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   };
 
   const renderPlayer = ({ item }: { item: Player }) => {
-    console.log('🎭 Rendering player:', item);
     return (
       <TouchableOpacity
-        style={[styles.playerItem, addingEvent && styles.playerItemDisabled]}
-        onPress={() => !addingEvent && addEvent(item.id, selectedEventType)}
-        disabled={addingEvent}
+        style={styles.playerItem}
+        onPress={() => {
+          setShowEventModal(false); // Close modal immediately
+          addEvent(item.id, selectedEventType);
+        }}
       >
         <View style={styles.playerItemContent}>
           <View style={[styles.playerNumber, { backgroundColor: getPositionColor(item.position) }]}>
@@ -1021,10 +1007,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
     overflow: 'hidden',
-  },
-  playerItemDisabled: {
-    backgroundColor: '#e0e0e0',
-    opacity: 0.6,
   },
   playerItemContent: {
     flexDirection: 'row',
