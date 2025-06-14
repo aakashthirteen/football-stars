@@ -487,6 +487,14 @@ export class PostgresDatabase {
       
       const finalMatchData = {
         ...match,
+        // Proper field mapping from snake_case to camelCase
+        homeTeamId: match.home_team_id,
+        awayTeamId: match.away_team_id,
+        homeScore: match.home_score || 0,
+        awayScore: match.away_score || 0,
+        matchDate: match.match_date,
+        createdBy: match.created_by,
+        createdAt: match.created_at,
         homeTeam: { 
           id: match.home_team_id,
           name: match.home_team_name,
@@ -661,17 +669,32 @@ export class PostgresDatabase {
     console.log('🔍 Querying matches for user:', userId);
     
     const result = await this.pool.query(`
-      SELECT m.*, 
+      SELECT DISTINCT m.*, 
              ht.name as home_team_name,
              at.name as away_team_name
       FROM matches m
       LEFT JOIN teams ht ON m.home_team_id = ht.id
       LEFT JOIN teams at ON m.away_team_id = at.id
-      WHERE m.created_by = $1
+      LEFT JOIN team_players tp_home ON ht.id = tp_home.team_id
+      LEFT JOIN players p_home ON tp_home.player_id = p_home.id
+      LEFT JOIN team_players tp_away ON at.id = tp_away.team_id  
+      LEFT JOIN players p_away ON tp_away.player_id = p_away.id
+      WHERE m.created_by = $1 
+         OR p_home.user_id = $1 
+         OR p_away.user_id = $1
       ORDER BY m.match_date DESC
     `, [userId]);
     
     console.log(`📊 Database query returned ${result.rows.length} matches`);
+    console.log('🔍 DEBUG: Full SQL result for user matches:', result.rows.map(row => ({
+      matchId: row.id,
+      status: row.status,
+      homeTeam: row.home_team_name,
+      awayTeam: row.away_team_name,
+      createdBy: row.created_by,
+      homeScore: row.home_score,
+      awayScore: row.away_score
+    })));
     if (result.rows.length > 0) {
       console.log('📋 Raw match data:', result.rows.map(row => ({
         id: row.id,
@@ -698,7 +721,10 @@ export class PostgresDatabase {
       WHERE me.match_id = $1
       ORDER BY me.minute ASC
     `, [matchId]);
-    return result.rows.map(row => ({
+    
+    console.log('🔍 getMatchEvents - Raw DB result:', result.rows);
+    
+    const mappedEvents = result.rows.map(row => ({
       ...row,
       eventType: row.event_type,
       matchId: row.match_id,
@@ -707,6 +733,15 @@ export class PostgresDatabase {
       createdAt: row.created_at,
       player: row.player
     }));
+    
+    console.log('🎯 getMatchEvents - Mapped events:', mappedEvents.map(e => ({
+      id: e.id,
+      eventType: e.eventType,
+      event_type: e.event_type,
+      player: e.player
+    })));
+    
+    return mappedEvents;
   }
 
   async updateMatch(id: string, updates: any): Promise<Match | null> {

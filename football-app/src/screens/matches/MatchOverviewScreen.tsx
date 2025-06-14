@@ -200,7 +200,7 @@ export default function MatchOverviewScreen({ navigation, route }: MatchOverview
                   <View style={styles.eventContent}>
                     <View style={styles.eventHeader}>
                       <Text style={styles.eventType}>
-                        {getEventDescription(event.eventType)}
+                        {getEventDescription(event.eventType)} by {event.player?.name || 'Unknown Player'}
                       </Text>
                       <Text style={styles.eventTeam}>
                         {event.teamId === match.homeTeam?.id ? match.homeTeam?.name : match.awayTeam?.name}
