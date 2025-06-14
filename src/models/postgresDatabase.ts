@@ -118,6 +118,14 @@ export class PostgresDatabase {
         )
       `);
 
+      // Add unique constraint to prevent duplicate events within 1 minute window
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS unique_match_events 
+        ON match_events (match_id, player_id, event_type, minute)
+      `);
+      
+      console.log('✅ Added unique constraint to prevent duplicate match events');
+
       // Tournaments table
       await client.query(`
         CREATE TABLE IF NOT EXISTS tournaments (

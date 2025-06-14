@@ -81,6 +81,8 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const [isLoading, setIsLoading] = useState(true);
   const [latestCommentary, setLatestCommentary] = useState<string>('');
   const [showQuickActions, setShowQuickActions] = useState(true);
+  const [isProcessingEvent, setIsProcessingEvent] = useState(false);
+  const [lastEventTime, setLastEventTime] = useState(0);
   
   const scoreAnimation = useRef(new Animated.Value(1)).current;
   const commentaryAnimation = useRef(new Animated.Value(0)).current;
@@ -226,7 +228,23 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const addEvent = async (playerId: string, eventType: string) => {
     if (!selectedTeam || !match) return;
     
-    const frontendRequestId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    const now = Date.now();
+    const frontendRequestId = now + '-' + Math.random().toString(36).substr(2, 9);
+    
+    // Prevent rapid-fire calls (1 second debounce)
+    if (isProcessingEvent) {
+      console.log(`🚫 [${frontendRequestId}] FRONTEND: Already processing event, ignoring rapid click`);
+      return;
+    }
+    
+    if (now - lastEventTime < 1000) {
+      console.log(`🚫 [${frontendRequestId}] FRONTEND: Too soon after last event (${now - lastEventTime}ms), ignoring`);
+      return;
+    }
+    
+    setIsProcessingEvent(true);
+    setLastEventTime(now);
+    
     console.log(`🎯 [${frontendRequestId}] FRONTEND: Starting addEvent:`, { playerId, eventType, teamId: selectedTeam.id });
     console.log(`🕐 [${frontendRequestId}] FRONTEND: Timestamp:`, new Date().toISOString());
 
@@ -268,6 +286,10 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     } catch (error: any) {
       console.error(`💥 [${frontendRequestId}] FRONTEND: Error in addEvent:`, error);
       Alert.alert('Error', error.message || 'Failed to add event');
+    } finally {
+      // Always reset processing state after request completes (success or error)
+      setIsProcessingEvent(false);
+      console.log(`🔄 [${frontendRequestId}] FRONTEND: Reset processing state`);
     }
   };
 
@@ -333,11 +355,14 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const renderPlayer = ({ item }: { item: Player }) => {
     return (
       <TouchableOpacity
-        style={styles.playerItem}
+        style={[styles.playerItem, isProcessingEvent && styles.disabledPlayerItem]}
         onPress={() => {
-          setShowEventModal(false); // Close modal immediately
-          addEvent(item.id, selectedEventType);
+          if (!isProcessingEvent) {
+            setShowEventModal(false); // Close modal immediately
+            addEvent(item.id, selectedEventType);
+          }
         }}
+        disabled={isProcessingEvent}
       >
         <View style={styles.playerItemContent}>
           <View style={[styles.playerNumber, { backgroundColor: getPositionColor(item.position) }]}>
@@ -346,10 +371,15 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             </Text>
           </View>
           <View style={styles.playerDetails}>
-            <Text style={styles.playerName}>{item.name}</Text>
-            <Text style={styles.playerPosition}>{item.position}</Text>
+            <Text style={[styles.playerName, isProcessingEvent && styles.disabledText]}>{item.name}</Text>
+            <Text style={[styles.playerPosition, isProcessingEvent && styles.disabledText]}>{item.position}</Text>
           </View>
         </View>
+        {isProcessingEvent && (
+          <View style={styles.processingOverlay}>
+            <ActivityIndicator size="small" color="#666" />
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -542,8 +572,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             
             <View style={styles.quickActionsGrid}>
               <TouchableOpacity 
-                style={[styles.quickAction, styles.goalAction]}
-                onPress={() => openEventModal(match.homeTeam, 'GOAL')}
+                style={[styles.quickAction, styles.goalAction, isProcessingEvent && styles.disabledAction]}
+                onPress={() => !isProcessingEvent && openEventModal(match.homeTeam, 'GOAL')}
+                disabled={isProcessingEvent}
               >
                 <Ionicons name="football" size={24} color="#fff" />
                 <Text style={styles.quickActionText}>{match.homeTeam.name}</Text>
@@ -551,8 +582,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={[styles.quickAction, styles.goalAction]}
-                onPress={() => openEventModal(match.awayTeam, 'GOAL')}
+                style={[styles.quickAction, styles.goalAction, isProcessingEvent && styles.disabledAction]}
+                onPress={() => !isProcessingEvent && openEventModal(match.awayTeam, 'GOAL')}
+                disabled={isProcessingEvent}
               >
                 <Ionicons name="football" size={24} color="#fff" />
                 <Text style={styles.quickActionText}>{match.awayTeam.name}</Text>
@@ -560,8 +592,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={[styles.quickAction, styles.assistAction]}
-                onPress={() => openEventModal(match.homeTeam, 'ASSIST')}
+                style={[styles.quickAction, styles.assistAction, isProcessingEvent && styles.disabledAction]}
+                onPress={() => !isProcessingEvent && openEventModal(match.homeTeam, 'ASSIST')}
+                disabled={isProcessingEvent}
               >
                 <Ionicons name="hand-right" size={24} color="#fff" />
                 <Text style={styles.quickActionText}>{match.homeTeam.name}</Text>
@@ -569,8 +602,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={[styles.quickAction, styles.assistAction]}
-                onPress={() => openEventModal(match.awayTeam, 'ASSIST')}
+                style={[styles.quickAction, styles.assistAction, isProcessingEvent && styles.disabledAction]}
+                onPress={() => !isProcessingEvent && openEventModal(match.awayTeam, 'ASSIST')}
+                disabled={isProcessingEvent}
               >
                 <Ionicons name="hand-right" size={24} color="#fff" />
                 <Text style={styles.quickActionText}>{match.awayTeam.name}</Text>
@@ -578,8 +612,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={[styles.quickAction, styles.cardAction]}
-                onPress={() => openEventModal(match.homeTeam, 'YELLOW_CARD')}
+                style={[styles.quickAction, styles.cardAction, isProcessingEvent && styles.disabledAction]}
+                onPress={() => !isProcessingEvent && openEventModal(match.homeTeam, 'YELLOW_CARD')}
+                disabled={isProcessingEvent}
               >
                 <Text style={styles.cardIcon}>🟨</Text>
                 <Text style={styles.quickActionText}>{match.homeTeam.name}</Text>
@@ -587,8 +622,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={[styles.quickAction, styles.cardAction]}
-                onPress={() => openEventModal(match.awayTeam, 'YELLOW_CARD')}
+                style={[styles.quickAction, styles.cardAction, isProcessingEvent && styles.disabledAction]}
+                onPress={() => !isProcessingEvent && openEventModal(match.awayTeam, 'YELLOW_CARD')}
+                disabled={isProcessingEvent}
               >
                 <Text style={styles.cardIcon}>🟨</Text>
                 <Text style={styles.quickActionText}>{match.awayTeam.name}</Text>
@@ -1015,6 +1051,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
     overflow: 'hidden',
+    position: 'relative',
+  },
+  disabledPlayerItem: {
+    backgroundColor: '#e0e0e0',
+    opacity: 0.6,
   },
   playerItemContent: {
     flexDirection: 'row',
@@ -1046,5 +1087,21 @@ const styles = StyleSheet.create({
   playerPosition: {
     fontSize: 14,
     color: '#666',
+  },
+  disabledText: {
+    color: '#999',
+  },
+  processingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  disabledAction: {
+    opacity: 0.5,
   },
 });

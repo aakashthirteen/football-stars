@@ -364,23 +364,31 @@ export const populateTeamsWithPlayers = async (req: AuthRequest, res: Response):
 
 export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<void> => {
   const requestId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+  const client = await database.pool.connect();
+  
   try {
-    console.log(`🚨 [${requestId}] addMatchEvent called - TRACE VERSION RUNNING!`);
+    console.log(`🚨 [${requestId}] addMatchEvent called - TRANSACTION VERSION RUNNING!`);
     const { id } = req.params;
     const { playerId, teamId, eventType, minute, description }: MatchEventRequest = req.body as MatchEventRequest;
     
     console.log(`📥 [${requestId}] Request data:`, { id, playerId, teamId, eventType, minute, description });
     console.log(`🕐 [${requestId}] Request timestamp:`, new Date().toISOString());
 
-    // Check for recent duplicate events (within last 5 seconds)
-    const duplicateCheck = await database.pool.query(`
+    // Start database transaction
+    await client.query('BEGIN');
+    console.log(`🔒 [${requestId}] Database transaction started`);
+
+    // Check for recent duplicate events (within last 5 seconds) - use transaction client
+    const duplicateCheck = await client.query(`
       SELECT id FROM match_events 
       WHERE match_id = $1 AND player_id = $2 AND event_type = $3 
       AND created_at > NOW() - INTERVAL '5 seconds'
       LIMIT 1
+      FOR UPDATE
     `, [id, playerId, eventType]);
     
     if (duplicateCheck.rows.length > 0) {
+      await client.query('ROLLBACK');
       console.log(`🚫 [${requestId}] Duplicate event blocked - same event within 5 seconds`);
       res.status(400).json({ error: 'Duplicate event - please wait before adding another event' });
       return;
@@ -389,12 +397,14 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
     console.log(`✅ [${requestId}] No duplicate found, proceeding with event creation`);
 
     if (!playerId || !teamId || !eventType || minute === undefined) {
+      await client.query('ROLLBACK');
       res.status(400).json({ error: 'Player, team, event type, and minute are required' });
       return;
     }
 
     const match = await database.getMatchById(id);
     if (!match) {
+      await client.query('ROLLBACK');
       res.status(404).json({ error: 'Match not found' });
       return;
     }
@@ -418,6 +428,7 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
     });
     
     if (teamId !== homeTeamId && teamId !== awayTeamId) {
+      await client.query('ROLLBACK');
       res.status(400).json({ error: 'Team is not part of this match' });
       return;
     }
@@ -435,7 +446,13 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
 
     console.log(`📝 [${requestId}] Creating match event in database...`);
     console.log(`🎯 [${requestId}] Event details:`, event);
-    const createdEvent = await database.createMatchEvent(event);
+    
+    // Create event using transaction client to prevent race conditions
+    const eventResult = await client.query(
+      'INSERT INTO match_events (match_id, player_id, team_id, event_type, minute, description) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [event.matchId, event.playerId, event.teamId, event.eventType, event.minute, event.description]
+    );
+    const createdEvent = eventResult.rows[0];
     console.log(`✅ [${requestId}] Match event created successfully:`, createdEvent?.id);
 
     // Update match score if it's a goal
@@ -456,19 +473,48 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
       }
       
       console.log(`💾 [${requestId}] Updating match with:`, updates);
-      await database.updateMatch(id, updates);
+      
+      // Update match score using transaction client
+      const fields = Object.keys(updates).map((key, index) => `${key} = $${index + 2}`).join(', ');
+      const values = Object.values(updates);
+      await client.query(
+        `UPDATE matches SET ${fields} WHERE id = $1`,
+        [id, ...values]
+      );
       console.log(`✅ [${requestId}] Match score updated successfully`);
     }
 
+    // Commit transaction if everything succeeded
+    await client.query('COMMIT');
+    console.log(`🔓 [${requestId}] Database transaction committed successfully`);
+    
     console.log(`🎉 [${requestId}] Successfully completed event creation and returning response`);
     res.status(201).json({
       event: createdEvent,
       message: 'Match event added successfully',
     });
   } catch (error) {
+    // Rollback transaction on any error
+    try {
+      await client.query('ROLLBACK');
+      console.log(`🔄 [${requestId}] Database transaction rolled back due to error`);
+    } catch (rollbackError) {
+      console.error(`💥 [${requestId}] Error rolling back transaction:`, rollbackError);
+    }
+    
     console.error(`💥 [${requestId}] Add match event error:`, error);
     console.error(`💥 [${requestId}] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
     console.error(`💥 [${requestId}] Error message:`, error instanceof Error ? error.message : String(error));
-    res.status(500).json({ error: 'Internal server error' });
+    
+    // Handle unique constraint violation specifically
+    if (error instanceof Error && error.message.includes('unique_match_events')) {
+      res.status(409).json({ error: 'Duplicate event detected - this exact event already exists' });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  } finally {
+    // Always release the client back to the pool
+    client.release();
+    console.log(`🔄 [${requestId}] Database client released`);
   }
 };
