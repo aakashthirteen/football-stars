@@ -363,12 +363,14 @@ export const populateTeamsWithPlayers = async (req: AuthRequest, res: Response):
 };
 
 export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<void> => {
+  const requestId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
   try {
-    console.log('🚨 addMatchEvent called - UPDATED VERSION RUNNING!');
+    console.log(`🚨 [${requestId}] addMatchEvent called - TRACE VERSION RUNNING!`);
     const { id } = req.params;
     const { playerId, teamId, eventType, minute, description }: MatchEventRequest = req.body as MatchEventRequest;
     
-    console.log('📥 Request data:', { id, playerId, teamId, eventType, minute, description });
+    console.log(`📥 [${requestId}] Request data:`, { id, playerId, teamId, eventType, minute, description });
+    console.log(`🕐 [${requestId}] Request timestamp:`, new Date().toISOString());
 
     // Check for recent duplicate events (within last 5 seconds)
     const duplicateCheck = await database.pool.query(`
@@ -379,10 +381,12 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
     `, [id, playerId, eventType]);
     
     if (duplicateCheck.rows.length > 0) {
-      console.log('🚫 Duplicate event blocked - same event within 5 seconds');
+      console.log(`🚫 [${requestId}] Duplicate event blocked - same event within 5 seconds`);
       res.status(400).json({ error: 'Duplicate event - please wait before adding another event' });
       return;
     }
+    
+    console.log(`✅ [${requestId}] No duplicate found, proceeding with event creation`);
 
     if (!playerId || !teamId || !eventType || minute === undefined) {
       res.status(400).json({ error: 'Player, team, event type, and minute are required' });
@@ -429,41 +433,42 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
       createdAt: new Date(),
     };
 
-    console.log('📝 Creating match event in database...');
-    console.log('🎯 Event details:', event);
+    console.log(`📝 [${requestId}] Creating match event in database...`);
+    console.log(`🎯 [${requestId}] Event details:`, event);
     const createdEvent = await database.createMatchEvent(event);
-    console.log('✅ Match event created successfully:', createdEvent?.id);
+    console.log(`✅ [${requestId}] Match event created successfully:`, createdEvent?.id);
 
     // Update match score if it's a goal
     if (eventType === 'GOAL') {
-      console.log('⚽ Updating match score for goal...');
+      console.log(`⚽ [${requestId}] Updating match score for goal...`);
       let updates: any = {};
       const currentHomeScore = (match as any).homeScore || (match as any).home_score || 0;
       const currentAwayScore = (match as any).awayScore || (match as any).away_score || 0;
       
-      console.log('📊 Current scores:', { currentHomeScore, currentAwayScore });
+      console.log(`📊 [${requestId}] Current scores:`, { currentHomeScore, currentAwayScore });
       
       if (teamId === homeTeamId) {
         updates.home_score = currentHomeScore + 1;
-        console.log('🏠 Incrementing home team score to:', updates.home_score);
+        console.log(`🏠 [${requestId}] Incrementing home team score to:`, updates.home_score);
       } else {
         updates.away_score = currentAwayScore + 1;
-        console.log('✈️ Incrementing away team score to:', updates.away_score);
+        console.log(`✈️ [${requestId}] Incrementing away team score to:`, updates.away_score);
       }
       
-      console.log('💾 Updating match with:', updates);
+      console.log(`💾 [${requestId}] Updating match with:`, updates);
       await database.updateMatch(id, updates);
-      console.log('✅ Match score updated successfully');
+      console.log(`✅ [${requestId}] Match score updated successfully`);
     }
 
+    console.log(`🎉 [${requestId}] Successfully completed event creation and returning response`);
     res.status(201).json({
       event: createdEvent,
       message: 'Match event added successfully',
     });
   } catch (error) {
-    console.error('💥 Add match event error:', error);
-    console.error('💥 Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    console.error('💥 Error message:', error instanceof Error ? error.message : String(error));
+    console.error(`💥 [${requestId}] Add match event error:`, error);
+    console.error(`💥 [${requestId}] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+    console.error(`💥 [${requestId}] Error message:`, error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'Internal server error' });
   }
 };

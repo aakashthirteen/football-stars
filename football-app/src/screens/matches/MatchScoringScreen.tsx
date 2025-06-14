@@ -226,7 +226,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const addEvent = async (playerId: string, eventType: string) => {
     if (!selectedTeam || !match) return;
     
-    console.log('🎯 Adding event:', { playerId, eventType, teamId: selectedTeam.id });
+    const frontendRequestId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    console.log(`🎯 [${frontendRequestId}] FRONTEND: Starting addEvent:`, { playerId, eventType, teamId: selectedTeam.id });
+    console.log(`🕐 [${frontendRequestId}] FRONTEND: Timestamp:`, new Date().toISOString());
 
     try {
       const player = selectedTeam.players.find((p: Player) => p.id === playerId);
@@ -238,9 +240,12 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         description: `${eventType} by ${selectedTeam.name}`,
       };
 
-      // Event data ready for API
+      console.log(`📤 [${frontendRequestId}] FRONTEND: Calling API with event data:`, eventData);
+      console.log(`📤 [${frontendRequestId}] FRONTEND: About to call apiService.addMatchEvent`);
 
       await apiService.addMatchEvent(matchId, eventData);
+      
+      console.log(`✅ [${frontendRequestId}] FRONTEND: API call completed successfully`);
       
       // Generate commentary
       const templates = COMMENTARY_TEMPLATES[eventType as keyof typeof COMMENTARY_TEMPLATES] || [];
@@ -256,9 +261,12 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         Vibration.vibrate(100);
       }
 
+      console.log(`🔄 [${frontendRequestId}] FRONTEND: About to call loadMatchDetails to refresh match state`);
       await loadMatchDetails();
+      console.log(`🔄 [${frontendRequestId}] FRONTEND: loadMatchDetails completed`);
       
     } catch (error: any) {
+      console.error(`💥 [${frontendRequestId}] FRONTEND: Error in addEvent:`, error);
       Alert.alert('Error', error.message || 'Failed to add event');
     }
   };

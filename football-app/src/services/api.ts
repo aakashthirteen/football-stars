@@ -825,12 +825,18 @@ class ApiService {
     minute: number;
     description?: string;
   }) {
-    // Adding match event
+    const apiRequestId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    console.log(`📡 [${apiRequestId}] API_SERVICE: Starting addMatchEvent request`);
+    console.log(`📡 [${apiRequestId}] API_SERVICE: matchId=${matchId}, eventData=`, eventData);
+    console.log(`📡 [${apiRequestId}] API_SERVICE: Timestamp:`, new Date().toISOString());
     
-    return this.request(`/matches/${matchId}/events`, {
+    const result = await this.request(`/matches/${matchId}/events`, {
       method: 'POST',
       body: JSON.stringify(eventData),
     });
+    
+    console.log(`📡 [${apiRequestId}] API_SERVICE: Request completed, result=`, result);
+    return result;
   }
 
   async endMatch(id: string) {

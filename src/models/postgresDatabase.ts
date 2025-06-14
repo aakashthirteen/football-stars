@@ -700,10 +700,23 @@ export class PostgresDatabase {
   }
 
   async createMatchEvent(event: any): Promise<MatchEvent> {
+    const dbRequestId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    console.log(`🗃️ [${dbRequestId}] DATABASE: Creating match event:`, {
+      matchId: event.matchId,
+      playerId: event.playerId, 
+      teamId: event.teamId,
+      eventType: event.eventType,
+      minute: event.minute,
+      description: event.description
+    });
+    console.log(`🗃️ [${dbRequestId}] DATABASE: Timestamp:`, new Date().toISOString());
+    
     const result = await this.pool.query(
       'INSERT INTO match_events (match_id, player_id, team_id, event_type, minute, description) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
       [event.matchId, event.playerId, event.teamId, event.eventType, event.minute, event.description]
     );
+    
+    console.log(`🗃️ [${dbRequestId}] DATABASE: Event created with ID:`, result.rows[0]?.id);
     return result.rows[0];
   }
 
