@@ -870,12 +870,16 @@ export class PostgresDatabase {
     rating: number;
     raterId: string;
   }>): Promise<void> {
+    console.log('📊 submitPlayerRatings called with:', { matchId, ratingsCount: ratings.length });
+    
     const client = await this.pool.connect();
     
     try {
       await client.query('BEGIN');
       
       for (const rating of ratings) {
+        console.log('📊 Inserting rating:', { matchId, playerId: rating.playerId, raterId: rating.raterId, rating: rating.rating });
+        
         // Insert or update rating (upsert)
         await client.query(`
           INSERT INTO player_ratings (match_id, player_id, rater_id, rating)
@@ -883,10 +887,14 @@ export class PostgresDatabase {
           ON CONFLICT (match_id, player_id, rater_id)
           DO UPDATE SET rating = EXCLUDED.rating, created_at = CURRENT_TIMESTAMP
         `, [matchId, rating.playerId, rating.raterId, rating.rating]);
+        
+        console.log('✅ Rating inserted successfully');
       }
       
       await client.query('COMMIT');
+      console.log('✅ All ratings committed successfully');
     } catch (error) {
+      console.error('❌ Database error in submitPlayerRatings:', error);
       await client.query('ROLLBACK');
       throw error;
     } finally {

@@ -156,12 +156,10 @@ export default function PlayerRatingScreen({ navigation, route }: PlayerRatingSc
         ratingsCount: Object.keys(ratings).length
       });
       
-      // Convert ratings object to array format
+      // Convert ratings object to array format (don't include matchId - it's in the URL)
       const ratingsArray = Object.entries(ratings).map(([playerId, rating]) => ({
         playerId,
-        rating,
-        matchId,
-        raterId: currentUserId || user?.id // Use auth user as fallback
+        rating
       }));
       
       console.log('📊 Ratings array to submit:', ratingsArray);
