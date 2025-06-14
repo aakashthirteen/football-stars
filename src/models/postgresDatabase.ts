@@ -414,6 +414,8 @@ export class PostgresDatabase {
     
     const result = await this.pool.query(`
       SELECT m.*, 
+             m.home_score,
+             m.away_score,
              ht.name as home_team_name,
              ht.id as home_team_id,
              at.name as away_team_name,
@@ -431,7 +433,10 @@ export class PostgresDatabase {
         homeTeamId: match.home_team_id,
         awayTeamId: match.away_team_id,
         homeTeamName: match.home_team_name,
-        awayTeamName: match.away_team_name
+        awayTeamName: match.away_team_name,
+        HOME_SCORE: match.home_score,
+        AWAY_SCORE: match.away_score,
+        status: match.status
       });
       
       // Get team players for both teams
