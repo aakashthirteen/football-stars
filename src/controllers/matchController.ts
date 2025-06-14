@@ -422,18 +422,18 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
     // Update match score if it's a goal
     if (eventType === 'GOAL') {
       console.log('⚽ Updating match score for goal...');
-      let updates: Partial<Match> = {};
+      let updates: any = {};
       const currentHomeScore = (match as any).homeScore || (match as any).home_score || 0;
       const currentAwayScore = (match as any).awayScore || (match as any).away_score || 0;
       
       console.log('📊 Current scores:', { currentHomeScore, currentAwayScore });
       
       if (teamId === homeTeamId) {
-        updates.homeScore = currentHomeScore + 1;
-        console.log('🏠 Incrementing home team score to:', updates.homeScore);
+        updates.home_score = currentHomeScore + 1;
+        console.log('🏠 Incrementing home team score to:', updates.home_score);
       } else {
-        updates.awayScore = currentAwayScore + 1;
-        console.log('✈️ Incrementing away team score to:', updates.awayScore);
+        updates.away_score = currentAwayScore + 1;
+        console.log('✈️ Incrementing away team score to:', updates.away_score);
       }
       
       console.log('💾 Updating match with:', updates);

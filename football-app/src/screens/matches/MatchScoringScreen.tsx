@@ -79,6 +79,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const [selectedTeam, setSelectedTeam] = useState<any>(null);
   const [selectedEventType, setSelectedEventType] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [addingEvent, setAddingEvent] = useState(false);
   const [latestCommentary, setLatestCommentary] = useState<string>('');
   const [showQuickActions, setShowQuickActions] = useState(true);
   
@@ -212,7 +213,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   };
 
   const addEvent = async (playerId: string, eventType: string) => {
-    if (!selectedTeam || !match) return;
+    if (!selectedTeam || !match || addingEvent) return;
+    
+    setAddingEvent(true);
 
     try {
       const player = selectedTeam.players.find((p: Player) => p.id === playerId);
@@ -247,6 +250,8 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to add event');
+    } finally {
+      setAddingEvent(false);
     }
   };
 
