@@ -133,22 +133,19 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       
       const matchData = response.match;
       
-      // Add null safety for team data
-      if (!matchData.homeTeam) {
-        matchData.homeTeam = { name: 'Home Team', players: [] };
-      } else if (!matchData.homeTeam.players) {
-        matchData.homeTeam.players = [];
-      }
+      console.log('🔍 Raw match data from API:', {
+        homeTeam: matchData.homeTeam,
+        awayTeam: matchData.awayTeam,
+        homeTeamPlayers: matchData.homeTeam?.players,
+        awayTeamPlayers: matchData.awayTeam?.players
+      });
       
-      if (!matchData.awayTeam) {
-        matchData.awayTeam = { name: 'Away Team', players: [] };
-      } else if (!matchData.awayTeam.players) {
-        matchData.awayTeam.players = [];
-      }
-      
+      // Ensure events array exists
       if (!matchData.events) {
         matchData.events = [];
       }
+      
+      // DO NOT override team data - it should come from backend correctly
       
       console.log('👥 Team players count:', {
         homeTeam: matchData.homeTeam.players?.length || 0,
@@ -158,9 +155,10 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       setMatch(matchData);
       setIsLive(matchData.status === 'LIVE');
       
-      if (matchData.status === 'LIVE' && matchData.matchDate) {
+      if (matchData.status === 'LIVE' && (matchData.matchDate || matchData.match_date)) {
         try {
-          const matchStart = new Date(matchData.matchDate);
+          const matchDateValue = matchData.matchDate || matchData.match_date;
+          const matchStart = new Date(matchDateValue);
           const now = new Date();
           const elapsed = Math.floor((now.getTime() - matchStart.getTime()) / (1000 * 60));
           setCurrentMinute(Math.max(0, elapsed));
@@ -266,9 +264,22 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   };
 
   const openEventModal = (team: any, eventType: string) => {
+    console.log('🎯 Opening event modal:', {
+      teamName: team?.name,
+      teamId: team?.id,
+      playersCount: team?.players?.length,
+      players: team?.players,
+      eventType
+    });
+    
+    // Add small delay to ensure state is set before modal opens
     setSelectedTeam(team);
     setSelectedEventType(eventType);
-    setShowEventModal(true);
+    
+    // Use setTimeout to ensure state is updated before modal shows
+    setTimeout(() => {
+      setShowEventModal(true);
+    }, 50);
   };
 
   const endMatch = async () => {
@@ -296,24 +307,27 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     );
   };
 
-  const renderPlayer = ({ item }: { item: Player }) => (
-    <TouchableOpacity
-      style={styles.playerItem}
-      onPress={() => addEvent(item.id, selectedEventType)}
-    >
-      <View style={styles.playerItemContent}>
-        <View style={[styles.playerNumber, { backgroundColor: getPositionColor(item.position) }]}>
-          <Text style={styles.playerNumberText}>
-            {item.jerseyNumber || '--'}
-          </Text>
+  const renderPlayer = ({ item }: { item: Player }) => {
+    console.log('🎭 Rendering player:', item);
+    return (
+      <TouchableOpacity
+        style={styles.playerItem}
+        onPress={() => addEvent(item.id, selectedEventType)}
+      >
+        <View style={styles.playerItemContent}>
+          <View style={[styles.playerNumber, { backgroundColor: getPositionColor(item.position) }]}>
+            <Text style={styles.playerNumberText}>
+              {item.jerseyNumber || '--'}
+            </Text>
+          </View>
+          <View style={styles.playerDetails}>
+            <Text style={styles.playerName}>{item.name}</Text>
+            <Text style={styles.playerPosition}>{item.position}</Text>
+          </View>
         </View>
-        <View style={styles.playerDetails}>
-          <Text style={styles.playerName}>{item.name}</Text>
-          <Text style={styles.playerPosition}>{item.position}</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const getPositionColor = (position: string) => {
     switch (position) {
@@ -391,13 +405,31 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         
+        <TouchableOpacity 
+          style={[styles.backButton, { marginLeft: 10 }]}
+          onPress={() => {
+            console.log('🔄 Manual reload triggered');
+            loadMatchDetails();
+          }}
+        >
+          <Ionicons name="refresh-outline" size={20} color="#fff" />
+        </TouchableOpacity>
+        
         <View style={styles.matchInfo}>
           <Text style={styles.matchTitle}>
-            {match.homeTeam.name} vs {match.awayTeam.name}
+            {match.homeTeam?.name || match.home_team_name || 'Home'} vs {match.awayTeam?.name || match.away_team_name || 'Away'}
+          </Text>
+          <Text style={[styles.venue, { fontSize: 10, opacity: 0.7 }]}>
+            Debug: H({match.homeTeam?.players?.length || 0}) vs A({match.awayTeam?.players?.length || 0}) players
           </Text>
           {match.venue && (
             <Text style={styles.venue}>
               <Ionicons name="location" size={14} color="#fff" /> {match.venue}
+            </Text>
+          )}
+          {match.match_date && (
+            <Text style={styles.venue}>
+              <Ionicons name="calendar" size={14} color="#fff" /> {new Date(match.match_date).toLocaleDateString()} at {new Date(match.match_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </Text>
           )}
           <View style={styles.statusContainer}>
@@ -574,12 +606,41 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             {selectedTeam?.name} - {selectedEventType.replace('_', ' ')}
           </Text>
           
+          <View style={{ padding: 10, backgroundColor: '#f0f0f0', margin: 10, borderRadius: 8 }}>
+            <Text style={{ fontSize: 12, color: '#666' }}>
+              Debug Info: Team "{selectedTeam?.name}" has {selectedTeam?.players?.length || 0} players
+            </Text>
+            <TouchableOpacity 
+              style={{ backgroundColor: '#007AFF', padding: 8, borderRadius: 4, marginTop: 8 }}
+              onPress={() => {
+                console.log('🔄 Refreshing modal data:', selectedTeam);
+                setShowEventModal(false);
+                setTimeout(() => openEventModal(selectedTeam, selectedEventType), 100);
+              }}
+            >
+              <Text style={{ color: 'white', textAlign: 'center', fontSize: 12 }}>Refresh Data</Text>
+            </TouchableOpacity>
+          </View>
+          
           <FlatList
             data={selectedTeam?.players || []}
             renderItem={renderPlayer}
             keyExtractor={(item) => item.id}
             style={styles.playersList}
             contentContainerStyle={styles.playersListContent}
+            ListEmptyComponent={() => (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <Text style={{ color: '#666', fontSize: 16 }}>
+                  No players available for {selectedTeam?.name}
+                </Text>
+                <Text style={{ color: '#666', fontSize: 14, marginTop: 8 }}>
+                  Players in team: {selectedTeam?.players?.length || 0}
+                </Text>
+                <Text style={{ color: '#666', fontSize: 12, marginTop: 8 }}>
+                  Debug: {JSON.stringify(selectedTeam?.players || [])}
+                </Text>
+              </View>
+            )}
           />
         </View>
       </Modal>

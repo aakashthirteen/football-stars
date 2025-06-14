@@ -95,8 +95,15 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
       const response = await apiService.getMatches();
       const matchesArray = response.matches || [];
       
-      // Sort matches by date (newest first)
-      const sortedMatches = matchesArray.sort((a: any, b: any) => {
+      // Sort matches by date (newest first) and map field names
+      const normalizedMatches = matchesArray.map((match: any) => ({
+        ...match,
+        matchDate: match.match_date || match.matchDate, // Map snake_case to camelCase
+        homeTeam: match.homeTeam || { name: match.home_team_name, id: match.home_team_id },
+        awayTeam: match.awayTeam || { name: match.away_team_name, id: match.away_team_id }
+      }));
+      
+      const sortedMatches = normalizedMatches.sort((a: any, b: any) => {
         const dateA = new Date(a.matchDate || 0).getTime();
         const dateB = new Date(b.matchDate || 0).getTime();
         return dateB - dateA;
