@@ -1,0 +1,136 @@
+  awayTeam: 'Eleven Aces',
+
+  awayPlayerCount: 1,
+
+  awayPlayerSample: {
+
+    id: '9f95b788-336b-4de0-9453-078742fc4ce1',
+
+    name: 'The Falcon',
+
+    position: 'MID',
+
+    jerseyNumber: 1
+
+  }
+
+}
+
+🔍 Team validation: {
+
+  requestTeamId: 'cc9fa632-3771-4837-ab3e-424ce318fdc1',
+
+  homeTeamId: 'cc9fa632-3771-4837-ab3e-424ce318fdc1',
+
+  awayTeamId: '4ec010ab-d47e-458e-ac70-d7b81654241b',
+
+  homeTeamFromObj: 'cc9fa632-3771-4837-ab3e-424ce318fdc1',
+
+  awayTeamFromObj: '4ec010ab-d47e-458e-ac70-d7b81654241b',
+
+  matchData: {
+
+    homeTeamId: undefined,
+
+    home_team_id: 'cc9fa632-3771-4837-ab3e-424ce318fdc1',
+
+    awayTeamId: undefined,
+
+    away_team_id: '4ec010ab-d47e-458e-ac70-d7b81654241b'
+
+  }
+
+}
+
+📝 Creating match event in database...
+
+🎯 Event details: {
+
+  id: '5b5056bc-3e7a-404f-b754-fef253ad9b5a',
+
+  matchId: 'e906c0e0-cf8b-4fda-a843-36a050618dc3',
+
+  playerId: '1408735f-a5e2-4554-9dee-c0bb0b71f65b',
+
+  teamId: 'cc9fa632-3771-4837-ab3e-424ce318fdc1',
+
+  eventType: 'GOAL',
+
+  minute: 120,
+
+  description: 'GOAL by The Falcon',
+
+  createdAt: 2025-06-14T11:09:22.897Z
+
+}
+
+✅ Match event created successfully: 5712b9d4-81c7-4739-b185-2faa6767dd53
+
+⚽ Updating match score for goal...
+
+📊 Current scores: { currentHomeScore: 1, currentAwayScore: 0 }
+
+🏠 Incrementing home team score to: 2
+
+💾 Updating match with: { home_score: 2, homeScore: 2 }
+
+💥 Add match event error: error: column "homescore" of relation "matches" does not exist
+
+    at /app/node_modules/pg-pool/index.js:45:11
+
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+    at async PostgresDatabase.updateMatch (/app/dist/models/postgresDatabase.js:572:24)
+
+    at async addMatchEvent (/app/dist/controllers/matchController.js:372:13) {
+
+  length: 131,
+
+  severity: 'ERROR',
+
+  code: '42703',
+
+  detail: undefined,
+
+  hint: undefined,
+
+  position: '37',
+
+  internalPosition: undefined,
+
+  internalQuery: undefined,
+
+  where: undefined,
+
+  schema: undefined,
+
+  table: undefined,
+
+  column: undefined,
+
+  dataType: undefined,
+
+  constraint: undefined,
+
+  file: 'analyze.c',
+
+  line: '2527',
+
+  routine: 'transformUpdateTargetList'
+
+}
+
+💥 Error stack: error: column "homescore" of relation "matches" does not exist
+
+    at /app/node_modules/pg-pool/index.js:45:11
+
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+    at async PostgresDatabase.updateMatch (/app/dist/models/postgresDatabase.js:572:24)
+
+    at async addMatchEvent (/app/dist/controllers/matchController.js:372:13)
+
+💥 Error message: column "homescore" of relation "matches" does not exist
+
+
+football-stars | Railway
