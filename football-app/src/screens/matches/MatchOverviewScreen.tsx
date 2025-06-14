@@ -243,7 +243,14 @@ export default function MatchOverviewScreen({ navigation, route }: MatchOverview
                 <Text style={styles.teamLineupsTitle}>{match.homeTeam?.name}</Text>
                 <View style={styles.playersGrid}>
                   {match.homeTeam?.players?.map((player: any, index: number) => (
-                    <View key={player.id || index} style={styles.lineupPlayer}>
+                    <TouchableOpacity 
+                      key={player.id || index} 
+                      style={styles.lineupPlayer}
+                      onPress={() => {
+                        // Navigate to player profile (placeholder for now)
+                        console.log('Navigate to player profile:', player.id, player.name);
+                      }}
+                    >
                       <View style={[
                         styles.playerJerseyMini, 
                         { backgroundColor: getPositionColor(player.position) }
@@ -252,11 +259,11 @@ export default function MatchOverviewScreen({ navigation, route }: MatchOverview
                       </View>
                       <View style={styles.playerInfoMini}>
                         <Text style={styles.playerNameMini} numberOfLines={1}>
-                          {player.name}
+                          {player.name?.split(' ')[0] || 'Player'}
                         </Text>
                         <Text style={styles.playerPositionMini}>{player.position}</Text>
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               </View>
@@ -266,7 +273,14 @@ export default function MatchOverviewScreen({ navigation, route }: MatchOverview
                 <Text style={styles.teamLineupsTitle}>{match.awayTeam?.name}</Text>
                 <View style={styles.playersGrid}>
                   {match.awayTeam?.players?.map((player: any, index: number) => (
-                    <View key={player.id || index} style={styles.lineupPlayer}>
+                    <TouchableOpacity 
+                      key={player.id || index} 
+                      style={styles.lineupPlayer}
+                      onPress={() => {
+                        // Navigate to player profile (placeholder for now)
+                        console.log('Navigate to player profile:', player.id, player.name);
+                      }}
+                    >
                       <View style={[
                         styles.playerJerseyMini, 
                         { backgroundColor: getPositionColor(player.position) }
@@ -275,11 +289,11 @@ export default function MatchOverviewScreen({ navigation, route }: MatchOverview
                       </View>
                       <View style={styles.playerInfoMini}>
                         <Text style={styles.playerNameMini} numberOfLines={1}>
-                          {player.name}
+                          {player.name?.split(' ')[0] || 'Player'}
                         </Text>
                         <Text style={styles.playerPositionMini}>{player.position}</Text>
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               </View>
@@ -550,15 +564,24 @@ const styles = StyleSheet.create({
   playersGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 16,
+    justifyContent: 'space-between',
   },
   lineupPlayer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 8,
-    padding: 8,
-    width: '48%',
+    borderRadius: 12,
+    padding: 16,
+    width: '47%',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: 'rgba(0, 0, 0, 0.3)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   playerJerseyMini: {
     width: 24,

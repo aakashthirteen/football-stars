@@ -756,7 +756,14 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                   <Text style={styles.teamLineupsTitle}>{match.homeTeam?.name}</Text>
                   <View style={styles.playersGrid}>
                     {match.homeTeam?.players?.map((player: any, index: number) => (
-                      <View key={player.id || index} style={styles.lineupPlayer}>
+                      <TouchableOpacity 
+                        key={player.id || index} 
+                        style={styles.lineupPlayer}
+                        onPress={() => {
+                          // Navigate to player profile (placeholder for now)
+                          console.log('Navigate to player profile:', player.id, player.name);
+                        }}
+                      >
                         <View style={[
                           styles.playerJerseyMini, 
                           { backgroundColor: getPositionColor(player.position) }
@@ -765,11 +772,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                         </View>
                         <View style={styles.playerInfoMini}>
                           <Text style={styles.playerNameMini} numberOfLines={1}>
-                            {player.name}
+                            {player.name?.split(' ')[0] || 'Player'}
                           </Text>
                           <Text style={styles.playerPositionMini}>{player.position}</Text>
                         </View>
-                      </View>
+                      </TouchableOpacity>
                     ))}
                   </View>
                 </View>
@@ -779,7 +786,14 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                   <Text style={styles.teamLineupsTitle}>{match.awayTeam?.name}</Text>
                   <View style={styles.playersGrid}>
                     {match.awayTeam?.players?.map((player: any, index: number) => (
-                      <View key={player.id || index} style={styles.lineupPlayer}>
+                      <TouchableOpacity 
+                        key={player.id || index} 
+                        style={styles.lineupPlayer}
+                        onPress={() => {
+                          // Navigate to player profile (placeholder for now)
+                          console.log('Navigate to player profile:', player.id, player.name);
+                        }}
+                      >
                         <View style={[
                           styles.playerJerseyMini, 
                           { backgroundColor: getPositionColor(player.position) }
@@ -788,11 +802,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                         </View>
                         <View style={styles.playerInfoMini}>
                           <Text style={styles.playerNameMini} numberOfLines={1}>
-                            {player.name}
+                            {player.name?.split(' ')[0] || 'Player'}
                           </Text>
                           <Text style={styles.playerPositionMini}>{player.position}</Text>
                         </View>
-                      </View>
+                      </TouchableOpacity>
                     ))}
                   </View>
                 </View>
@@ -1369,15 +1383,17 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   lineupsContainer: {
-    margin: 20,
+    margin: 24,
+    marginTop: 32,
+    marginBottom: 32,
     backgroundColor: '#fff',
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 6,
   },
   lineupsHeader: {
     backgroundColor: '#2E7D32',
@@ -1393,13 +1409,21 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   lineupsContent: {
-    padding: 20,
-    gap: 24,
+    padding: 28,
+    paddingTop: 32,
+    paddingBottom: 32,
+    gap: 36,
   },
   teamLineup: {
     backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 2,
   },
   teamLineupsTitle: {
     fontSize: 16,
@@ -1411,20 +1435,24 @@ const styles = StyleSheet.create({
   playersGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 16,
+    justifyContent: 'space-between',
   },
   lineupPlayer: {
-    width: '48%',
+    width: '47%',
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#f0f2f5',
   },
   playerJerseyMini: {
     width: 32,
