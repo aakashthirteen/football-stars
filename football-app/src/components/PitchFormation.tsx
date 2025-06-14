@@ -27,59 +27,119 @@ interface PitchFormationProps {
   style?: any;
 }
 
-// Position mapping to pitch coordinates (percentage of pitch)
-const POSITION_COORDINATES: { [key: string]: { x: number; y: number } } = {
-  // Goalkeeper
-  'GK': { x: 50, y: 95 },
-  
-  // Defenders (4-back formation)
-  'LB': { x: 15, y: 75 },  // Left Back
-  'LCB': { x: 35, y: 80 }, // Left Center Back
-  'RCB': { x: 65, y: 80 }, // Right Center Back
-  'RB': { x: 85, y: 75 },  // Right Back
-  'DEF': { x: 50, y: 80 }, // Generic Defender
-  
-  // Midfielders
-  'LM': { x: 15, y: 50 },  // Left Midfielder
-  'LCM': { x: 35, y: 55 }, // Left Center Mid
-  'CM': { x: 50, y: 55 },  // Center Midfielder
-  'RCM': { x: 65, y: 55 }, // Right Center Mid
-  'RM': { x: 85, y: 50 },  // Right Midfielder
-  'CDM': { x: 50, y: 65 }, // Defensive Midfielder
-  'CAM': { x: 50, y: 40 }, // Attacking Midfielder
-  'MID': { x: 50, y: 55 }, // Generic Midfielder
-  
-  // Forwards
-  'LW': { x: 20, y: 25 },  // Left Winger
-  'LF': { x: 35, y: 20 },  // Left Forward
-  'CF': { x: 50, y: 15 },  // Center Forward
-  'RF': { x: 65, y: 20 },  // Right Forward
-  'RW': { x: 80, y: 25 },  // Right Winger
-  'ST': { x: 50, y: 10 },  // Striker
-  'FWD': { x: 50, y: 20 }, // Generic Forward
+// Position categories and their base zones
+const POSITION_ZONES = {
+  GK: { positions: ['GK'], zone: 'goalkeeper' },
+  DEF: { positions: ['LB', 'LCB', 'CB', 'RCB', 'RB', 'DEF'], zone: 'defense' },
+  MID: { positions: ['LM', 'LCM', 'CM', 'RCM', 'RM', 'CDM', 'CAM', 'MID'], zone: 'midfield' },
+  FWD: { positions: ['LW', 'LF', 'CF', 'RF', 'RW', 'ST', 'FWD'], zone: 'forward' }
+};
+
+// Base zones for different position types (percentage of pitch)
+const HOME_ZONES = {
+  goalkeeper: { xRange: [40, 60], yRange: [92, 98] },
+  defense: { xRange: [10, 90], yRange: [75, 85] },
+  midfield: { xRange: [10, 90], yRange: [50, 65] },
+  forward: { xRange: [15, 85], yRange: [30, 40] }
+};
+
+const AWAY_ZONES = {
+  goalkeeper: { xRange: [40, 60], yRange: [2, 8] },
+  defense: { xRange: [10, 90], yRange: [15, 25] },
+  midfield: { xRange: [10, 90], yRange: [35, 50] },
+  forward: { xRange: [15, 85], yRange: [60, 70] }
 };
 
 // Get position color
 const getPositionColor = (position: string): string => {
   if (position === 'GK') return '#9C27B0';
-  if (['DEF', 'LB', 'RB', 'LCB', 'RCB'].includes(position)) return '#2196F3';
+  if (['DEF', 'LB', 'RB', 'LCB', 'RCB', 'CB'].includes(position)) return '#2196F3';
   if (['MID', 'LM', 'RM', 'CM', 'LCM', 'RCM', 'CDM', 'CAM'].includes(position)) return '#4CAF50';
   if (['FWD', 'LW', 'RW', 'LF', 'RF', 'CF', 'ST'].includes(position)) return '#FF9800';
   return '#666';
 };
 
-// Smart position assignment for generic positions
-const assignPositions = (players: Player[]) => {
-  const assigned = [...players];
-  const positions = ['GK', 'LB', 'LCB', 'RCB', 'RB', 'LM', 'CM', 'RM', 'LW', 'CF', 'RW'];
+// Find which zone a position belongs to
+const getPositionZone = (position: string): string => {
+  for (const [key, value] of Object.entries(POSITION_ZONES)) {
+    if (value.positions.includes(position)) {
+      return value.zone;
+    }
+  }
+  // Default to midfield if position not found
+  return 'midfield';
+};
+
+// Dynamically calculate positions for players
+const calculatePlayerPositions = (players: Player[], isHomeTeam: boolean) => {
+  const zones = isHomeTeam ? HOME_ZONES : AWAY_ZONES;
+  const positionedPlayers: Array<Player & { x: number; y: number }> = [];
   
-  assigned.forEach((player, index) => {
-    if (!POSITION_COORDINATES[player.position] && index < positions.length) {
-      player.position = positions[index];
+  // Group players by zone
+  const playersByZone: { [key: string]: Player[] } = {
+    goalkeeper: [],
+    defense: [],
+    midfield: [],
+    forward: []
+  };
+  
+  players.forEach(player => {
+    const zone = getPositionZone(player.position);
+    playersByZone[zone].push(player);
+  });
+  
+  // Calculate positions for each zone
+  Object.entries(playersByZone).forEach(([zoneName, zonePlayers]) => {
+    if (zonePlayers.length === 0) return;
+    
+    const zone = zones[zoneName as keyof typeof zones];
+    const playerCount = zonePlayers.length;
+    
+    // Calculate spacing
+    const xRange = zone.xRange[1] - zone.xRange[0];
+    const yRange = zone.yRange[1] - zone.yRange[0];
+    
+    if (playerCount === 1) {
+      // Single player - center them
+      positionedPlayers.push({
+        ...zonePlayers[0],
+        x: (zone.xRange[0] + zone.xRange[1]) / 2,
+        y: (zone.yRange[0] + zone.yRange[1]) / 2
+      });
+    } else if (playerCount <= 5) {
+      // Multiple players - spread them horizontally
+      const xStep = xRange / (playerCount + 1);
+      const yCenter = (zone.yRange[0] + zone.yRange[1]) / 2;
+      
+      zonePlayers.forEach((player, index) => {
+        // Add slight y variation for visual appeal
+        const yVariation = (index % 2 === 0 ? -2 : 2) * (zoneName === 'goalkeeper' ? 0 : 1);
+        positionedPlayers.push({
+          ...player,
+          x: zone.xRange[0] + xStep * (index + 1),
+          y: yCenter + yVariation
+        });
+      });
+    } else {
+      // Many players - create two rows
+      const playersPerRow = Math.ceil(playerCount / 2);
+      const xStep = xRange / (playersPerRow + 1);
+      const yStep = yRange / 3;
+      
+      zonePlayers.forEach((player, index) => {
+        const row = Math.floor(index / playersPerRow);
+        const col = index % playersPerRow;
+        
+        positionedPlayers.push({
+          ...player,
+          x: zone.xRange[0] + xStep * (col + 1),
+          y: zone.yRange[0] + yStep * (row + 1)
+        });
+      });
     }
   });
   
-  return assigned;
+  return positionedPlayers;
 };
 
 export default function PitchFormation({ 
@@ -148,15 +208,9 @@ export default function PitchFormation({
     </Svg>
   );
 
-  const renderPlayer = (player: Player, isHomeTeam: boolean) => {
-    const coords = POSITION_COORDINATES[player.position] || { x: 50, y: 50 };
-    
-    // Flip coordinates for away team (they play from top)
-    const x = isHomeTeam ? coords.x : coords.x;
-    const y = isHomeTeam ? coords.y : (100 - coords.y);
-    
-    const playerX = (x / 100) * PITCH_WIDTH;
-    const playerY = (y / 100) * PITCH_HEIGHT;
+  const renderPlayer = (player: Player & { x: number; y: number }, isHomeTeam: boolean) => {
+    const playerX = (player.x / 100) * PITCH_WIDTH;
+    const playerY = (player.y / 100) * PITCH_HEIGHT;
     
     return (
       <TouchableOpacity
@@ -183,8 +237,8 @@ export default function PitchFormation({
     );
   };
 
-  const homeTeamPlayers = assignPositions(homeTeam.players || []);
-  const awayTeamPlayers = assignPositions(awayTeam.players || []);
+  const homeTeamPlayers = calculatePlayerPositions(homeTeam.players || [], true);
+  const awayTeamPlayers = calculatePlayerPositions(awayTeam.players || [], false);
 
   return (
     <View style={[styles.container, style]}>

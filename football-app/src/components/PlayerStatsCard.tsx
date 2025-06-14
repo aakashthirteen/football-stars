@@ -72,9 +72,9 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
   };
 
   const calculateRating = () => {
-    if (stats.rating) return stats.rating.toFixed(1);
-    if (stats.matches === 0) return '0.0';
-    return ((stats.goals * 2 + stats.assists) / stats.matches).toFixed(1);
+    // Use actual rating if provided, otherwise fallback to 0.0
+    if (stats.rating && stats.rating > 0) return stats.rating.toFixed(1);
+    return '0.0';
   };
 
   const getInitials = () => {
