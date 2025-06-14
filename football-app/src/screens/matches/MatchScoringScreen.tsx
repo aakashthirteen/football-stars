@@ -80,6 +80,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const [selectedEventType, setSelectedEventType] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [addingEvent, setAddingEvent] = useState(false);
+  const processedEvents = useRef(new Set<string>());
   const [latestCommentary, setLatestCommentary] = useState<string>('');
   const [showQuickActions, setShowQuickActions] = useState(true);
   
@@ -214,8 +215,22 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   };
 
   const addEvent = async (playerId: string, eventType: string) => {
-    if (!selectedTeam || !match || addingEvent) return;
+    console.log('🎯 addEvent called:', { playerId, eventType, addingEvent, currentMinute });
     
+    if (!selectedTeam || !match || addingEvent) {
+      console.log('🚫 addEvent blocked:', { hasTeam: !!selectedTeam, hasMatch: !!match, addingEvent });
+      return;
+    }
+    
+    // Create unique event key to prevent duplicates
+    const eventKey = `${playerId}-${eventType}-${currentMinute}`;
+    if (processedEvents.current.has(eventKey)) {
+      console.log('🚫 Duplicate event prevented:', eventKey);
+      return;
+    }
+    
+    console.log('✅ Processing event:', eventKey);
+    processedEvents.current.add(eventKey);
     setAddingEvent(true);
 
     try {
@@ -249,8 +264,15 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       await loadMatchDetails();
       setShowEventModal(false);
       
+      // Clear processed events after successful submission
+      setTimeout(() => {
+        processedEvents.current.clear();
+      }, 2000);
+      
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to add event');
+      // Remove failed event from processed set
+      processedEvents.current.delete(eventKey);
     } finally {
       setAddingEvent(false);
     }
@@ -319,8 +341,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     console.log('🎭 Rendering player:', item);
     return (
       <TouchableOpacity
-        style={styles.playerItem}
-        onPress={() => addEvent(item.id, selectedEventType)}
+        style={[styles.playerItem, addingEvent && styles.playerItemDisabled]}
+        onPress={() => !addingEvent && addEvent(item.id, selectedEventType)}
+        disabled={addingEvent}
       >
         <View style={styles.playerItemContent}>
           <View style={[styles.playerNumber, { backgroundColor: getPositionColor(item.position) }]}>
@@ -998,6 +1021,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
     overflow: 'hidden',
+  },
+  playerItemDisabled: {
+    backgroundColor: '#e0e0e0',
+    opacity: 0.6,
   },
   playerItemContent: {
     flexDirection: 'row',
