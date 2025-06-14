@@ -193,10 +193,19 @@ export const getMatchById = async (req: AuthRequest, res: Response): Promise<voi
     const matchWithDetails: MatchWithDetails = {
       ...match,
       events,
-      homeScore: match.homeScore || 0,
-      awayScore: match.awayScore || 0,
+      homeScore: match.homeScore || (match as any).home_score || 0,
+      awayScore: match.awayScore || (match as any).away_score || 0,
     };
 
+    console.log('🏆 SCORES DEBUG:', {
+      homeScore: match.homeScore,
+      home_score: (match as any).home_score,
+      awayScore: match.awayScore,
+      away_score: (match as any).away_score,
+      finalHomeScore: matchWithDetails.homeScore,
+      finalAwayScore: matchWithDetails.awayScore
+    });
+    
     console.log('⚽ Match details with teams and players:', {
       id: matchWithDetails.id,
       homeTeam: {
