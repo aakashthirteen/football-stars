@@ -236,10 +236,19 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
     </Animated.View>
   );
 
+  const handleMatchPress = (match: Match) => {
+    if (match.status === 'COMPLETED') {
+      navigation.navigate('MatchOverview', { matchId: match.id });
+    } else {
+      // For LIVE and SCHEDULED matches, go to MatchScoring
+      navigation.navigate('MatchScoring', { matchId: match.id });
+    }
+  };
+
   const renderMatch = ({ item, index }: { item: Match; index: number }) => (
     <MatchCard
       match={item}
-      onPress={() => navigation.navigate('MatchScoring', { matchId: item.id })}
+      onPress={() => handleMatchPress(item)}
       style={{ marginTop: index === 0 ? 16 : 0 }}
     />
   );

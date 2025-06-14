@@ -145,21 +145,34 @@ export const getLeaderboard = async (req: AuthRequest, res: Response): Promise<v
 
     const allStats = await database.getAllPlayersStats();
     
+    // Map field names from database format to frontend format
+    const mappedStats = allStats.map(stat => ({
+      playerId: stat.player_id || stat.playerId,
+      playerName: stat.player_name || stat.playerName,
+      position: stat.position,
+      matchesPlayed: stat.matches_played || stat.matchesPlayed,
+      goals: stat.goals,
+      assists: stat.assists,
+      yellowCards: stat.yellow_cards || stat.yellowCards,
+      redCards: stat.red_cards || stat.redCards,
+      minutesPlayed: stat.minutes_played || stat.minutesPlayed,
+    }));
+    
     // Sort based on type
     let sortedStats;
     switch (type) {
       case 'assists':
-        sortedStats = allStats.sort((a, b) => b.assists - a.assists || b.goals - a.goals);
+        sortedStats = mappedStats.sort((a, b) => b.assists - a.assists || b.goals - a.goals);
         break;
       case 'matches':
-        sortedStats = allStats.sort((a, b) => b.matchesPlayed - a.matchesPlayed || b.goals - a.goals);
+        sortedStats = mappedStats.sort((a, b) => b.matchesPlayed - a.matchesPlayed || b.goals - a.goals);
         break;
       case 'minutes':
-        sortedStats = allStats.sort((a, b) => b.minutesPlayed - a.minutesPlayed || b.goals - a.goals);
+        sortedStats = mappedStats.sort((a, b) => b.minutesPlayed - a.minutesPlayed || b.goals - a.goals);
         break;
       case 'goals':
       default:
-        sortedStats = allStats.sort((a, b) => b.goals - a.goals || b.assists - a.assists);
+        sortedStats = mappedStats.sort((a, b) => b.goals - a.goals || b.assists - a.assists);
         break;
     }
 
