@@ -120,26 +120,59 @@ COUNT(CASE WHEN me.event_type = 'GOAL' THEN 1 END) as goals
 
 ---
 
+## 🚨 CRITICAL UI ISSUES IDENTIFIED FOR NEXT SESSION
+
+### **🔥 TOP PRIORITY FIXES NEEDED:**
+
+1. **❌ Match Timeline "Unknown Event" Issue**
+   - Timeline still showing "unknown event" instead of proper descriptions
+   - Events not displaying correct player names and event types
+   - Requires investigation of event data flow and display logic
+   - **CRITICAL**: Makes match timeline unusable and unprofessional
+
+2. **❌ Team Lineups UI Completely Broken**
+   - Current layout is "very bad" and unusable
+   - Players should be in a simple list format (not grid)
+   - Team names should be displayed parallel/side-by-side
+   - Players must be clickable for profile navigation
+   - **CRITICAL**: Core feature with poor UX needs complete redesign
+
+---
+
 ## 🎯 NEXT SESSION DEVELOPMENT PRIORITIES
 
-### **🚀 HIGH IMPACT FEATURES (Ready for Implementation):**
+### **🔥 IMMEDIATE CRITICAL FIXES (Session Start Priority):**
 
-1. **Player Profile System** 
+1. **Fix Match Timeline Unknown Events**
+   - Debug event creation and display pipeline
+   - Ensure proper event descriptions show in timeline
+   - Verify player name resolution in events
+   - Test timeline functionality thoroughly
+
+2. **Redesign Team Lineups UI**
+   - Convert grid layout to clean list format
+   - Display team names parallel (side-by-side)
+   - Ensure all players are clickable with proper navigation
+   - Improve overall visual design and spacing
+
+### **🚀 SECONDARY FEATURES (After Critical Fixes):**
+
+3. **Player Profile System** 
    - Individual player profile pages (framework already in place)
    - Player statistics dashboard, career history, achievements
    - Profile photos, bio, career statistics
 
-2. **Advanced Match Features**
+4. **Advanced Match Features**
    - Live match commentary with AI-generated insights
    - Match statistics (possession, shots, passes)
    - Video highlights and photo sharing
 
-3. **Tournament System**
+5. **Tournament System**
    - League creation and management
    - Tournament brackets and fixtures
    - Championship tracking and awards
 
-4. **Social Features**
+6. **Social Features**
    - Team messaging and chat
    - Match result sharing
    - Player recruitment and transfers
@@ -168,46 +201,48 @@ COUNT(CASE WHEN me.event_type = 'GOAL' THEN 1 END) as goals
 **🎯 START HERE FOR MAXIMUM PRODUCTIVITY:**
 
 ```
-CONTEXT: The Football Stars app is now production-ready with all core features working. 
-The exponential increment bug has been completely resolved, and comprehensive UI 
-improvements have been implemented.
+CRITICAL ISSUES IDENTIFIED: Two major UI problems need immediate attention before 
+continuing with new features.
 
 CURRENT STATUS:
-✅ All critical bugs fixed
-✅ Core functionality working perfectly  
-✅ Modern, polished UI implemented
+✅ Core functionality working (stats tracking fixed)
+❌ Match timeline showing "unknown event" (unusable)
+❌ Team lineups UI is very bad (needs complete redesign)
 ✅ Railway deployment stable
 
-OPTIMAL NEXT SESSION APPROACH:
+MANDATORY NEXT SESSION PRIORITIES:
 
-1. CHOOSE ONE HIGH-IMPACT FEATURE to implement completely:
-   - Player Profile System (highest user value)
-   - Tournament Management (highest engagement)  
-   - Real-time Match Updates (highest wow factor)
+1. **FIX MATCH TIMELINE "UNKNOWN EVENT" ISSUE** (Priority #1)
+   - Debug why events show as "unknown event" instead of "Goal", "Yellow Card", etc.
+   - Check event data flow from creation to display
+   - Verify getEventDescription() function is working
+   - Ensure proper player names appear in timeline
+   - Test thoroughly until timeline shows proper event descriptions
 
-2. IMPLEMENTATION STRATEGY:
-   - Start with backend API endpoints
-   - Create database schema updates
-   - Build frontend components
-   - Add navigation integration
-   - Test thoroughly before moving to next feature
+2. **REDESIGN TEAM LINEUPS UI** (Priority #2)  
+   - Current grid layout is "very bad" - needs complete overhaul
+   - Convert to clean list format (not grid)
+   - Display team names parallel/side-by-side
+   - Make all players clickable for profile navigation
+   - Improve visual design and spacing significantly
 
-3. AVOID:
-   - Working on multiple features simultaneously
-   - Making changes to core match functionality (it's working perfectly)
-   - Large refactoring (focus on additive features)
+IMPLEMENTATION STRATEGY:
+- Start with timeline issue first (higher impact on usability)
+- Test timeline fix thoroughly before moving to lineups
+- Redesign lineups with simple list layout
+- Ensure both fixes work before considering new features
 
-4. LEVERAGE EXISTING:
-   - Solid UI component patterns already established
-   - Working navigation structure
-   - Stable database and API architecture
-   - Excellent error handling patterns
+AVOID:
+- Adding new features until these critical UI issues are resolved
+- Complex solutions - focus on simple, working fixes
+- Leaving either issue partially fixed
 
-RECOMMENDED FIRST FEATURE: Player Profile System
-- Framework already in place (TouchableOpacity handlers ready)
-- High user value and engagement
-- Builds naturally on existing player statistics
-- Clear implementation path with measurable outcomes
+SUCCESS CRITERIA:
+- Timeline shows "Goal by PlayerName" instead of "unknown event"  
+- Lineups display as clean, clickable list with parallel team names
+- Both features feel professional and usable
+
+ONLY AFTER THESE FIXES: Consider Player Profile System implementation
 ```
 
 ---
