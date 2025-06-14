@@ -175,7 +175,7 @@ export const getMatchById = async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
     
-    const match = await database.getMatchById(id);
+    const match: MatchWithDetails | null = await database.getMatchById(id);
     if (!match) {
       res.status(404).json({ error: 'Match not found' });
       return;
@@ -190,7 +190,7 @@ export const getMatchById = async (req: AuthRequest, res: Response): Promise<voi
       console.error('Error loading match events:', eventsError);
     }
 
-    const matchWithDetails = {
+    const matchWithDetails: MatchWithDetails = {
       ...match,
       events,
       homeScore: match.homeScore || 0,
