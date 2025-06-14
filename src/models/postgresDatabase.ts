@@ -431,7 +431,7 @@ export class PostgresDatabase {
       const homePlayersResult = await this.pool.query(`
         SELECT p.id, p.name, p.position, tp.jersey_number
         FROM team_players tp
-        LEFT JOIN players p ON tp.player_id = p.id
+        INNER JOIN players p ON tp.player_id = p.id
         WHERE tp.team_id = $1
         ORDER BY tp.jersey_number ASC
       `, [match.home_team_id]);
@@ -440,7 +440,7 @@ export class PostgresDatabase {
       const awayPlayersResult = await this.pool.query(`
         SELECT p.id, p.name, p.position, tp.jersey_number
         FROM team_players tp
-        LEFT JOIN players p ON tp.player_id = p.id
+        INNER JOIN players p ON tp.player_id = p.id
         WHERE tp.team_id = $1
         ORDER BY tp.jersey_number ASC
       `, [match.away_team_id]);
@@ -448,30 +448,36 @@ export class PostgresDatabase {
       console.log('📊 Player query results:', {
         homePlayersCount: homePlayersResult.rows.length,
         awayPlayersCount: awayPlayersResult.rows.length,
+        homePlayersRaw: homePlayersResult.rows,
+        awayPlayersRaw: awayPlayersResult.rows,
         homePlayers: homePlayersResult.rows.map(p => ({ id: p.id, name: p.name, position: p.position })),
         awayPlayers: awayPlayersResult.rows.map(p => ({ id: p.id, name: p.name, position: p.position }))
       });
       
-      const homeTeamPlayers = homePlayersResult.rows.map(p => ({
-        id: p.id,
-        name: p.name || 'Unknown Player',
-        position: p.position || 'Unknown',
-        jerseyNumber: p.jersey_number
-      }));
+      const homeTeamPlayers = homePlayersResult.rows
+        .filter(p => p.id) // Filter out any null player records
+        .map(p => ({
+          id: p.id,
+          name: p.name || 'Unknown Player',
+          position: p.position || 'Unknown',
+          jerseyNumber: p.jersey_number
+        }));
       
-      const awayTeamPlayers = awayPlayersResult.rows.map(p => ({
-        id: p.id,
-        name: p.name || 'Unknown Player',
-        position: p.position || 'Unknown',
-        jerseyNumber: p.jersey_number
-      }));
+      const awayTeamPlayers = awayPlayersResult.rows
+        .filter(p => p.id) // Filter out any null player records
+        .map(p => ({
+          id: p.id,
+          name: p.name || 'Unknown Player',
+          position: p.position || 'Unknown',
+          jerseyNumber: p.jersey_number
+        }));
       
       console.log('✅ Final player arrays:', {
         homeTeamPlayersCount: homeTeamPlayers.length,
         awayTeamPlayersCount: awayTeamPlayers.length
       });
       
-      return {
+      const finalMatchData = {
         ...match,
         homeTeam: { 
           id: match.home_team_id,
@@ -485,6 +491,18 @@ export class PostgresDatabase {
         },
         events: []
       };
+      
+      console.log('🎯 Final match data being returned:', {
+        matchId: finalMatchData.id,
+        homeTeam: finalMatchData.homeTeam.name,
+        homePlayerCount: finalMatchData.homeTeam.players.length,
+        homePlayerSample: finalMatchData.homeTeam.players[0],
+        awayTeam: finalMatchData.awayTeam.name,
+        awayPlayerCount: finalMatchData.awayTeam.players.length,
+        awayPlayerSample: finalMatchData.awayTeam.players[0]
+      });
+      
+      return finalMatchData;
     }
     
     console.log('❌ No match found with ID:', id);
