@@ -18,8 +18,8 @@ export const getUserMatches = async (req: AuthRequest, res: Response): Promise<v
       console.log('📋 Match details:', matches.map(m => ({
         id: m.id,
         status: m.status,
-        homeTeam: (m as any).homeTeam?.name,
-        awayTeam: (m as any).awayTeam?.name,
+        homeTeam: (m as any).home_team_name,
+        awayTeam: (m as any).away_team_name,
         createdBy: (m as any).created_by || m.createdBy
       })));
     }
@@ -200,12 +200,12 @@ export const getMatchById = async (req: AuthRequest, res: Response): Promise<voi
     console.log('⚽ Match details with teams and players:', {
       id: matchWithDetails.id,
       homeTeam: {
-        name: matchWithDetails.homeTeam?.name,
-        playersCount: (matchWithDetails.homeTeam as any)?.players?.length || 0
+        name: (matchWithDetails as any).home_team_name,
+        playersCount: (matchWithDetails as any).homeTeamPlayers?.length || 0
       },
       awayTeam: {
-        name: matchWithDetails.awayTeam?.name,
-        playersCount: (matchWithDetails.awayTeam as any)?.players?.length || 0
+        name: (matchWithDetails as any).away_team_name,
+        playersCount: (matchWithDetails as any).awayTeamPlayers?.length || 0
       }
     });
 
@@ -354,7 +354,7 @@ export const populateTeamsWithPlayers = async (req: AuthRequest, res: Response):
     res.json({ 
       message: `Successfully populated teams with players`, 
       playersAdded,
-      teams: teams.rows.map(t => ({ id: t.id, name: t.name }))
+      teams: teams.rows.map((t: any) => ({ id: t.id, name: t.name }))
     });
   } catch (error) {
     console.error('Populate teams error:', error);
@@ -379,8 +379,8 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     // Verify team is part of this match
-    const homeTeamId = (match as any).homeTeamId || (match as any).home_team_id;
-    const awayTeamId = (match as any).awayTeamId || (match as any).away_team_id;
+    const homeTeamId = match.homeTeamId;
+    const awayTeamId = match.awayTeamId;
     
     console.log('🔍 Team validation:', {
       requestTeamId: teamId,
