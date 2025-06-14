@@ -38,7 +38,10 @@ export const getPlayerStats = async (req: AuthRequest, res: Response): Promise<v
 };
 
 export const getCurrentUserStats = async (req: AuthRequest, res: Response): Promise<void> => {
+  const requestId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
   try {
+    console.log(`📊 [${requestId}] getCurrentUserStats called for user:`, req.user?.id);
+    
     if (!req.user) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -46,10 +49,11 @@ export const getCurrentUserStats = async (req: AuthRequest, res: Response): Prom
 
     // Get the player profile for the current user
     let player = await database.getPlayerByUserId(req.user.id);
+    console.log(`👤 [${requestId}] Player found:`, { id: player?.id, name: player?.name });
     
     // If no player profile exists, create one automatically
     if (!player) {
-      console.log('Creating player profile for user:', req.user.id);
+      console.log(`🔨 [${requestId}] Creating player profile for user:`, req.user.id);
       try {
         player = await database.createPlayer(req.user.id, req.user.name, 'MID', 'RIGHT');
       } catch (createError) {
@@ -59,16 +63,22 @@ export const getCurrentUserStats = async (req: AuthRequest, res: Response): Prom
       }
     }
 
+    console.log(`🗃️ [${requestId}] Fetching stats for player:`, player.id);
     const stats = await database.getPlayerStats(player.id);
+    console.log(`📈 [${requestId}] Stats retrieved from database:`, stats);
 
-    res.json({
+    const responseData = {
       playerId: player.id,
       playerName: player.name,
       position: player.position,
       ...stats,
-    });
+    };
+    
+    console.log(`📤 [${requestId}] Sending response:`, responseData);
+
+    res.json(responseData);
   } catch (error) {
-    console.error('Get current user stats error:', error);
+    console.error(`❌ [${requestId}] Get current user stats error:`, error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

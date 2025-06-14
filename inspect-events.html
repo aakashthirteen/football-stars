@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Match Events Database Inspector</title>
+    <style>
+        body {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            margin: 20px;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section {
+            background-color: #252526;
+            border: 1px solid #3c3c3c;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .section h2 {
+            color: #569cd6;
+            margin-top: 0;
+        }
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background-color: #2d2d30;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4ec9b0;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #9cdcfe;
+            margin-top: 5px;
+        }
+        .duplicate-warning {
+            background-color: #d73a4a;
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+        .no-duplicates {
+            background-color: #28a745;
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #3c3c3c;
+            padding: 8px;
+            text-align: left;
+            font-size: 12px;
+        }
+        th {
+            background-color: #404040;
+            color: #9cdcfe;
+        }
+        .loading {
+            text-align: center;
+            color: #9cdcfe;
+        }
+        .error {
+            background-color: #d73a4a;
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+        }
+        button {
+            background-color: #0e639c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #1177bb;
+        }
+        .refresh-section {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Match Events Database Inspector</h1>
+        
+        <div class="refresh-section">
+            <button onclick="loadData()">🔄 Refresh Data</button>
+            <span id="lastUpdate"></span>
+        </div>
+
+        <div id="content">
+            <div class="loading">Loading database inspection data...</div>
+        </div>
+    </div>
+
+    <script>
+        async function loadData() {
+            const content = document.getElementById('content');
+            content.innerHTML = '<div class="loading">Loading database inspection data...</div>';
+            
+            try {
+                // Try production URL first, then localhost
+                const urls = [
+                    'https://football-stars-production.up.railway.app/api/inspect-events',
+                    'http://localhost:3001/api/inspect-events'
+                ];
+                
+                let response;
+                let url;
+                for (url of urls) {
+                    try {
+                        response = await fetch(url);
+                        if (response.ok) break;
+                    } catch (e) {
+                        continue;
+                    }
+                }
+                
+                if (!response || !response.ok) {
+                    throw new Error('Failed to fetch data from all endpoints');
+                }
+                
+                const data = await response.json();
+                displayData(data);
+                document.getElementById('lastUpdate').textContent = `Last updated: ${new Date().toLocaleString()}`;
+            } catch (error) {
+                content.innerHTML = `<div class="error">Error loading data: ${error.message}</div>`;
+            }
+        }
+
+        function displayData(data) {
+            const content = document.getElementById('content');
+            
+            const html = `
+                <div class="section">
+                    <h2>📊 Summary</h2>
+                    <div class="summary">
+                        <div class="stat-card">
+                            <div class="stat-value">${data.summary.totalEvents}</div>
+                            <div class="stat-label">Total Events</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.summary.uniqueEvents}</div>
+                            <div class="stat-label">Unique Events</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.summary.duplicateEvents}</div>
+                            <div class="stat-label">Duplicate Events</div>
+                        </div>
+                    </div>
+                    
+                    ${data.summary.hasDuplicates ? 
+                        `<div class="duplicate-warning">⚠️ DUPLICATES DETECTED! ${data.summary.duplicateEvents} duplicate events found.</div>` :
+                        `<div class="no-duplicates">✅ No duplicate events found!</div>`
+                    }
+                </div>
+
+                ${data.duplicates.length > 0 ? `
+                <div class="section">
+                    <h2>🚨 Duplicate Events</h2>
+                    <table>
+                        <tr>
+                            <th>Player ID</th>
+                            <th>Event Type</th>
+                            <th>Minute</th>
+                            <th>Duplicates</th>
+                            <th>First Created</th>
+                            <th>Last Created</th>
+                            <th>Event IDs</th>
+                        </tr>
+                        ${data.duplicates.map(dup => `
+                            <tr>
+                                <td>${dup.player_id.substring(0, 8)}...</td>
+                                <td>${dup.event_type}</td>
+                                <td>${dup.minute}</td>
+                                <td>${dup.duplicate_count}</td>
+                                <td>${new Date(dup.first_created).toLocaleString()}</td>
+                                <td>${new Date(dup.last_created).toLocaleString()}</td>
+                                <td style="font-size: 10px;">${dup.event_ids}</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                </div>
+                ` : ''}
+
+                ${data.rapidFireEvents.length > 0 ? `
+                <div class="section">
+                    <h2>⚡ Rapid-Fire Events (Within 10 seconds)</h2>
+                    <table>
+                        <tr>
+                            <th>Player</th>
+                            <th>Event Type</th>
+                            <th>Minute</th>
+                            <th>First Event</th>
+                            <th>Second Event</th>
+                            <th>Gap (seconds)</th>
+                        </tr>
+                        ${data.rapidFireEvents.map(rf => `
+                            <tr>
+                                <td>${rf.player_name}</td>
+                                <td>${rf.event_type}</td>
+                                <td>${rf.minute}</td>
+                                <td>${new Date(rf.event1_time).toLocaleString()}</td>
+                                <td>${new Date(rf.event2_time).toLocaleString()}</td>
+                                <td>${rf.seconds_between}</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                </div>
+                ` : ''}
+
+                <div class="section">
+                    <h2>📋 Recent Events (Last 20)</h2>
+                    <table>
+                        <tr>
+                            <th>Player</th>
+                            <th>Event Type</th>
+                            <th>Minute</th>
+                            <th>Created At</th>
+                            <th>Event ID</th>
+                        </tr>
+                        ${data.recentEvents.map(event => `
+                            <tr>
+                                <td>${event.player_name || 'Unknown'}</td>
+                                <td>${event.event_type}</td>
+                                <td>${event.minute}</td>
+                                <td>${new Date(event.created_at).toLocaleString()}</td>
+                                <td style="font-size: 10px;">${event.id.substring(0, 8)}...</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                </div>
+
+                <div class="section">
+                    <h2>🏆 Player Statistics (Top 10)</h2>
+                    <table>
+                        <tr>
+                            <th>Player</th>
+                            <th>Goals</th>
+                            <th>Assists</th>
+                            <th>Total Events</th>
+                        </tr>
+                        ${data.playerStats.map(stat => `
+                            <tr>
+                                <td>${stat.player_name}</td>
+                                <td>${stat.goals}</td>
+                                <td>${stat.assists}</td>
+                                <td>${stat.total_events}</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                </div>
+            `;
+            
+            content.innerHTML = html;
+        }
+
+        // Load data when page loads
+        loadData();
+
+        // Auto-refresh every 30 seconds
+        setInterval(loadData, 30000);
+    </script>
+</body>
+</html>

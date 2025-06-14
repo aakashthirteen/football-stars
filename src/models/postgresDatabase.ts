@@ -524,11 +524,11 @@ export class PostgresDatabase {
         p.id as player_id,
         p.name as player_name,
         p.position,
-        COUNT(DISTINCT me.match_id) as matches_played,
-        COUNT(CASE WHEN me.event_type = 'GOAL' THEN 1 END) as goals,
-        COUNT(CASE WHEN me.event_type = 'ASSIST' THEN 1 END) as assists,
-        COUNT(CASE WHEN me.event_type = 'YELLOW_CARD' THEN 1 END) as yellow_cards,
-        COUNT(CASE WHEN me.event_type = 'RED_CARD' THEN 1 END) as red_cards,
+        (SELECT COUNT(DISTINCT match_id) FROM match_events WHERE player_id = p.id) as matches_played,
+        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'GOAL') as goals,
+        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'ASSIST') as assists,
+        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'YELLOW_CARD') as yellow_cards,
+        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'RED_CARD') as red_cards,
         COALESCE(
           (SELECT SUM(m.duration) 
            FROM match_events me_inner
@@ -538,9 +538,7 @@ export class PostgresDatabase {
           0
         ) as minutes_played
       FROM players p
-      LEFT JOIN match_events me ON p.id = me.player_id
       WHERE p.id = $1
-      GROUP BY p.id, p.name, p.position
     `, [playerId]);
     
     return result.rows[0] || null;
@@ -552,11 +550,11 @@ export class PostgresDatabase {
         p.id as player_id,
         p.name as player_name,
         p.position,
-        COUNT(DISTINCT me.match_id) as matches_played,
-        COUNT(CASE WHEN me.event_type = 'GOAL' THEN 1 END) as goals,
-        COUNT(CASE WHEN me.event_type = 'ASSIST' THEN 1 END) as assists,
-        COUNT(CASE WHEN me.event_type = 'YELLOW_CARD' THEN 1 END) as yellow_cards,
-        COUNT(CASE WHEN me.event_type = 'RED_CARD' THEN 1 END) as red_cards,
+        (SELECT COUNT(DISTINCT match_id) FROM match_events WHERE player_id = p.id) as matches_played,
+        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'GOAL') as goals,
+        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'ASSIST') as assists,
+        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'YELLOW_CARD') as yellow_cards,
+        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'RED_CARD') as red_cards,
         COALESCE(
           (SELECT SUM(m.duration) 
            FROM match_events me_inner
@@ -566,9 +564,9 @@ export class PostgresDatabase {
           0
         ) as minutes_played
       FROM players p
-      LEFT JOIN match_events me ON p.id = me.player_id
-      GROUP BY p.id, p.name, p.position
-      ORDER BY goals DESC, assists DESC
+      ORDER BY 
+        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'GOAL') DESC,
+        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'ASSIST') DESC
       LIMIT 20
     `);
     
