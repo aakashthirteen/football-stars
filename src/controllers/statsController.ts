@@ -146,7 +146,7 @@ export const getLeaderboard = async (req: AuthRequest, res: Response): Promise<v
     const allStats = await database.getAllPlayersStats();
     
     // Map field names from database format to frontend format
-    const mappedStats = allStats.map(stat => ({
+    const mappedStats = allStats.map((stat: any) => ({
       playerId: stat.player_id || stat.playerId,
       playerName: stat.player_name || stat.playerName,
       position: stat.position,
