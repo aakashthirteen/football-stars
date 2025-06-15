@@ -436,8 +436,14 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             try {
               await apiService.endMatch(matchId);
               showCommentary("📢 Full time! The match has ended!");
+              
+              // Navigate to player rating screen for the home team
               setTimeout(() => {
-                navigation.goBack();
+                navigation.navigate('PlayerRating', {
+                  matchId: matchId,
+                  teamId: match.homeTeam.id,
+                  teamName: match.homeTeam.name
+                });
               }, 2000);
             } catch (error) {
               Alert.alert('Error', 'Failed to end match');

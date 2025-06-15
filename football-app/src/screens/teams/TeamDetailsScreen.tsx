@@ -267,7 +267,9 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>
-              {teamStats.length > 0 ? Math.max(...teamStats.map(p => p.matchesPlayed)) : 0}
+              {teamStats.length > 0 && teamStats.some(p => p.matchesPlayed > 0) 
+                ? Math.max(...teamStats.map(p => p.matchesPlayed)) 
+                : 0}
             </Text>
             <Text style={styles.statLabel}>Matches Played</Text>
           </View>

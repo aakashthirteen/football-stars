@@ -77,28 +77,57 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     try {
       setLoadingStats(true);
       
-      // Load player stats
-      try {
-        const stats = await apiService.getCurrentUserStats();
-        setPlayerStats(stats);
-      } catch (error) {
-        console.error('Error loading stats:', error);
-        setPlayerStats({
-          goals: 0,
-          assists: 0,
-          matchesPlayed: 0,
-          position: 'MID',
-          yellowCards: 0,
-          redCards: 0,
-          minutesPlayed: 0,
-        });
-      }
+      // Load matches first to calculate stats properly
+      let calculatedMatchesPlayed = 0;
+      let calculatedGoals = 0;
+      let calculatedAssists = 0;
+      let totalRatings = 0;
+      let ratedMatchCount = 0;
       
-      // Load matches
       try {
         const matchesResponse = await apiService.getMatches();
+        console.log('🏟️ Matches loaded:', matchesResponse);
         const matches = matchesResponse.matches || [];
         
+        // Count matches where the current user played (completed matches)
+        const userPlayedMatches = matches.filter((match: any) => {
+          if (match.status !== 'COMPLETED') return false;
+          
+          // Check if user was in either team
+          const wasInHomeTeam = match.homeTeam?.players?.some((p: any) => 
+            p.id === user?.id || p.userId === user?.id || p.user?.id === user?.id
+          );
+          const wasInAwayTeam = match.awayTeam?.players?.some((p: any) => 
+            p.id === user?.id || p.userId === user?.id || p.user?.id === user?.id
+          );
+          
+          return wasInHomeTeam || wasInAwayTeam;
+        });
+        
+        calculatedMatchesPlayed = userPlayedMatches.length;
+        console.log('📊 User played in matches:', calculatedMatchesPlayed);
+        
+        // Calculate goals and assists from match events
+        userPlayedMatches.forEach((match: any) => {
+          if (match.events) {
+            match.events.forEach((event: any) => {
+              if (event.playerId === user?.id || event.player?.id === user?.id) {
+                if (event.type === 'GOAL') calculatedGoals++;
+                if (event.type === 'ASSIST') calculatedAssists++;
+              }
+            });
+          }
+          
+          // Check if user has ratings in this match (for average calculation)
+          if (match.playerRatings && match.playerRatings[user?.id]) {
+            totalRatings += match.playerRatings[user.id];
+            ratedMatchCount++;
+          }
+        });
+        
+        setAllMatches(matches);
+        
+        // Filter upcoming matches
         const now = new Date();
         const userUpcomingMatches = matches
           .filter((match: any) => {
@@ -112,11 +141,42 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           .slice(0, 5);
         
         setUpcomingMatches(userUpcomingMatches);
-        setAllMatches(matches);
       } catch (error) {
         console.error('Error loading matches:', error);
         setUpcomingMatches([]);
         setAllMatches([]);
+      }
+      
+      // Load player stats from API and merge with calculated stats
+      try {
+        const stats = await apiService.getCurrentUserStats();
+        console.log('📊 API Player stats:', stats);
+        
+        // Merge API stats with calculated stats, preferring calculated values for matches/goals/assists
+        setPlayerStats({
+          ...stats,
+          matchesPlayed: calculatedMatchesPlayed || stats?.matchesPlayed || 0,
+          goals: calculatedGoals || stats?.goals || 0,
+          assists: calculatedAssists || stats?.assists || 0,
+          averageRating: ratedMatchCount > 0 ? (totalRatings / ratedMatchCount).toFixed(1) : '0.0',
+          position: stats?.position || 'MID',
+          yellowCards: stats?.yellowCards || 0,
+          redCards: stats?.redCards || 0,
+          minutesPlayed: stats?.minutesPlayed || 0,
+        });
+      } catch (error) {
+        console.error('Error loading stats:', error);
+        // Set stats based on calculations only
+        setPlayerStats({
+          goals: calculatedGoals,
+          assists: calculatedAssists,
+          matchesPlayed: calculatedMatchesPlayed,
+          averageRating: ratedMatchCount > 0 ? (totalRatings / ratedMatchCount).toFixed(1) : '0.0',
+          position: 'MID',
+          yellowCards: 0,
+          redCards: 0,
+          minutesPlayed: 0,
+        });
       }
     } catch (error) {
       console.error('Error loading dashboard:', error);
@@ -221,6 +281,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             goals: playerStats?.goals || 0,
             assists: playerStats?.assists || 0,
             matches: playerStats?.matchesPlayed || 0,
+            rating: playerStats?.averageRating ? parseFloat(playerStats.averageRating) : 0,
           }}
           onPress={() => navigation.navigate('Profile')}
         />
