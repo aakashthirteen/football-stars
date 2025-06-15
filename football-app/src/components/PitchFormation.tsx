@@ -90,6 +90,14 @@ export default function PitchFormation({
   style 
 }: PitchFormationProps) {
   
+  if (!homeTeam || !awayTeam) {
+    return (
+      <View style={[styles.container, style]}>
+        <Text style={{ color: '#999', textAlign: 'center' }}>Loading teams...</Text>
+      </View>
+    );
+  }
+  
   const renderPitch = () => (
     <Svg width={PITCH_WIDTH} height={PITCH_HEIGHT} style={styles.pitch}>
       {/* Pitch background */}
@@ -152,7 +160,7 @@ export default function PitchFormation({
     const coords = POSITION_COORDINATES[player.position] || { x: 50, y: 50 };
     
     // Flip coordinates for away team (they play from top)
-    const x = isHomeTeam ? coords.x : coords.x;
+    const x = isHomeTeam ? coords.x : (100 - coords.x);
     const y = isHomeTeam ? coords.y : (100 - coords.y);
     
     const playerX = (x / 100) * PITCH_WIDTH;
@@ -183,16 +191,16 @@ export default function PitchFormation({
     );
   };
 
-  const homeTeamPlayers = assignPositions(homeTeam.players || []);
-  const awayTeamPlayers = assignPositions(awayTeam.players || []);
+  const homeTeamPlayers = homeTeam?.players ? assignPositions(homeTeam.players) : [];
+  const awayTeamPlayers = awayTeam?.players ? assignPositions(awayTeam.players) : [];
 
   return (
     <View style={[styles.container, style]}>
       {/* Team names */}
       <View style={styles.teamNamesContainer}>
-        <Text style={styles.awayTeamName}>{awayTeam.name}</Text>
+        <Text style={styles.awayTeamName}>{awayTeam?.name || 'Away Team'}</Text>
         <Text style={styles.vsText}>VS</Text>
-        <Text style={styles.homeTeamName}>{homeTeam.name}</Text>
+        <Text style={styles.homeTeamName}>{homeTeam?.name || 'Home Team'}</Text>
       </View>
       
       {/* Pitch with players */}
@@ -200,8 +208,8 @@ export default function PitchFormation({
         {renderPitch()}
         
         {/* Render players */}
-        {homeTeamPlayers.map(player => renderPlayer(player, true))}
-        {awayTeamPlayers.map(player => renderPlayer(player, false))}
+        {homeTeamPlayers && homeTeamPlayers.map(player => renderPlayer(player, true))}
+        {awayTeamPlayers && awayTeamPlayers.map(player => renderPlayer(player, false))}
       </View>
       
       {/* Legend */}

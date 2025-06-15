@@ -12,13 +12,10 @@ import {
   Dimensions,
   Vibration,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { apiService } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import PitchFormation from '../../components/PitchFormation';
-import { Colors, Gradients } from '../../theme/colors';
 
 const { width } = Dimensions.get('window');
 
@@ -55,6 +52,8 @@ interface Player {
   jerseyNumber?: number;
 }
 
+const TABS = ['Actions', 'Formation', 'Commentary', 'Timeline'];
+
 const COMMENTARY_TEMPLATES = {
   GOAL: [
     "GOOOOOAL! 🔥 What a strike from {player}!",
@@ -79,10 +78,9 @@ const COMMENTARY_TEMPLATES = {
   ]
 };
 
-const TABS = ['Actions', 'Formation', 'Commentary', 'Events'];
-
 export default function MatchScoringScreen({ navigation, route }: MatchScoringScreenProps) {
-  const { matchId } = route.params;
+  // BUG FIX: Add optional chaining and fallback for route params
+  const { matchId } = route?.params || {};
   const [match, setMatch] = useState<Match | null>(null);
   const [currentMinute, setCurrentMinute] = useState(0);
   const [isLive, setIsLive] = useState(false);
@@ -96,13 +94,13 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const [goalScorerId, setGoalScorerId] = useState<string | null>(null);
   const [showAssistModal, setShowAssistModal] = useState(false);
   const [goalScorerTeam, setGoalScorerTeam] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState(0);
-  const [commentary, setCommentary] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState('Actions');
+  const [commentaryHistory, setCommentaryHistory] = useState<string[]>([]);
   
   const scoreAnimation = useRef(new Animated.Value(1)).current;
   const commentaryAnimation = useRef(new Animated.Value(0)).current;
   const ballAnimation = useRef(new Animated.Value(0)).current;
-  const tabAnimation = useRef(new Animated.Value(0)).current;
+  const tabSlideAnimation = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadMatchDetails();
@@ -136,12 +134,13 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   useEffect(() => {
     // Animate tab change
-    Animated.spring(tabAnimation, {
-      toValue: activeTab,
-      friction: 8,
-      tension: 40,
+    Animated.timing(tabSlideAnimation, {
+      toValue: 1,
+      duration: 300,
       useNativeDriver: true,
-    }).start();
+    }).start(() => {
+      tabSlideAnimation.setValue(0);
+    });
   }, [activeTab]);
 
   const loadMatchDetails = async () => {
@@ -161,20 +160,31 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       
       const matchData = response.match;
       
-      // Ensure events array exists
-      if (!matchData.events) {
+      // BUG FIX: Ensure events array exists and is valid
+      if (!matchData.events || !Array.isArray(matchData.events)) {
         matchData.events = [];
       }
       
-      // Ensure scores are properly mapped
+      // BUG FIX: Ensure team objects and players arrays exist
+      if (!matchData.homeTeam) {
+        matchData.homeTeam = { name: 'Home Team', players: [] };
+      }
+      if (!matchData.awayTeam) {
+        matchData.awayTeam = { name: 'Away Team', players: [] };
+      }
+      if (!matchData.homeTeam.players || !Array.isArray(matchData.homeTeam.players)) {
+        matchData.homeTeam.players = [];
+      }
+      if (!matchData.awayTeam.players || !Array.isArray(matchData.awayTeam.players)) {
+        matchData.awayTeam.players = [];
+      }
+      
+      // Ensure scores are properly mapped from database fields
       matchData.homeScore = matchData.homeScore || matchData.home_score || 0;
       matchData.awayScore = matchData.awayScore || matchData.away_score || 0;
       
       setMatch(matchData);
       setIsLive(matchData.status === 'LIVE');
-      
-      // Generate commentary from events
-      generateCommentaryFromEvents(matchData.events);
       
       if (matchData.status === 'LIVE' && (matchData.matchDate || matchData.match_date)) {
         try {
@@ -203,34 +213,21 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     }
   };
 
-  const generateCommentaryFromEvents = (events: MatchEvent[]) => {
-    const newCommentary = events
-      .sort((a, b) => b.minute - a.minute)
-      .map(event => {
-        const templates = COMMENTARY_TEMPLATES[event.eventType as keyof typeof COMMENTARY_TEMPLATES] || [];
-        const template = templates[0] || `${event.eventType} by ${event.player?.name || 'Unknown'}`;
-        return `${event.minute}' - ${template.replace('{player}', event.player?.name || 'Unknown')}`;
-      });
-    setCommentary(newCommentary);
-  };
-
   const startMatch = async () => {
     try {
       await apiService.startMatch(matchId);
       setIsLive(true);
       setCurrentMinute(0);
-      addCommentary("⚽ Kick-off! The match has begun!");
+      showCommentary("⚽ Kick-off! The match has begun!");
       Vibration.vibrate(100);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to start match');
     }
   };
 
-  const addCommentary = (text: string) => {
-    const newEntry = `${currentMinute}' - ${text}`;
-    setCommentary(prev => [newEntry, ...prev]);
+  const showCommentary = (text: string) => {
     setLatestCommentary(text);
-    
+    setCommentaryHistory(prev => [text, ...prev]);
     Animated.sequence([
       Animated.timing(commentaryAnimation, {
         toValue: 1,
@@ -250,13 +247,24 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     if (!goalScorerTeam || !match) return;
     
     const now = Date.now();
-    if (isProcessingEvent || now - lastEventTime < 1000) return;
+    const frontendRequestId = now + '-' + Math.random().toString(36).substr(2, 9);
+    
+    if (isProcessingEvent) {
+      console.log(`🚫 [${frontendRequestId}] FRONTEND: Already processing event, ignoring rapid click`);
+      return;
+    }
+    
+    if (now - lastEventTime < 1000) {
+      console.log(`🚫 [${frontendRequestId}] FRONTEND: Too soon after last event (${now - lastEventTime}ms), ignoring`);
+      return;
+    }
     
     setIsProcessingEvent(true);
     setLastEventTime(now);
 
     try {
-      const goalScorer = goalScorerTeam.players.find((p: Player) => p.id === goalScorerId);
+      // BUG FIX: Add null checking for players array
+      const goalScorer = goalScorerTeam?.players?.find((p: Player) => p.id === goalScorerId);
       
       // Create goal event
       const goalEventData = {
@@ -271,7 +279,8 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       
       // Create assist event if there's an assist
       if (assistPlayerId) {
-        const assistPlayer = goalScorerTeam.players.find((p: Player) => p.id === assistPlayerId);
+        // BUG FIX: Add null checking for players array
+        const assistPlayer = goalScorerTeam?.players?.find((p: Player) => p.id === assistPlayerId);
         const assistEventData = {
           playerId: assistPlayerId,
           teamId: goalScorerTeam.id,
@@ -284,25 +293,27 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       }
       
       // Generate commentary
-      const assistPlayer = assistPlayerId ? goalScorerTeam.players.find((p: Player) => p.id === assistPlayerId) : null;
+      const assistPlayer = assistPlayerId ? goalScorerTeam?.players?.find((p: Player) => p.id === assistPlayerId) : null;
       
-      let commentaryText;
+      let commentary;
       if (assistPlayer) {
-        commentaryText = `⚽ GOOOOOAL! ${goalScorer?.name} scores with an assist from ${assistPlayer.name}!`;
+        commentary = `⚽ GOOOOOAL! ${goalScorer?.name} scores with an assist from ${assistPlayer.name}!`;
       } else {
         const templates = COMMENTARY_TEMPLATES.GOAL;
         const template = templates[Math.floor(Math.random() * templates.length)];
-        commentaryText = template.replace('{player}', goalScorer?.name || 'Unknown');
+        commentary = template.replace('{player}', goalScorer?.name || 'Unknown');
       }
       
-      addCommentary(commentaryText);
+      showCommentary(commentary);
+      
+      // Animate and vibrate for goals
       animateScore();
       Vibration.vibrate([0, 200, 100, 200]);
 
       await loadMatchDetails();
       
     } catch (error: any) {
-      console.error('Error in addGoalWithAssist:', error);
+      console.error(`💥 [${frontendRequestId}] FRONTEND: Error in addGoalWithAssist:`, error);
       Alert.alert('Error', error.message || 'Failed to add goal and assist events');
     } finally {
       setIsProcessingEvent(false);
@@ -313,13 +324,22 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     if (!selectedTeam || !match) return;
     
     const now = Date.now();
-    if (isProcessingEvent || now - lastEventTime < 1000) return;
+    const frontendRequestId = now + '-' + Math.random().toString(36).substr(2, 9);
+    
+    if (isProcessingEvent) {
+      return;
+    }
+    
+    if (now - lastEventTime < 1000) {
+      return;
+    }
     
     setIsProcessingEvent(true);
     setLastEventTime(now);
 
     try {
-      const player = selectedTeam.players.find((p: Player) => p.id === playerId);
+      // BUG FIX: Add null checking for players array
+      const player = selectedTeam?.players?.find((p: Player) => p.id === playerId);
       const eventData = {
         playerId,
         teamId: selectedTeam.id,
@@ -333,8 +353,8 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       // Generate commentary
       const templates = COMMENTARY_TEMPLATES[eventType as keyof typeof COMMENTARY_TEMPLATES] || [];
       const template = templates[Math.floor(Math.random() * templates.length)];
-      const commentaryText = template ? template.replace('{player}', player?.name || 'Unknown') : `${eventType} by ${player?.name || 'Unknown'}`;
-      addCommentary(commentaryText);
+      const commentary = template ? template.replace('{player}', player?.name || 'Unknown') : `${eventType} by ${player?.name || 'Unknown'}`;
+      showCommentary(commentary);
       
       // Animate and vibrate for goals
       if (eventType === 'GOAL') {
@@ -347,7 +367,6 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       await loadMatchDetails();
       
     } catch (error: any) {
-      console.error('Error in addEvent:', error);
       Alert.alert('Error', error.message || 'Failed to add event');
     } finally {
       setIsProcessingEvent(false);
@@ -372,6 +391,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const openEventModal = (team: any, eventType: string) => {
     setSelectedTeam(team);
     setSelectedEventType(eventType);
+    
     setTimeout(() => {
       setShowEventModal(true);
     }, 50);
@@ -389,16 +409,12 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
           onPress: async () => {
             try {
               await apiService.endMatch(matchId);
-              addCommentary("📢 Full time! The match has ended!");
+              showCommentary("📢 Full time! The match has ended!");
               
-              // Navigate to player rating screen for the home team
+              // Navigate to rating screen or match overview
               setTimeout(() => {
-                navigation.navigate('PlayerRating', {
-                  matchId: matchId,
-                  teamId: match.homeTeam.id,
-                  teamName: match.homeTeam.name
-                });
-              }, 2000);
+                navigation.replace('PlayerRating', { matchId });
+              }, 1500);
             } catch (error) {
               Alert.alert('Error', 'Failed to end match');
             }
@@ -428,14 +444,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         disabled={isProcessingEvent}
       >
         <View style={styles.playerItemContent}>
-          <LinearGradient
-            colors={[getPositionColor(item.position), Colors.primary.main]}
-            style={styles.playerNumber}
-          >
+          <View style={[styles.playerNumber, { backgroundColor: getPositionColor(item.position) }]}>
             <Text style={styles.playerNumberText}>
-              {item.jerseyNumber || getPositionAbbr(item.position)}
+              {item.jerseyNumber || '--'}
             </Text>
-          </LinearGradient>
+          </View>
           <View style={styles.playerDetails}>
             <Text style={[styles.playerName, isProcessingEvent && styles.disabledText]}>{item.name}</Text>
             <Text style={[styles.playerPosition, isProcessingEvent && styles.disabledText]}>{item.position}</Text>
@@ -457,16 +470,6 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       case 'MID': return '#4CAF50';
       case 'FWD': return '#FF9800';
       default: return '#666';
-    }
-  };
-
-  const getPositionAbbr = (position: string): string => {
-    switch (position) {
-      case 'GK': return 'GK';
-      case 'DEF': return 'DF';
-      case 'MID': return 'MF';
-      case 'FWD': return 'FW';
-      default: return position.substring(0, 2).toUpperCase();
     }
   };
 
@@ -494,7 +497,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   const renderEvent = (event: MatchEvent, index: number) => (
     <Animated.View 
-      key={event.id || index} 
+      key={event.id} 
       style={[
         styles.eventItem,
         {
@@ -520,268 +523,161 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     </Animated.View>
   );
 
-  const renderTabs = () => (
-    <View style={styles.tabsContainer}>
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.tabsScroll}
-      >
-        {TABS.map((tab, index) => (
-          <TouchableOpacity
-            key={tab}
-            style={[
-              styles.tab,
-              activeTab === index && styles.activeTab,
-            ]}
-            onPress={() => setActiveTab(index)}
-          >
-            <Text style={[
-              styles.tabText,
-              activeTab === index && styles.activeTabText,
-            ]}>
-              {tab}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      <Animated.View
-        style={[
-          styles.tabIndicator,
-          {
-            transform: [{
-              translateX: tabAnimation.interpolate({
-                inputRange: [0, 1, 2, 3],
-                outputRange: [0, (width - 40) / 4, ((width - 40) / 4) * 2, ((width - 40) / 4) * 3],
-              }),
-            }],
-          },
-        ]}
-      />
-    </View>
-  );
-
-  const renderActionsTab = () => (
-    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-      {!isLive && match?.status === 'SCHEDULED' && (
-        <View style={styles.startMatchContainer}>
-          <TouchableOpacity style={styles.startButton} onPress={startMatch}>
-            <LinearGradient
-              colors={Gradients.primary}
-              style={styles.startButtonGradient}
-            >
-              <Ionicons name="play-circle" size={32} color="#fff" />
-              <Text style={styles.startButtonText}>Start Match</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {isLive && (
-        <View style={styles.quickActionsContainer}>
-          <View style={styles.quickActionsGrid}>
-            <TouchableOpacity 
-              style={[styles.quickAction, isProcessingEvent && styles.disabledAction]}
-              onPress={() => !isProcessingEvent && openEventModal(match?.homeTeam, 'GOAL')}
-              disabled={isProcessingEvent}
-            >
-              <LinearGradient
-                colors={Gradients.victory}
-                style={styles.quickActionGradient}
-              >
-                <Ionicons name="football" size={24} color="#fff" />
-                <Text style={styles.quickActionText}>{match?.homeTeam.name}</Text>
-                <Text style={styles.quickActionLabel}>Goal</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.quickAction, isProcessingEvent && styles.disabledAction]}
-              onPress={() => !isProcessingEvent && openEventModal(match?.awayTeam, 'GOAL')}
-              disabled={isProcessingEvent}
-            >
-              <LinearGradient
-                colors={Gradients.victory}
-                style={styles.quickActionGradient}
-              >
-                <Ionicons name="football" size={24} color="#fff" />
-                <Text style={styles.quickActionText}>{match?.awayTeam.name}</Text>
-                <Text style={styles.quickActionLabel}>Goal</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.quickAction, isProcessingEvent && styles.disabledAction]}
-              onPress={() => !isProcessingEvent && openEventModal(match?.homeTeam, 'YELLOW_CARD')}
-              disabled={isProcessingEvent}
-            >
-              <LinearGradient
-                colors={[Colors.warning, '#F57C00']}
-                style={styles.quickActionGradient}
-              >
-                <Text style={styles.cardIcon}>🟨</Text>
-                <Text style={styles.quickActionText}>{match?.homeTeam.name}</Text>
-                <Text style={styles.quickActionLabel}>Card</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.quickAction, isProcessingEvent && styles.disabledAction]}
-              onPress={() => !isProcessingEvent && openEventModal(match?.awayTeam, 'YELLOW_CARD')}
-              disabled={isProcessingEvent}
-            >
-              <LinearGradient
-                colors={[Colors.warning, '#F57C00']}
-                style={styles.quickActionGradient}
-              >
-                <Text style={styles.cardIcon}>🟨</Text>
-                <Text style={styles.quickActionText}>{match?.awayTeam.name}</Text>
-                <Text style={styles.quickActionLabel}>Card</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-
-          {/* More Actions */}
-          <View style={styles.moreActionsContainer}>
-            <Text style={styles.moreActionsTitle}>More Actions</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <TouchableOpacity 
-                style={styles.moreAction}
-                onPress={() => !isProcessingEvent && openEventModal(match?.homeTeam, 'RED_CARD')}
-                disabled={isProcessingEvent}
-              >
-                <Text style={styles.moreActionIcon}>🟥</Text>
-                <Text style={styles.moreActionText}>Red Card</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.moreAction}
-                onPress={() => !isProcessingEvent && openEventModal(match?.homeTeam, 'SUBSTITUTION')}
-                disabled={isProcessingEvent}
-              >
-                <Text style={styles.moreActionIcon}>🔄</Text>
-                <Text style={styles.moreActionText}>Substitution</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.moreAction}
-                onPress={() => !isProcessingEvent && openEventModal(match?.homeTeam, 'PENALTY')}
-                disabled={isProcessingEvent}
-              >
-                <Text style={styles.moreActionIcon}>🎯</Text>
-                <Text style={styles.moreActionText}>Penalty</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.moreAction}
-                onPress={() => !isProcessingEvent && openEventModal(match?.homeTeam, 'INJURY')}
-                disabled={isProcessingEvent}
-              >
-                <Text style={styles.moreActionIcon}>🏥</Text>
-                <Text style={styles.moreActionText}>Injury</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      )}
-
-      {match?.status === 'COMPLETED' && (
-        <View style={styles.completedMatchContainer}>
-          <Text style={styles.completedMatchText}>Match Completed</Text>
-          <TouchableOpacity 
-            style={styles.viewSummaryButton}
-            onPress={() => navigation.navigate('MatchSummary', { matchId })}
-          >
-            <LinearGradient
-              colors={Gradients.primary}
-              style={styles.viewSummaryButtonGradient}
-            >
-              <Text style={styles.viewSummaryButtonText}>View Summary</Text>
-              <Ionicons name="arrow-forward" size={20} color="#fff" />
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      )}
-    </ScrollView>
-  );
-
-  const renderFormationTab = () => (
-    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-      {match && match.homeTeam && match.awayTeam && (
-        <PitchFormation
-          homeTeam={match.homeTeam}
-          awayTeam={match.awayTeam}
-          onPlayerPress={(player) => {
-            console.log('Player pressed:', player.name);
-            // Future: Navigate to player profile or show stats
-          }}
-          showPlayerNames={true}
-        />
-      )}
-    </ScrollView>
-  );
-
-  const renderCommentaryTab = () => (
-    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.commentaryContainer}>
-        {commentary.length > 0 ? (
-          commentary.map((entry, index) => (
-            <View key={index} style={styles.commentaryEntry}>
-              <Text style={styles.commentaryText}>{entry}</Text>
-            </View>
-          ))
-        ) : (
-          <View style={styles.noCommentary}>
-            <Ionicons name="megaphone-outline" size={48} color={Colors.text.tertiary} />
-            <Text style={styles.noCommentaryText}>No commentary yet</Text>
-            <Text style={styles.noCommentarySubtext}>
-              {isLive ? "Events will appear here as they happen" : "Start the match to see live commentary"}
-            </Text>
-          </View>
-        )}
-      </View>
-    </ScrollView>
-  );
-
-  const renderEventsTab = () => (
-    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.eventsContainer}>
-        {match?.events && match.events.length > 0 ? (
-          <View style={styles.timeline}>
-            {match.events.sort((a, b) => b.minute - a.minute).map(renderEvent)}
-          </View>
-        ) : (
-          <View style={styles.noEvents}>
-            <Ionicons name="time-outline" size={48} color={Colors.text.tertiary} />
-            <Text style={styles.noEventsText}>No events yet</Text>
-            <Text style={styles.noEventsSubtext}>
-              {isLive ? "Add events using the Actions tab" : "Start the match to begin"}
-            </Text>
-          </View>
-        )}
-      </View>
-    </ScrollView>
-  );
-
   const renderTabContent = () => {
     switch (activeTab) {
-      case 0:
-        return renderActionsTab();
-      case 1:
-        return renderFormationTab();
-      case 2:
-        return renderCommentaryTab();
-      case 3:
-        return renderEventsTab();
+      case 'Actions':
+        return (
+          <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+            {/* Quick Actions */}
+            {isLive && (
+              <View style={styles.quickActionsContainer}>
+                <Text style={styles.sectionTitle}>Quick Actions</Text>
+                
+                <View style={styles.actionsGrid}>
+                  <TouchableOpacity 
+                    style={[styles.actionCard, styles.goalCard]}
+                    onPress={() => openEventModal(match?.homeTeam, 'GOAL')}
+                  >
+                    <Ionicons name="football" size={32} color="#fff" />
+                    <Text style={styles.actionTitle}>Goal</Text>
+                    <Text style={styles.actionTeam}>{match?.homeTeam?.name}</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.actionCard, styles.goalCard]}
+                    onPress={() => openEventModal(match?.awayTeam, 'GOAL')}
+                  >
+                    <Ionicons name="football" size={32} color="#fff" />
+                    <Text style={styles.actionTitle}>Goal</Text>
+                    <Text style={styles.actionTeam}>{match?.awayTeam?.name}</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.actionCard, styles.cardCard]}
+                    onPress={() => openEventModal(match?.homeTeam, 'YELLOW_CARD')}
+                  >
+                    <Text style={styles.cardEmoji}>🟨</Text>
+                    <Text style={styles.actionTitle}>Yellow</Text>
+                    <Text style={styles.actionTeam}>{match?.homeTeam?.name}</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.actionCard, styles.cardCard]}
+                    onPress={() => openEventModal(match?.awayTeam, 'YELLOW_CARD')}
+                  >
+                    <Text style={styles.cardEmoji}>🟨</Text>
+                    <Text style={styles.actionTitle}>Yellow</Text>
+                    <Text style={styles.actionTeam}>{match?.awayTeam?.name}</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.actionCard, styles.redCardCard]}
+                    onPress={() => openEventModal(match?.homeTeam, 'RED_CARD')}
+                  >
+                    <Text style={styles.cardEmoji}>🟥</Text>
+                    <Text style={styles.actionTitle}>Red</Text>
+                    <Text style={styles.actionTeam}>{match?.homeTeam?.name}</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.actionCard, styles.redCardCard]}
+                    onPress={() => openEventModal(match?.awayTeam, 'RED_CARD')}
+                  >
+                    <Text style={styles.cardEmoji}>🟥</Text>
+                    <Text style={styles.actionTitle}>Red</Text>
+                    <Text style={styles.actionTeam}>{match?.awayTeam?.name}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            
+            {/* Match Controls */}
+            {!isLive && match?.status === 'SCHEDULED' && (
+              <View style={styles.matchControlsContainer}>
+                <TouchableOpacity style={styles.startMatchButton} onPress={startMatch}>
+                  <Ionicons name="play" size={24} color="#fff" />
+                  <Text style={styles.startMatchText}>Start Match</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            
+            {isLive && (
+              <View style={styles.matchControlsContainer}>
+                <TouchableOpacity style={styles.endMatchButton} onPress={endMatch}>
+                  <Ionicons name="stop" size={24} color="#fff" />
+                  <Text style={styles.endMatchText}>End Match</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
+        );
+        
+      case 'Formation':
+        return (
+          <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+            {match && match.homeTeam && match.awayTeam && (
+              <View style={styles.formationContainer}>
+                <PitchFormation
+                  homeTeam={match.homeTeam}
+                  awayTeam={match.awayTeam}
+                  onPlayerPress={(player) => {
+                    console.log('Player pressed:', player.name);
+                  }}
+                  showPlayerNames={true}
+                />
+              </View>
+            )}
+          </ScrollView>
+        );
+        
+      case 'Commentary':
+        return (
+          <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.commentaryContainer}>
+              <Text style={styles.sectionTitle}>Live Commentary</Text>
+              {commentaryHistory.length > 0 ? (
+                commentaryHistory.map((comment, index) => (
+                  <View key={index} style={styles.commentaryItem}>
+                    <Text style={styles.commentaryText}>{comment}</Text>
+                  </View>
+                ))
+              ) : (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyText}>No commentary yet</Text>
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        );
+        
+      case 'Timeline':
+        return (
+          <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.timelineContainer}>
+              <Text style={styles.sectionTitle}>Match Events</Text>
+              {/* BUG FIX: Add null checking for events array */}
+              {match && match.events && match.events.length > 0 ? (
+                match.events
+                  .sort((a, b) => b.minute - a.minute)
+                  .map((event, index) => renderEvent(event, index))
+              ) : (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyText}>No events yet</Text>
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        );
+        
       default:
-        return null;
+        return <View />;
     }
   };
 
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary.main} />
+        <ActivityIndicator size="large" color="#00E676" />
         <Text style={styles.loadingText}>Loading match...</Text>
       </View>
     );
@@ -791,68 +687,45 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>Match not found</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadMatchDetails}>
+          <Text style={styles.retryText}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#0A0E27', '#1A1F3A']}
-        style={styles.backgroundGradient}
-      />
-      
       {/* Header */}
-      <LinearGradient
-        colors={isLive ? Gradients.live : Gradients.field}
-        style={styles.header}
-      >
-        <View style={styles.headerTop}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.backButton, { marginLeft: 10 }]}
-            onPress={() => {
-              console.log('🔄 Manual reload triggered');
-              loadMatchDetails();
-            }}
-          >
-            <Ionicons name="refresh-outline" size={20} color="#fff" />
-          </TouchableOpacity>
-          
-          <View style={styles.matchInfo}>
-            <Text style={styles.matchTitle}>
-              {match.homeTeam?.name || 'Home'} vs {match.awayTeam?.name || 'Away'}
-            </Text>
-            {match.venue && (
-              <Text style={styles.venue}>
-                <Ionicons name="location" size={14} color="#fff" /> {match.venue}
-              </Text>
-            )}
-          </View>
-          
+      <View style={[styles.header, isLive && styles.liveHeader]}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        
+        <View style={styles.headerCenter}>
+          <Text style={styles.matchTitle}>
+            {match.homeTeam?.name} vs {match.awayTeam?.name}
+          </Text>
           {isLive && (
-            <TouchableOpacity onPress={endMatch} style={styles.endButton}>
-              <Ionicons name="stop-circle" size={24} color="#fff" />
-            </TouchableOpacity>
+            <View style={styles.liveIndicator}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>LIVE - {currentMinute}'</Text>
+            </View>
+          )}
+          {!isLive && (
+            <Text style={styles.statusText}>{match.status}</Text>
           )}
         </View>
         
-        {/* Live Status Bar */}
-        <View style={styles.statusBar}>
-          {isLive && <View style={styles.liveDot} />}
-          <Text style={[styles.status, isLive && styles.liveStatus]}>
-            {isLive ? `LIVE - ${currentMinute}'` : match.status}
-          </Text>
-        </View>
-      </LinearGradient>
+        <TouchableOpacity onPress={loadMatchDetails}>
+          <Ionicons name="refresh" size={24} color="#fff" />
+        </TouchableOpacity>
+      </View>
 
-      {/* Commentary Notification */}
+      {/* Live Commentary Bar */}
       {latestCommentary && (
         <Animated.View 
           style={[
@@ -868,83 +741,113 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             }
           ]}
         >
-          <Text style={styles.commentaryNotification}>{latestCommentary}</Text>
+          <Text style={styles.liveCommentary}>{latestCommentary}</Text>
         </Animated.View>
       )}
 
-      {/* Score Display */}
+      {/* Score Section */}
       <View style={styles.scoreSection}>
         <Animated.View style={[styles.scoreContainer, { transform: [{ scale: scoreAnimation }] }]}>
-          <View style={styles.teamScoreSection}>
-            <Text style={styles.teamName}>{match.homeTeam.name}</Text>
+          <View style={styles.teamScore}>
+            <Text style={styles.teamName}>{match.homeTeam?.name}</Text>
             <Text style={styles.score}>{match.homeScore}</Text>
           </View>
           
           <View style={styles.scoreCenter}>
             <Animated.View style={[
-              styles.ballIcon,
+              styles.ballContainer,
               {
                 transform: [{
                   translateX: ballAnimation.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [-30, 30]
+                    outputRange: [-20, 20]
                   })
                 }]
               }
             ]}>
-              <Ionicons name="football" size={32} color="#fff" />
+              <Ionicons name="football" size={24} color="#00E676" />
             </Animated.View>
           </View>
           
-          <View style={styles.teamScoreSection}>
-            <Text style={styles.teamName}>{match.awayTeam.name}</Text>
+          <View style={styles.teamScore}>
+            <Text style={styles.teamName}>{match.awayTeam?.name}</Text>
             <Text style={styles.score}>{match.awayScore}</Text>
           </View>
         </Animated.View>
       </View>
 
       {/* Tabs */}
-      {renderTabs()}
+      <View style={styles.tabsContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {/* BUG FIX: Add null checking for TABS array */}
+          {TABS?.map((tab, index) => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.tab, activeTab === tab && styles.activeTab]}
+              onPress={() => setActiveTab(tab)}
+            >
+              <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          )) || []}
+        </ScrollView>
+      </View>
 
       {/* Tab Content */}
-      <View style={styles.tabContentContainer}>
+      <Animated.View 
+        style={[
+          styles.contentContainer,
+          {
+            opacity: tabSlideAnimation.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.8, 1]
+            }),
+            transform: [{
+              translateY: tabSlideAnimation.interpolate({
+                inputRange: [0, 1],
+                outputRange: [10, 0]
+              })
+            }]
+          }
+        ]}
+      >
         {renderTabContent()}
-      </View>
+      </Animated.View>
 
       {/* Player Selection Modal */}
       <Modal
         visible={showEventModal}
         animationType="slide"
         presentationStyle="pageSheet"
+        onRequestClose={() => setShowEventModal(false)}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
-              {getEventIcon(selectedEventType)} Select Player
+              Select Player - {getEventDescription(selectedEventType)}
             </Text>
             <TouchableOpacity 
               style={styles.closeButton}
               onPress={() => setShowEventModal(false)}
             >
-              <Ionicons name="close" size={24} color="#333" />
+              <Ionicons name="close" size={24} color="#fff" />
             </TouchableOpacity>
           </View>
           
           <Text style={styles.modalSubtitle}>
-            {selectedTeam?.name} - {getEventDescription(selectedEventType)}
+            Team: {selectedTeam?.name}
           </Text>
           
           <FlatList
             data={selectedTeam?.players || []}
             renderItem={renderPlayer}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => item.id || item.name}
             style={styles.playersList}
-            contentContainerStyle={styles.playersListContent}
+            showsVerticalScrollIndicator={false}
             ListEmptyComponent={() => (
-              <View style={styles.emptyPlayers}>
-                <Text style={styles.emptyPlayersText}>
-                  No players available for {selectedTeam?.name}
-                </Text>
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No players available</Text>
               </View>
             )}
           />
@@ -956,63 +859,28 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         visible={showAssistModal}
         animationType="slide"
         presentationStyle="pageSheet"
+        onRequestClose={() => setShowAssistModal(false)}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              🤝 Select Assist Player
-            </Text>
+            <Text style={styles.modalTitle}>Select Assist Provider</Text>
             <TouchableOpacity 
               style={styles.closeButton}
-              onPress={() => {
-                setShowAssistModal(false);
-                setGoalScorerId(null);
-                setGoalScorerTeam(null);
-              }}
+              onPress={() => setShowAssistModal(false)}
             >
-              <Ionicons name="close" size={24} color="#333" />
+              <Ionicons name="close" size={24} color="#fff" />
             </TouchableOpacity>
           </View>
           
-          <Text style={styles.modalSubtitle}>
-            {goalScorerTeam?.name} - Who provided the assist?
-          </Text>
-          
-          {/* None option */}
-          <TouchableOpacity
-            style={[styles.playerItem, styles.noAssistOption]}
-            onPress={() => {
-              if (goalScorerId) {
-                setShowAssistModal(false);
-                addGoalWithAssist(goalScorerId, null);
-                setGoalScorerId(null);
-                setGoalScorerTeam(null);
-              }
-            }}
-          >
-            <View style={styles.playerItemContent}>
-              <LinearGradient
-                colors={['#90a4ae', '#607d8b']}
-                style={styles.playerNumber}
-              >
-                <Text style={styles.playerNumberText}>—</Text>
-              </LinearGradient>
-              <View style={styles.playerDetails}>
-                <Text style={styles.playerName}>No Assist</Text>
-                <Text style={styles.playerPosition}>Goal was unassisted</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-          
           <FlatList
-            data={goalScorerTeam?.players?.filter((player: Player) => player.id !== goalScorerId) || []}
-            renderItem={({ item }: { item: Player }) => (
-              <TouchableOpacity
+            data={goalScorerTeam?.players?.filter((p: any) => p.id !== goalScorerId) || []}
+            renderItem={({ item }) => (
+              <TouchableOpacity 
                 style={[styles.playerItem, isProcessingEvent && styles.disabledPlayerItem]}
                 onPress={() => {
-                  if (!isProcessingEvent && goalScorerId) {
+                  if (!isProcessingEvent) {
+                    addGoalWithAssist(goalScorerId!, item.id);
                     setShowAssistModal(false);
-                    addGoalWithAssist(goalScorerId, item.id);
                     setGoalScorerId(null);
                     setGoalScorerTeam(null);
                   }
@@ -1020,14 +888,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                 disabled={isProcessingEvent}
               >
                 <View style={styles.playerItemContent}>
-                  <LinearGradient
-                    colors={[getPositionColor(item.position), Colors.primary.main]}
-                    style={styles.playerNumber}
-                  >
+                  <View style={[styles.playerNumber, { backgroundColor: getPositionColor(item.position) }]}>
                     <Text style={styles.playerNumberText}>
-                      {item.jerseyNumber || getPositionAbbr(item.position)}
+                      {item.jerseyNumber || '--'}
                     </Text>
-                  </LinearGradient>
+                  </View>
                   <View style={styles.playerDetails}>
                     <Text style={[styles.playerName, isProcessingEvent && styles.disabledText]}>{item.name}</Text>
                     <Text style={[styles.playerPosition, isProcessingEvent && styles.disabledText]}>{item.position}</Text>
@@ -1040,17 +905,25 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                 )}
               </TouchableOpacity>
             )}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => item.id || item.name}
             style={styles.playersList}
-            contentContainerStyle={styles.playersListContent}
-            ListEmptyComponent={() => (
-              <View style={styles.emptyPlayers}>
-                <Text style={styles.emptyPlayersText}>
-                  No other players available for assist
-                </Text>
-              </View>
-            )}
+            showsVerticalScrollIndicator={false}
           />
+          
+          <TouchableOpacity 
+            style={[styles.skipButton, isProcessingEvent && styles.disabledAction]}
+            onPress={() => {
+              if (!isProcessingEvent) {
+                addGoalWithAssist(goalScorerId!, null);
+                setShowAssistModal(false);
+                setGoalScorerId(null);
+                setGoalScorerTeam(null);
+              }
+            }}
+            disabled={isProcessingEvent}
+          >
+            <Text style={styles.skipButtonText}>No Assist</Text>
+          </TouchableOpacity>
         </View>
       </Modal>
     </View>
@@ -1060,518 +933,356 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.primary,
-  },
-  backgroundGradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
+    backgroundColor: '#121212',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#121212',
   },
   loadingText: {
+    color: '#fff',
+    marginTop: 16,
     fontSize: 16,
-    color: Colors.text.secondary,
-    marginTop: 12,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#121212',
+    padding: 20,
   },
   errorText: {
+    color: '#ff5252',
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#00E676',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#fff',
     fontSize: 16,
-    color: Colors.status.error,
+    fontWeight: '600',
   },
   header: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-  },
-  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 50,
+    paddingBottom: 16,
+    backgroundColor: '#1E1E1E',
+  },
+  liveHeader: {
+    backgroundColor: '#00C853',
   },
   backButton: {
     padding: 8,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 20,
   },
-  endButton: {
-    padding: 8,
-  },
-  matchInfo: {
+  headerCenter: {
     flex: 1,
-    marginLeft: 12,
+    alignItems: 'center',
   },
   matchTitle: {
+    color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
+    textAlign: 'center',
   },
-  venue: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  statusBar: {
+  liveIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
+    marginTop: 4,
   },
   liveDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#fff',
+    backgroundColor: '#ff1744',
     marginRight: 6,
-    opacity: 0.9,
   },
-  status: {
+  liveText: {
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
-    textTransform: 'uppercase',
   },
-  liveStatus: {
-    color: '#ffeb3b',
+  statusText: {
+    color: '#B0BEC5',
+    fontSize: 12,
+    marginTop: 4,
   },
   commentaryBar: {
-    backgroundColor: Colors.background.elevated,
+    backgroundColor: '#ff6b35',
     paddingVertical: 12,
-    paddingHorizontal: 20,
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 160 : 140,
-    left: 20,
-    right: 20,
-    borderRadius: 12,
-    zIndex: 10,
-    ...Platform.select({
-      ios: {
-        shadowColor: Colors.shadow.medium,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 8,
   },
-  commentaryNotification: {
-    color: Colors.text.primary,
+  liveCommentary: {
+    color: '#fff',
     fontSize: 14,
     fontWeight: '500',
     textAlign: 'center',
   },
   scoreSection: {
-    paddingHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
   },
   scoreContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Colors.background.card,
-    borderRadius: 20,
-    padding: 24,
-    ...Platform.select({
-      ios: {
-        shadowColor: Colors.shadow.light,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
+    backgroundColor: '#1E1E1E',
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
   },
-  teamScoreSection: {
+  teamScore: {
     flex: 1,
     alignItems: 'center',
   },
   teamName: {
-    fontSize: 16,
+    color: '#fff',
+    fontSize: 14,
     fontWeight: '600',
-    color: Colors.text.secondary,
-    marginBottom: 12,
+    marginBottom: 8,
     textAlign: 'center',
   },
   score: {
-    fontSize: 48,
+    color: '#00E676',
+    fontSize: 32,
     fontWeight: 'bold',
-    color: Colors.text.primary,
   },
   scoreCenter: {
-    width: 80,
+    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  ballIcon: {
-    backgroundColor: Colors.primary.main,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  ballContainer: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   tabsContainer: {
-    backgroundColor: Colors.background.card,
-    marginHorizontal: 20,
-    borderRadius: 16,
-    marginBottom: 16,
-    position: 'relative',
-    ...Platform.select({
-      ios: {
-        shadowColor: Colors.shadow.light,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  tabsScroll: {
-    flexDirection: 'row',
-    paddingVertical: 4,
-    paddingHorizontal: 4,
+    backgroundColor: '#1E1E1E',
+    paddingVertical: 8,
   },
   tab: {
-    flex: 1,
-    minWidth: (width - 40) / 4,
+    paddingHorizontal: 20,
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
+    marginHorizontal: 4,
+    borderRadius: 20,
   },
   activeTab: {
-    backgroundColor: 'transparent',
+    backgroundColor: '#00E676',
   },
   tabText: {
+    color: '#B0BEC5',
     fontSize: 14,
-    fontWeight: '600',
-    color: Colors.text.secondary,
+    fontWeight: '500',
   },
   activeTabText: {
-    color: Colors.primary.main,
+    color: '#fff',
+    fontWeight: '600',
   },
-  tabIndicator: {
-    position: 'absolute',
-    bottom: 4,
-    width: (width - 48) / 4,
-    height: 40,
-    backgroundColor: Colors.primary.light + '20',
-    borderRadius: 12,
-    marginHorizontal: 4,
-  },
-  tabContentContainer: {
+  contentContainer: {
     flex: 1,
-    marginHorizontal: 20,
   },
   tabContent: {
     flex: 1,
+    padding: 16,
   },
-  startMatchContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  startButton: {
-    borderRadius: 30,
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: Colors.primary.glow,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  startButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    gap: 12,
-  },
-  startButtonText: {
+  sectionTitle: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: 'bold',
+    marginBottom: 16,
   },
   quickActionsContainer: {
-    paddingTop: 16,
+    marginBottom: 24,
   },
-  quickActionsGrid: {
+  actionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 24,
+    justifyContent: 'space-between',
   },
-  quickAction: {
-    flex: 1,
-    minWidth: '45%',
-    borderRadius: 16,
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: Colors.shadow.light,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  quickActionGradient: {
+  actionCard: {
+    width: '48%',
+    aspectRatio: 1,
+    borderRadius: 12,
     padding: 16,
     alignItems: 'center',
-  },
-  quickActionText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 8,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  quickActionLabel: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 12,
-  },
-  cardIcon: {
-    fontSize: 24,
-  },
-  disabledAction: {
-    opacity: 0.5,
-  },
-  moreActionsContainer: {
-    marginTop: 16,
-  },
-  moreActionsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text.primary,
+    justifyContent: 'center',
     marginBottom: 12,
   },
-  moreAction: {
-    backgroundColor: Colors.background.elevated,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 20,
-    marginRight: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: Colors.glass.border,
+  goalCard: {
+    backgroundColor: '#00C853',
   },
-  moreActionIcon: {
-    fontSize: 20,
+  cardCard: {
+    backgroundColor: '#ff8f00',
   },
-  moreActionText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.text.primary,
+  redCardCard: {
+    backgroundColor: '#f44336',
   },
-  completedMatchContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  completedMatchText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.text.secondary,
-    marginBottom: 24,
-  },
-  viewSummaryButton: {
-    borderRadius: 25,
-    overflow: 'hidden',
-  },
-  viewSummaryButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    gap: 8,
-  },
-  viewSummaryButtonText: {
+  actionTitle: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  commentaryContainer: {
-    paddingVertical: 16,
-  },
-  commentaryEntry: {
-    backgroundColor: Colors.background.card,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.primary.main,
-  },
-  commentaryText: {
     fontSize: 14,
-    color: Colors.text.primary,
-    lineHeight: 20,
+    fontWeight: 'bold',
+    marginTop: 8,
   },
-  noCommentary: {
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  noCommentaryText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text.secondary,
-    marginTop: 12,
-  },
-  noCommentarySubtext: {
-    fontSize: 14,
-    color: Colors.text.tertiary,
+  actionTeam: {
+    color: '#fff',
+    fontSize: 10,
+    opacity: 0.8,
     marginTop: 4,
     textAlign: 'center',
   },
-  eventsContainer: {
-    paddingVertical: 16,
+  cardEmoji: {
+    fontSize: 32,
   },
-  timeline: {
-    gap: 12,
+  matchControlsContainer: {
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  startMatchButton: {
+    backgroundColor: '#00C853',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 25,
+  },
+  startMatchText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  endMatchButton: {
+    backgroundColor: '#f44336',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 25,
+  },
+  endMatchText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  formationContainer: {
+    alignItems: 'center',
+  },
+  commentaryContainer: {
+    // Commentary specific styles
+  },
+  commentaryItem: {
+    backgroundColor: '#1E1E1E',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  commentaryText: {
+    color: '#fff',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  timelineContainer: {
+    // Timeline specific styles
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    color: '#666',
+    fontSize: 16,
   },
   eventItem: {
     flexDirection: 'row',
-    backgroundColor: Colors.background.card,
-    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#1E1E1E',
     padding: 16,
+    borderRadius: 8,
     marginBottom: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: Colors.shadow.light,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 1,
-      },
-    }),
   },
   eventMinute: {
-    width: 50,
+    width: 40,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   eventMinuteText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.primary.main,
+    color: '#00E676',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   eventContent: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    flex: 1,
+    marginLeft: 12,
   },
   eventIcon: {
-    fontSize: 24,
+    fontSize: 16,
+    marginRight: 8,
   },
   eventDetails: {
     flex: 1,
   },
   eventPlayerName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text.primary,
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
   },
   eventType: {
-    fontSize: 14,
-    color: Colors.text.secondary,
-    textTransform: 'capitalize',
-  },
-  noEvents: {
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  noEventsText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text.secondary,
-    marginTop: 12,
-  },
-  noEventsSubtext: {
-    fontSize: 14,
-    color: Colors.text.tertiary,
-    marginTop: 4,
-    textAlign: 'center',
+    color: '#B0BEC5',
+    fontSize: 12,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: '#121212',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingTop: 50,
     paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.glass.border,
+    backgroundColor: '#1E1E1E',
   },
   modalTitle: {
-    fontSize: 20,
+    color: '#fff',
+    fontSize: 18,
     fontWeight: '600',
-    color: Colors.text.primary,
   },
   modalSubtitle: {
+    color: '#B0BEC5',
     fontSize: 16,
-    color: Colors.text.secondary,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    backgroundColor: Colors.background.elevated,
   },
   closeButton: {
     padding: 8,
   },
   playersList: {
     flex: 1,
-  },
-  playersListContent: {
-    padding: 20,
+    paddingHorizontal: 20,
   },
   playerItem: {
-    backgroundColor: Colors.background.card,
-    borderRadius: 12,
-    marginBottom: 12,
-    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    marginVertical: 4,
+    backgroundColor: '#1E1E1E',
+    borderRadius: 8,
     position: 'relative',
-    borderWidth: 1,
-    borderColor: Colors.glass.border,
-  },
-  noAssistOption: {
-    marginHorizontal: 20,
-    marginTop: 10,
-    backgroundColor: Colors.background.elevated,
   },
   disabledPlayerItem: {
     opacity: 0.6,
@@ -1579,54 +1290,57 @@ const styles = StyleSheet.create({
   playerItemContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    flex: 1,
   },
   playerNumber: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
-    marginRight: 16,
+    alignItems: 'center',
+    marginRight: 12,
   },
   playerNumberText: {
-    fontSize: 18,
-    fontWeight: 'bold',
     color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   playerDetails: {
     flex: 1,
   },
   playerName: {
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.text.primary,
     marginBottom: 4,
   },
   playerPosition: {
+    color: '#B0BEC5',
     fontSize: 14,
-    color: Colors.text.secondary,
   },
   disabledText: {
-    color: Colors.text.tertiary,
+    color: '#666',
   },
   processingOverlay: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    right: 16,
+    top: '50%',
+    transform: [{ translateY: -10 }],
   },
-  emptyPlayers: {
-    padding: 40,
-    alignItems: 'center',
+  skipButton: {
+    backgroundColor: '#37474F',
+    marginHorizontal: 20,
+    marginVertical: 20,
+    paddingVertical: 16,
+    borderRadius: 8,
   },
-  emptyPlayersText: {
+  skipButtonText: {
+    color: '#fff',
     fontSize: 16,
-    color: Colors.text.secondary,
+    fontWeight: '600',
     textAlign: 'center',
+  },
+  disabledAction: {
+    opacity: 0.5,
   },
 });
