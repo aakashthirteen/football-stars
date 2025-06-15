@@ -541,16 +541,8 @@ export const submitPlayerRatings = async (req: AuthRequest, res: Response): Prom
     console.log('📊 Submitting player ratings:', {
       matchId,
       raterId: req.user.id,
-      ratingsCount: ratings?.length || 0,
-      ratings: ratings
+      ratingsCount: ratings?.length || 0
     });
-
-    // Check if database.submitPlayerRatings method exists
-    if (typeof database.submitPlayerRatings !== 'function') {
-      console.error('❌ submitPlayerRatings method not found on database');
-      res.status(500).json({ error: 'Database method not available' });
-      return;
-    }
 
     if (!ratings || !Array.isArray(ratings) || ratings.length === 0) {
       res.status(400).json({ error: 'Ratings array is required' });
