@@ -6,6 +6,7 @@ import MatchScoringScreen from '../screens/matches/MatchScoringScreen';
 import MatchOverviewScreen from '../screens/matches/MatchOverviewScreen';
 import PlayerRatingScreen from '../screens/matches/PlayerRatingScreen';
 import MatchSummaryScreen from '../screens/matches/MatchSummaryScreen';
+import TeamFormationScreen from '../screens/matches/TeamFormationScreen';
 
 export type MatchesStackParamList = {
   MatchesList: undefined;
@@ -13,7 +14,18 @@ export type MatchesStackParamList = {
   MatchScoring: { matchId: string; isNewMatch?: boolean };
   MatchOverview: { matchId: string };
   PlayerRating: { matchId: string; teamId: string; teamName: string };
-  MatchSummary: { matchId: string };
+  MatchSummary: { 
+    matchId: string; 
+    teamId?: string; 
+    teamName?: string; 
+    ratings?: any; 
+    ratingsSummary?: any; 
+  };
+  TeamFormation: { 
+    teamId: string; 
+    teamName: string; 
+    matchId?: string; 
+  };
 };
 
 const Stack = createStackNavigator<MatchesStackParamList>();
@@ -31,6 +43,7 @@ export default function MatchesStack() {
       <Stack.Screen name="MatchOverview" component={MatchOverviewScreen} />
       <Stack.Screen name="PlayerRating" component={PlayerRatingScreen} />
       <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
+      <Stack.Screen name="TeamFormation" component={TeamFormationScreen} />
     </Stack.Navigator>
   );
 }

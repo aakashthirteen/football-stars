@@ -9,9 +9,19 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  Dimensions,
 } from 'react-native';
+import Svg, { 
+  Rect, 
+  Circle, 
+  Line, 
+  Text as SvgText,
+  G 
+} from 'react-native-svg';
 import { useAuthStore } from '../../store/authStore';
 import { apiService } from '../../services/api';
+
+const { width: screenWidth } = Dimensions.get('window');
 
 interface Tournament {
   id: string;
@@ -44,6 +54,44 @@ interface Standing {
   points: number;
 }
 
+interface TournamentMatch {
+  id: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  homeScore?: number;
+  awayScore?: number;
+  status: 'PENDING' | 'ACTIVE' | 'COMPLETED';
+  round: number;
+  scheduledTime?: string;
+  winnerId?: string;
+}
+
+interface BracketNode {
+  id: string;
+  round: number;
+  match?: TournamentMatch;
+  homeTeam?: { id: string; name: string };
+  awayTeam?: { id: string; name: string };
+  winner?: { id: string; name: string };
+  x: number;
+  y: number;
+}
+
+interface PlayerStat {
+  playerId: string;
+  playerName: string;
+  teamName: string;
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  redCards: number;
+  matchesPlayed: number;
+}
+
+type TabType = 'standings' | 'schedule' | 'stats' | 'bracket';
+
 interface TournamentDetailsScreenProps {
   navigation: any;
   route: any;
@@ -54,21 +102,46 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
   const { user } = useAuthStore();
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [standings, setStandings] = useState<Standing[]>([]);
+  const [matches, setMatches] = useState<TournamentMatch[]>([]);
+  const [playerStats, setPlayerStats] = useState<PlayerStat[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTeamSelector, setShowTeamSelector] = useState(false);
   const [registering, setRegistering] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('standings');
+  const [bracketNodes, setBracketNodes] = useState<BracketNode[]>([]);
 
   useEffect(() => {
     loadTournamentDetails();
     loadStandings();
     loadUserTeams();
+    loadTournamentMatches();
+    loadTournamentStats();
   }, []);
+
+  useEffect(() => {
+    console.log('🎯 USEEFFECT: tournament:', tournament?.name, 'type:', tournament?.tournamentType);
+    console.log('🎯 USEEFFECT: activeTab:', activeTab);
+    console.log('🎯 USEEFFECT: matches count:', matches.length);
+    
+    if (tournament && activeTab === 'bracket' && tournament.tournamentType === 'KNOCKOUT') {
+      console.log('✅ USEEFFECT: Conditions met, calling generateBracketNodes');
+      generateBracketNodes();
+    } else {
+      console.log('❌ USEEFFECT: Conditions not met');
+      console.log('   - tournament exists:', !!tournament);
+      console.log('   - activeTab === bracket:', activeTab === 'bracket');
+      console.log('   - tournament type === KNOCKOUT:', tournament?.tournamentType === 'KNOCKOUT');
+    }
+  }, [tournament, matches, activeTab]);
 
   const loadTournamentDetails = async () => {
     try {
       setLoading(true);
       const response = await apiService.getTournamentById(tournamentId);
+      console.log('🏆 TOURNAMENT_DETAILS: Loaded tournament:', response.tournament);
+      console.log('🏆 TOURNAMENT_DETAILS: Tournament type:', response.tournament?.tournamentType);
+      console.log('🏆 TOURNAMENT_DETAILS: Should show bracket?', response.tournament?.tournamentType === 'KNOCKOUT');
       setTournament(response.tournament);
     } catch (error: any) {
       console.error('Error loading tournament:', error);
@@ -97,6 +170,115 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
     }
   };
 
+  const loadTournamentMatches = async () => {
+    try {
+      // Enhanced mock data to demonstrate full tournament bracket
+      const mockMatches: TournamentMatch[] = [
+        // Round 1 - Quarter Finals
+        {
+          id: '1',
+          homeTeamId: 'team1',
+          awayTeamId: 'team2', 
+          homeTeamName: 'Team Alpha',
+          awayTeamName: 'Team Beta',
+          homeScore: 2,
+          awayScore: 1,
+          status: 'COMPLETED',
+          round: 1,
+          winnerId: 'team1'
+        },
+        {
+          id: '2',
+          homeTeamId: 'team3',
+          awayTeamId: 'team4',
+          homeTeamName: 'Team Gamma', 
+          awayTeamName: 'Team Delta',
+          homeScore: 0,
+          awayScore: 3,
+          status: 'COMPLETED',
+          round: 1,
+          winnerId: 'team4'
+        },
+        {
+          id: '3',
+          homeTeamId: 'team5',
+          awayTeamId: 'team6',
+          homeTeamName: 'Team Epsilon',
+          awayTeamName: 'Team Zeta',
+          homeScore: 1,
+          awayScore: 1,
+          status: 'COMPLETED',
+          round: 1,
+          winnerId: 'team5' // Winner on penalties
+        },
+        {
+          id: '4',
+          homeTeamId: 'team7',
+          awayTeamId: 'team8',
+          homeTeamName: 'Team Eta',
+          awayTeamName: 'Team Theta',
+          homeScore: 4,
+          awayScore: 2,
+          status: 'COMPLETED',
+          round: 1,
+          winnerId: 'team7'
+        },
+        // Round 2 - Semi Finals
+        {
+          id: '5',
+          homeTeamId: 'team1',
+          awayTeamId: 'team4',
+          homeTeamName: 'Team Alpha',
+          awayTeamName: 'Team Delta',
+          homeScore: 3,
+          awayScore: 1,
+          status: 'COMPLETED',
+          round: 2,
+          winnerId: 'team1'
+        },
+        {
+          id: '6',
+          homeTeamId: 'team5',
+          awayTeamId: 'team7',
+          homeTeamName: 'Team Epsilon',
+          awayTeamName: 'Team Eta',
+          status: 'ACTIVE',
+          round: 2
+        },
+        // Round 3 - Final
+        {
+          id: '7',
+          homeTeamId: 'team1',
+          awayTeamId: 'winner_6',
+          homeTeamName: 'Team Alpha',
+          awayTeamName: 'TBD',
+          status: 'PENDING',
+          round: 3
+        }
+      ];
+      setMatches(mockMatches);
+    } catch (error: any) {
+      console.error('Error loading tournament matches:', error);
+    }
+  };
+
+  const loadTournamentStats = async () => {
+    try {
+      // This will need to be implemented in the backend
+      // For now, using mock data to demonstrate the UI
+      const mockStats: PlayerStat[] = [
+        { playerId: '1', playerName: 'John Striker', teamName: 'Team Alpha', goals: 8, assists: 3, yellowCards: 1, redCards: 0, matchesPlayed: 4 },
+        { playerId: '2', playerName: 'Mike Scorer', teamName: 'Team Beta', goals: 6, assists: 2, yellowCards: 2, redCards: 0, matchesPlayed: 3 },
+        { playerId: '3', playerName: 'Alex Forward', teamName: 'Team Gamma', goals: 5, assists: 4, yellowCards: 0, redCards: 1, matchesPlayed: 4 },
+        { playerId: '4', playerName: 'Chris Assist', teamName: 'Team Delta', goals: 2, assists: 7, yellowCards: 3, redCards: 0, matchesPlayed: 4 },
+        { playerId: '5', playerName: 'David Goal', teamName: 'Team Alpha', goals: 4, assists: 1, yellowCards: 1, redCards: 0, matchesPlayed: 3 },
+      ];
+      setPlayerStats(mockStats);
+    } catch (error: any) {
+      console.error('Error loading tournament stats:', error);
+    }
+  };
+
   const handleRegisterTeam = async (teamId: string) => {
     try {
       setRegistering(true);
@@ -110,6 +292,67 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
     } finally {
       setRegistering(false);
     }
+  };
+
+  const generateBracketNodes = () => {
+    console.log('🏟️ BRACKET: generateBracketNodes called');
+    console.log('🏟️ BRACKET: matches.length:', matches.length);
+    console.log('🏟️ BRACKET: matches:', matches);
+    
+    if (!matches.length) {
+      console.log('❌ BRACKET: No matches found, returning early');
+      return;
+    }
+
+    const rounds = Math.max(...matches.map(m => m.round));
+    console.log('🏟️ BRACKET: rounds:', rounds);
+    
+    const bracketWidth = screenWidth * 1.5;
+    const nodeWidth = 140;
+    const nodeHeight = 70;
+    const roundSpacing = bracketWidth / (rounds + 1);
+    const verticalSpacing = 90;
+    
+    const nodes: BracketNode[] = [];
+    
+    // Generate nodes for each round with proper spacing
+    for (let round = 1; round <= rounds; round++) {
+      const roundMatches = matches.filter(m => m.round === round);
+      const totalRoundHeight = (roundMatches.length * nodeHeight) + ((roundMatches.length - 1) * verticalSpacing);
+      const startY = Math.max(50, (600 - totalRoundHeight) / 2);
+      
+      roundMatches.forEach((match, index) => {
+        // Calculate position with proper bracket spacing
+        const matchPosition = Math.pow(2, rounds - round) * (index + 0.5);
+        const y = startY + (index * (nodeHeight + verticalSpacing));
+        
+        nodes.push({
+          id: match.id,
+          round,
+          match,
+          homeTeam: { id: match.homeTeamId, name: match.homeTeamName },
+          awayTeam: { id: match.awayTeamId, name: match.awayTeamName },
+          winner: match.winnerId ? 
+            (match.winnerId === match.homeTeamId ? 
+              { id: match.homeTeamId, name: match.homeTeamName } : 
+              { id: match.awayTeamId, name: match.awayTeamName }) : undefined,
+          x: 60 + (round - 1) * roundSpacing,
+          y
+        });
+      });
+    }
+    
+    console.log('🏟️ BRACKET: Generated nodes:', nodes.length);
+    console.log('🏟️ BRACKET: nodes:', nodes);
+    setBracketNodes(nodes);
+  };
+
+  const getTopStats = (category: keyof PlayerStat, limit: number = 5) => {
+    if (category === 'playerId' || category === 'playerName' || category === 'teamName') return [];
+    
+    return [...playerStats]
+      .sort((a, b) => (b[category] as number) - (a[category] as number))
+      .slice(0, limit);
   };
 
   const getStatusColor = (status: string) => {
@@ -169,6 +412,513 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
       <Text style={styles.teamOptionPlayers}>{item.players?.length || 0} players</Text>
     </TouchableOpacity>
   );
+
+  const renderTabs = () => {
+    const tabs = [
+      { key: 'standings', title: 'Standings', icon: '🏆' },
+      { key: 'schedule', title: 'Schedule', icon: '📅' },
+      { key: 'stats', title: 'Stats', icon: '📊' },
+    ];
+
+    // Add bracket tab for knockout tournaments
+    console.log('🔍 TABS: Checking tournament type:', tournament?.tournamentType);
+    console.log('🔍 TABS: Is KNOCKOUT?', tournament?.tournamentType === 'KNOCKOUT');
+    if (tournament?.tournamentType === 'KNOCKOUT') {
+      console.log('✅ TABS: Adding bracket tab');
+      tabs.splice(1, 0, { key: 'bracket', title: 'Bracket', icon: '🏟️' });
+    } else {
+      console.log('❌ TABS: Not adding bracket tab - tournament type is:', tournament?.tournamentType);
+    }
+    console.log('🔍 TABS: Final tabs array:', tabs.map(t => t.key));
+
+    return (
+      <View style={styles.tabContainer}>
+        {tabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[
+              styles.tab,
+              activeTab === tab.key && styles.activeTab
+            ]}
+            onPress={() => setActiveTab(tab.key as TabType)}
+          >
+            <Text style={styles.tabIcon}>{tab.icon}</Text>
+            <Text style={[
+              styles.tabText,
+              activeTab === tab.key && styles.activeTabText
+            ]}>
+              {tab.title}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
+
+  const handleMatchPress = (match: TournamentMatch) => {
+    Alert.alert(
+      'Match Details',
+      `${match.homeTeamName} vs ${match.awayTeamName}\n` +
+      `Round: ${match.round}\n` +
+      `Status: ${match.status}` +
+      (match.homeScore !== undefined ? `\nScore: ${match.homeScore} - ${match.awayScore}` : ''),
+      [
+        { text: 'Close', style: 'cancel' },
+        ...(match.status === 'PENDING' ? [{ text: 'View Details', onPress: () => console.log('Navigate to match details') }] : [])
+      ]
+    );
+  };
+
+  const drawProgressionLines = (nodes: BracketNode[]) => {
+    const lines: JSX.Element[] = [];
+    const maxRound = Math.max(...nodes.map(n => n.round));
+    
+    // Group nodes by round for easier pairing
+    const nodesByRound: { [key: number]: BracketNode[] } = {};
+    nodes.forEach(node => {
+      if (!nodesByRound[node.round]) nodesByRound[node.round] = [];
+      nodesByRound[node.round].push(node);
+    });
+    
+    // Draw progression lines for each round
+    for (let round = 1; round < maxRound; round++) {
+      const currentRoundNodes = nodesByRound[round] || [];
+      const nextRoundNodes = nodesByRound[round + 1] || [];
+      
+      // Each pair of current round matches feeds into one next round match
+      for (let i = 0; i < currentRoundNodes.length; i += 2) {
+        const node1 = currentRoundNodes[i];
+        const node2 = currentRoundNodes[i + 1];
+        const targetNode = nextRoundNodes[Math.floor(i / 2)];
+        
+        if (node1 && targetNode) {
+          const midX = node1.x + 140 + (targetNode.x - node1.x - 140) / 2;
+          
+          // Line from first match
+          lines.push(
+            <G key={`progression-${node1.id}-to-${targetNode.id}`}>
+              <Line
+                x1={node1.x + 140}
+                y1={node1.y + 35}
+                x2={midX}
+                y2={node1.y + 35}
+                stroke={node1.winner ? '#4CAF50' : '#E0E0E0'}
+                strokeWidth="3"
+                strokeDasharray={node1.winner ? '0' : '5,5'}
+              />
+              
+              {node1.winner && (
+                <Circle
+                  cx={node1.x + 150}
+                  cy={node1.y + 35}
+                  r="3"
+                  fill="#4CAF50"
+                />
+              )}
+            </G>
+          );
+        }
+        
+        if (node2 && targetNode) {
+          const midX = node2.x + 140 + (targetNode.x - node2.x - 140) / 2;
+          
+          // Line from second match
+          lines.push(
+            <G key={`progression-${node2.id}-to-${targetNode.id}`}>
+              <Line
+                x1={node2.x + 140}
+                y1={node2.y + 35}
+                x2={midX}
+                y2={node2.y + 35}
+                stroke={node2.winner ? '#4CAF50' : '#E0E0E0'}
+                strokeWidth="3"
+                strokeDasharray={node2.winner ? '0' : '5,5'}
+              />
+              
+              {node2.winner && (
+                <Circle
+                  cx={node2.x + 150}
+                  cy={node2.y + 35}
+                  r="3"
+                  fill="#4CAF50"
+                />
+              )}
+            </G>
+          );
+        }
+        
+        // Vertical connector and line to target
+        if (node1 && node2 && targetNode) {
+          const midX = node1.x + 140 + (targetNode.x - node1.x - 140) / 2;
+          
+          lines.push(
+            <G key={`connector-${round}-${i}`}>
+              {/* Vertical connector between the two matches */}
+              <Line
+                x1={midX}
+                y1={node1.y + 35}
+                x2={midX}
+                y2={node2.y + 35}
+                stroke="#E0E0E0"
+                strokeWidth="2"
+              />
+              
+              {/* Horizontal line to target match */}
+              <Line
+                x1={midX}
+                y1={(node1.y + node2.y) / 2 + 35}
+                x2={targetNode.x}
+                y2={targetNode.y + 35}
+                stroke="#E0E0E0"
+                strokeWidth="2"
+              />
+              
+              {/* Junction point */}
+              <Circle
+                cx={midX}
+                cy={(node1.y + node2.y) / 2 + 35}
+                r="3"
+                fill="#E0E0E0"
+              />
+            </G>
+          );
+        }
+      }
+    }
+    
+    return lines;
+  };
+
+  const renderBracket = () => {
+    if (bracketNodes.length === 0) {
+      return (
+        <View style={styles.emptyBracket}>
+          <Text style={styles.emptyIcon}>🏟️</Text>
+          <Text style={styles.emptyTitle}>Tournament Bracket</Text>
+          <Text style={styles.emptySubtitle}>
+            Bracket will appear once tournament matches are generated
+          </Text>
+        </View>
+      );
+    }
+
+    const rounds = Math.max(...bracketNodes.map(n => n.round));
+    const svgWidth = Math.max(screenWidth * 1.5, rounds * 200 + 120);
+    const svgHeight = 600;
+
+    return (
+      <View style={styles.bracketContainer}>
+        {/* Round Labels */}
+        <View style={styles.roundLabels}>
+          {Array.from({ length: rounds }, (_, i) => {
+            const roundNumber = i + 1;
+            const roundName = roundNumber === rounds ? 'FINAL' : 
+                             roundNumber === rounds - 1 ? 'SEMI-FINAL' :
+                             roundNumber === rounds - 2 ? 'QUARTER-FINAL' :
+                             `ROUND ${roundNumber}`;
+            
+            return (
+              <View 
+                key={roundNumber} 
+                style={[
+                  styles.roundLabel,
+                  { left: 60 + i * (svgWidth / rounds) - 60 }
+                ]}
+              >
+                <Text style={styles.roundLabelText}>{roundName}</Text>
+              </View>
+            );
+          })}
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+          <Svg width={svgWidth} height={svgHeight} style={styles.bracket}>
+            {/* Background grid */}
+            <G>
+              {Array.from({ length: rounds }, (_, i) => (
+                <Line
+                  key={`grid-${i}`}
+                  x1={60 + i * (svgWidth / rounds)}
+                  y1={0}
+                  x2={60 + i * (svgWidth / rounds)}
+                  y2={svgHeight}
+                  stroke="#F5F5F5"
+                  strokeWidth="1"
+                  strokeDasharray="5,5"
+                />
+              ))}
+            </G>
+
+            {/* Draw progression lines */}
+            {drawProgressionLines(bracketNodes)}
+
+            {/* Draw bracket nodes */}
+            {bracketNodes.map((node) => (
+              <G 
+                key={node.id}
+                onPress={() => node.match && handleMatchPress(node.match)}
+              >
+                {/* Main match box */}
+                <Rect
+                  x={node.x}
+                  y={node.y}
+                  width="140"
+                  height="70"
+                  fill={
+                    node.match?.status === 'COMPLETED' ? '#E8F5E8' : 
+                    node.match?.status === 'ACTIVE' ? '#FFF3E0' : 
+                    '#F8F9FA'
+                  }
+                  stroke={
+                    node.winner ? '#4CAF50' : 
+                    node.match?.status === 'ACTIVE' ? '#FF9800' :
+                    '#E0E0E0'
+                  }
+                  strokeWidth={node.winner ? "3" : "2"}
+                  rx="12"
+                  filter={node.match?.status === 'ACTIVE' ? "drop-shadow(0 4px 8px rgba(0,0,0,0.1))" : "none"}
+                />
+                
+                {/* Home team section */}
+                <Rect
+                  x={node.x + 2}
+                  y={node.y + 2}
+                  width="136"
+                  height="33"
+                  fill={
+                    node.winner?.id === node.homeTeam?.id ? '#C8E6C9' :
+                    node.match?.status === 'COMPLETED' ? '#F5F5F5' : 'transparent'
+                  }
+                  rx="10"
+                />
+                
+                {/* Away team section */}
+                <Rect
+                  x={node.x + 2}
+                  y={node.y + 35}
+                  width="136"
+                  height="33"
+                  fill={
+                    node.winner?.id === node.awayTeam?.id ? '#C8E6C9' :
+                    node.match?.status === 'COMPLETED' ? '#F5F5F5' : 'transparent'
+                  }
+                  rx="10"
+                />
+                
+                {/* Home team name */}
+                <SvgText
+                  x={node.x + 8}
+                  y={node.y + 22}
+                  fontSize="11"
+                  fill={node.winner?.id === node.homeTeam?.id ? '#2E7D32' : '#333'}
+                  fontWeight={node.winner?.id === node.homeTeam?.id ? 'bold' : 'normal'}
+                >
+                  {node.homeTeam?.name.substring(0, 14) || 'TBD'}
+                </SvgText>
+                
+                {/* Away team name */}
+                <SvgText
+                  x={node.x + 8}
+                  y={node.y + 55}
+                  fontSize="11"
+                  fill={node.winner?.id === node.awayTeam?.id ? '#2E7D32' : '#333'}
+                  fontWeight={node.winner?.id === node.awayTeam?.id ? 'bold' : 'normal'}
+                >
+                  {node.awayTeam?.name.substring(0, 14) || 'TBD'}
+                </SvgText>
+
+                {/* Score display */}
+                {node.match?.homeScore !== undefined && (
+                  <G>
+                    <SvgText
+                      x={node.x + 125}
+                      y={node.y + 22}
+                      textAnchor="middle"
+                      fontSize="14"
+                      fill={node.winner?.id === node.homeTeam?.id ? '#2E7D32' : '#666'}
+                      fontWeight="bold"
+                    >
+                      {node.match.homeScore}
+                    </SvgText>
+                    <SvgText
+                      x={node.x + 125}
+                      y={node.y + 55}
+                      textAnchor="middle"
+                      fontSize="14"
+                      fill={node.winner?.id === node.awayTeam?.id ? '#2E7D32' : '#666'}
+                      fontWeight="bold"
+                    >
+                      {node.match.awayScore}
+                    </SvgText>
+                  </G>
+                )}
+
+                {/* Status indicator */}
+                {node.match?.status === 'ACTIVE' && (
+                  <Circle
+                    cx={node.x + 130}
+                    cy={node.y + 10}
+                    r="4"
+                    fill="#4CAF50"
+                  >
+                    <animate
+                      attributeName="opacity"
+                      values="1;0.3;1"
+                      dur="2s"
+                      repeatCount="indefinite"
+                    />
+                  </Circle>
+                )}
+
+                {/* Winner crown */}
+                {node.winner && node.round === Math.max(...bracketNodes.map(n => n.round)) && (
+                  <SvgText
+                    x={node.x + 70}
+                    y={node.y - 10}
+                    textAnchor="middle"
+                    fontSize="20"
+                  >
+                    👑
+                  </SvgText>
+                )}
+              </G>
+            ))}
+          </Svg>
+        </ScrollView>
+      </View>
+    );
+  };
+
+  const renderSchedule = () => {
+    const groupedMatches = matches.reduce((acc, match) => {
+      const round = `Round ${match.round}`;
+      if (!acc[round]) acc[round] = [];
+      acc[round].push(match);
+      return acc;
+    }, {} as Record<string, TournamentMatch[]>);
+
+    return (
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {Object.entries(groupedMatches).map(([round, roundMatches]) => (
+          <View key={round} style={styles.roundSection}>
+            <Text style={styles.roundTitle}>{round}</Text>
+            {roundMatches.map((match) => (
+              <View key={match.id} style={styles.matchCard}>
+                <View style={styles.matchTeams}>
+                  <Text style={styles.teamName}>{match.homeTeamName}</Text>
+                  <Text style={styles.vsText}>vs</Text>
+                  <Text style={styles.teamName}>{match.awayTeamName}</Text>
+                </View>
+                
+                {match.status === 'COMPLETED' && (
+                  <View style={styles.scoreContainer}>
+                    <Text style={styles.scoreText}>
+                      {match.homeScore} - {match.awayScore}
+                    </Text>
+                  </View>
+                )}
+                
+                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(match.status) }]}>
+                  <Text style={styles.statusText}>{match.status}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        ))}
+      </ScrollView>
+    );
+  };
+
+  const renderStats = () => {
+    const statCategories = [
+      { key: 'goals', title: 'Top Scorers', icon: '⚽' },
+      { key: 'assists', title: 'Top Assists', icon: '🅰️' },
+      { key: 'yellowCards', title: 'Most Yellow Cards', icon: '🟨' },
+      { key: 'redCards', title: 'Most Red Cards', icon: '🟥' },
+    ];
+
+    return (
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {statCategories.map((category) => (
+          <View key={category.key} style={styles.statSection}>
+            <View style={styles.statHeader}>
+              <Text style={styles.statIcon}>{category.icon}</Text>
+              <Text style={styles.statTitle}>{category.title}</Text>
+            </View>
+            
+            <View style={styles.statList}>
+              {getTopStats(category.key as keyof PlayerStat).map((player, index) => (
+                <View key={player.playerId} style={styles.statRow}>
+                  <View style={styles.rankContainer}>
+                    <Text style={styles.rank}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.playerInfo}>
+                    <Text style={styles.playerName}>{player.playerName}</Text>
+                    <Text style={styles.playerTeam}>{player.teamName}</Text>
+                  </View>
+                  <Text style={styles.statValue}>
+                    {player[category.key as keyof PlayerStat]}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+    );
+  };
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'standings':
+        return standings.length > 0 ? (
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <View style={styles.standingHeader}>
+              <View style={styles.positionContainer}>
+                <Text style={styles.headerText}>#</Text>
+              </View>
+              <View style={styles.teamContainer}>
+                <Text style={styles.headerText}>Team</Text>
+              </View>
+              <View style={styles.statsContainer}>
+                <Text style={styles.headerText}>MP</Text>
+                <Text style={styles.headerText}>W</Text>
+                <Text style={styles.headerText}>D</Text>
+                <Text style={styles.headerText}>L</Text>
+                <Text style={styles.headerText}>GD</Text>
+                <Text style={styles.headerText}>Pts</Text>
+              </View>
+            </View>
+            <FlatList
+              data={standings}
+              renderItem={renderStanding}
+              keyExtractor={(item) => item.teamId}
+              scrollEnabled={false}
+            />
+          </ScrollView>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>📋</Text>
+            <Text style={styles.emptyTitle}>No Standings Yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Standings will appear once matches begin
+            </Text>
+          </View>
+        );
+      
+      case 'bracket':
+        return renderBracket();
+      
+      case 'schedule':
+        return renderSchedule();
+      
+      case 'stats':
+        return renderStats();
+      
+      default:
+        return null;
+    }
+  };
 
   if (loading) {
     return (
@@ -250,48 +1000,13 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
           )}
         </View>
 
-        {/* Standings */}
-        {standings.length > 0 && (
-          <View style={styles.standingsCard}>
-            <Text style={styles.sectionTitle}>Standings</Text>
-            
-            {/* Header */}
-            <View style={styles.standingHeader}>
-              <View style={styles.positionContainer}>
-                <Text style={styles.headerText}>#</Text>
-              </View>
-              <View style={styles.teamContainer}>
-                <Text style={styles.headerText}>Team</Text>
-              </View>
-              <View style={styles.statsContainer}>
-                <Text style={styles.headerText}>MP</Text>
-                <Text style={styles.headerText}>W</Text>
-                <Text style={styles.headerText}>D</Text>
-                <Text style={styles.headerText}>L</Text>
-                <Text style={styles.headerText}>GD</Text>
-                <Text style={styles.headerText}>Pts</Text>
-              </View>
-            </View>
+        {/* Tabs */}
+        {renderTabs()}
 
-            <FlatList
-              data={standings}
-              renderItem={renderStanding}
-              keyExtractor={(item) => item.teamId}
-              scrollEnabled={false}
-            />
-          </View>
-        )}
-
-        {/* Empty State for New Tournament */}
-        {standings.length === 0 && tournament.status === 'UPCOMING' && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📋</Text>
-            <Text style={styles.emptyTitle}>Tournament Not Started</Text>
-            <Text style={styles.emptySubtitle}>
-              Standings will appear once matches begin
-            </Text>
-          </View>
-        )}
+        {/* Tab Content */}
+        <View style={styles.tabContent}>
+          {renderTabContent()}
+        </View>
       </ScrollView>
 
       {/* Team Selection Modal */}
@@ -667,5 +1382,188 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  
+  // New Tab Styles
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    marginTop: 20,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  activeTab: {
+    backgroundColor: '#2E7D32',
+  },
+  tabIcon: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  tabText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+  },
+  activeTabText: {
+    color: '#fff',
+  },
+  tabContent: {
+    backgroundColor: '#fff',
+    marginTop: 20,
+    borderRadius: 12,
+    padding: 20,
+    minHeight: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+
+  // Bracket Styles
+  bracketContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  roundLabels: {
+    flexDirection: 'row',
+    backgroundColor: '#F8F9FA',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    position: 'relative',
+  },
+  roundLabel: {
+    position: 'absolute',
+  },
+  roundLabelText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#2E7D32',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  bracket: {
+    backgroundColor: '#fff',
+  },
+  emptyBracket: {
+    alignItems: 'center',
+    padding: 40,
+  },
+
+  // Schedule Styles
+  roundSection: {
+    marginBottom: 24,
+  },
+  roundTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2E7D32',
+    marginBottom: 12,
+  },
+  matchCard: {
+    backgroundColor: '#f8f9fa',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  matchTeams: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  vsText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: 'bold',
+  },
+  scoreContainer: {
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  scoreText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2E7D32',
+  },
+
+  // Stats Styles
+  statSection: {
+    marginBottom: 24,
+  },
+  statHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  statIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  statTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  statList: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 8,
+  },
+  statRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  rankContainer: {
+    width: 30,
+    alignItems: 'center',
+  },
+  rank: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2E7D32',
+  },
+  playerInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  playerName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  playerTeam: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2E7D32',
   },
 });

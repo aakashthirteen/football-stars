@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiService } from '../../services/api';
+import { useAuthStore } from '../../store/authStore';
 
 interface PlayerRatingScreenProps {
   navigation: any;
@@ -20,47 +22,123 @@ interface Player {
   name: string;
   position: string;
   jerseyNumber?: number;
-  rating?: number;
+  role?: string;
+}
+
+interface Team {
+  id: string;
+  name: string;
+  players: Player[];
 }
 
 export default function PlayerRatingScreen({ navigation, route }: PlayerRatingScreenProps) {
   const { matchId, teamId, teamName } = route.params || {};
+  const { user } = useAuthStore();
   const [players, setPlayers] = useState<Player[]>([]);
   const [ratings, setRatings] = useState<{ [playerId: string]: number }>({});
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [team, setTeam] = useState<Team | null>(null);
 
   // Safe static array that should never be undefined
   const STAR_ARRAY = [1, 2, 3, 4, 5];
 
   useEffect(() => {
-    loadMockPlayers();
+    loadTeamPlayers();
   }, []);
 
-  const loadMockPlayers = async () => {
+  const loadTeamPlayers = async () => {
     try {
       setIsLoading(true);
+      console.log('🔄 Loading team players...', { teamId, matchId });
       
-      // Mock players data to avoid API issues
-      const mockPlayers: Player[] = [
-        { id: '1', name: 'Player 1', position: 'GK' },
-        { id: '2', name: 'Player 2', position: 'DEF' },
-        { id: '3', name: 'Player 3', position: 'MID' },
-        { id: '4', name: 'Player 4', position: 'FWD' },
-      ];
-      
-      setPlayers(mockPlayers);
+      if (teamId) {
+        // Load specific team if teamId is provided
+        try {
+          console.log('📡 Calling getTeamById with teamId:', teamId);
+          const response = await apiService.getTeamById(teamId);
+          console.log('✅ Team response:', response);
+          
+          if (response.team) {
+            setTeam(response.team);
+            console.log('👥 Team players:', response.team.players);
+            
+            // Process players to extract player data from nested structure
+            const processedPlayers = response.team.players?.map((teamPlayer: any) => {
+              console.log('👤 Processing team player:', teamPlayer);
+              return {
+                id: teamPlayer.playerId || teamPlayer.id,
+                name: teamPlayer.player?.name || teamPlayer.name || 'Unknown Player',
+                position: teamPlayer.player?.position || teamPlayer.position || 'Unknown',
+                jerseyNumber: teamPlayer.jerseyNumber,
+                role: teamPlayer.role
+              };
+            }) || [];
+            
+            console.log('✅ Processed players:', processedPlayers);
+            setPlayers(processedPlayers);
+          }
+        } catch (apiError) {
+          console.log('❌ getTeamById failed, loading user teams instead:', apiError);
+          await loadUserTeams();
+        }
+      } else {
+        // Load user's teams if no specific teamId
+        console.log('📡 No teamId provided, loading user teams');
+        await loadUserTeams();
+      }
       
       // Load existing ratings from AsyncStorage
-      const savedRatings = await AsyncStorage.getItem(`ratings_${matchId}_${teamId}`);
+      const savedRatings = await AsyncStorage.getItem(`ratings_${matchId}_${teamId || 'default'}`);
       if (savedRatings) {
         setRatings(JSON.parse(savedRatings));
       }
     } catch (error) {
-      console.error('Error loading players:', error);
-      Alert.alert('Error', 'Failed to load players');
+      console.error('❌ Error loading players:', error);
+      // Fallback to mock data if everything fails
+      console.log('🔄 Using fallback mock data');
+      setPlayers([
+        { id: '1', name: 'Player 1', position: 'GK' },
+        { id: '2', name: 'Player 2', position: 'DEF' },
+        { id: '3', name: 'Player 3', position: 'MID' },
+        { id: '4', name: 'Player 4', position: 'FWD' },
+      ]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadUserTeams = async () => {
+    try {
+      console.log('📡 Calling getTeams for user teams');
+      const response = await apiService.getTeams();
+      console.log('✅ User teams response:', response);
+      
+      if (response.teams && response.teams.length > 0) {
+        const firstTeam = response.teams[0];
+        console.log('👥 First team:', firstTeam);
+        setTeam(firstTeam);
+        
+        // Process players similar to above
+        const processedPlayers = firstTeam.players?.map((teamPlayer: any) => {
+          console.log('👤 Processing user team player:', teamPlayer);
+          return {
+            id: teamPlayer.playerId || teamPlayer.id,
+            name: teamPlayer.player?.name || teamPlayer.name || 'Unknown Player',
+            position: teamPlayer.player?.position || teamPlayer.position || 'Unknown',
+            jerseyNumber: teamPlayer.jerseyNumber,
+            role: teamPlayer.role
+          };
+        }) || [];
+        
+        console.log('✅ Processed user team players:', processedPlayers);
+        setPlayers(processedPlayers);
+      } else {
+        console.log('⚠️ No teams found for user');
+      }
+    } catch (error) {
+      console.error('❌ Error loading user teams:', error);
+      throw error;
     }
   };
 
@@ -80,16 +158,39 @@ export default function PlayerRatingScreen({ navigation, route }: PlayerRatingSc
     try {
       setIsSaving(true);
       
-      // For now, just save to AsyncStorage
-      await AsyncStorage.setItem(`ratings_${matchId}_${teamId}`, JSON.stringify(ratings));
+      // Save to AsyncStorage (frontend-only approach)
+      await AsyncStorage.setItem(`ratings_${matchId}_${teamId || 'default'}`, JSON.stringify(ratings));
       
-      Alert.alert(
-        'Success',
-        'Player ratings saved successfully!',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      // Also save a summary for easy access
+      const ratingsSummary = {
+        matchId,
+        teamId,
+        teamName: team?.name || teamName,
+        timestamp: new Date().toISOString(),
+        ratingsCount: Object.keys(ratings).length,
+        averageRating: Object.values(ratings).reduce((a, b) => a + b, 0) / Object.keys(ratings).length || 0,
+        players: players.filter(p => ratings[p.id]).map(p => ({
+          id: p.id,
+          name: p.name,
+          position: p.position,
+          rating: ratings[p.id]
+        }))
+      };
+      
+      await AsyncStorage.setItem(`ratings_summary_${matchId}_${teamId || 'default'}`, JSON.stringify(ratingsSummary));
+      
+      console.log('✅ Ratings saved successfully:', ratingsSummary);
+      
+      // Navigate to Match Summary Screen
+      navigation.navigate('MatchSummary', {
+        matchId,
+        teamId,
+        teamName: team?.name || teamName,
+        ratings,
+        ratingsSummary
+      });
     } catch (error) {
-      console.error('Error saving ratings:', error);
+      console.error('❌ Error saving ratings:', error);
       Alert.alert('Error', 'Failed to save ratings');
     } finally {
       setIsSaving(false);
@@ -123,10 +224,25 @@ export default function PlayerRatingScreen({ navigation, route }: PlayerRatingSc
   const renderPlayerCard = (player: Player) => (
     <View key={player.id} style={styles.playerCard}>
       <View style={styles.playerInfo}>
-        <Text style={styles.playerName}>{player.name}</Text>
-        <Text style={styles.playerPosition}>{player.position}</Text>
+        <View style={styles.playerHeader}>
+          <Text style={styles.playerName}>{player.name}</Text>
+          {player.role && (
+            <Text style={[styles.roleTag, player.role === 'CAPTAIN' && styles.captainTag]}>
+              {player.role === 'CAPTAIN' ? 'C' : player.role === 'VICE_CAPTAIN' ? 'VC' : ''}
+            </Text>
+          )}
+        </View>
+        <View style={styles.playerDetails}>
+          <Text style={styles.playerPosition}>{player.position}</Text>
+          {player.jerseyNumber && (
+            <Text style={styles.jerseyNumber}>#{player.jerseyNumber}</Text>
+          )}
+        </View>
+        <View style={styles.ratingContainer}>
+          <Text style={styles.ratingLabel}>Rating:</Text>
+          {renderRatingStars(player.id)}
+        </View>
       </View>
-      {renderRatingStars(player.id)}
     </View>
   );
 
@@ -162,14 +278,24 @@ export default function PlayerRatingScreen({ navigation, route }: PlayerRatingSc
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.teamHeader}>
-          <Text style={styles.teamName}>{teamName || 'Team'}</Text>
+          <Text style={styles.teamName}>{team?.name || teamName || 'Team'}</Text>
           <Text style={styles.instruction}>Rate each player's performance</Text>
+          <Text style={styles.playerCount}>{players.length} Players</Text>
         </View>
 
         <View style={styles.playersContainer}>
-          {players.map(renderPlayerCard)}
+          {players.length > 0 ? (
+            players.map(renderPlayerCard)
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No players found</Text>
+              <Text style={styles.emptySubtext}>
+                Make sure you're part of a team to rate players
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -179,18 +305,18 @@ export default function PlayerRatingScreen({ navigation, route }: PlayerRatingSc
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#121212',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#121212',
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.7)',
   },
   header: {
     flexDirection: 'row',
@@ -199,89 +325,130 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 16,
     paddingHorizontal: 20,
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   backButton: {
     padding: 8,
   },
   backButtonText: {
     fontSize: 16,
-    color: '#2E7D32',
+    color: '#00E676',
+    fontWeight: '500',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#FFFFFF',
   },
   saveButton: {
-    backgroundColor: '#2E7D32',
+    backgroundColor: '#00E676',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 6,
+    borderRadius: 8,
     minWidth: 60,
     alignItems: 'center',
   },
   saveButtonText: {
-    color: '#fff',
+    color: '#000',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   content: {
     flex: 1,
   },
   teamHeader: {
-    backgroundColor: '#fff',
-    padding: 20,
+    backgroundColor: '#1F1F1F',
+    padding: 24,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   teamName: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#FFFFFF',
     marginBottom: 8,
   },
   instruction: {
     fontSize: 16,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: 8,
+  },
+  playerCount: {
+    fontSize: 14,
+    color: '#00E676',
+    fontWeight: '500',
   },
   playersContainer: {
     padding: 16,
   },
   playerCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: '#1F1F1F',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   playerInfo: {
     flex: 1,
   },
+  playerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   playerName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
+    color: '#FFFFFF',
+    flex: 1,
+  },
+  roleTag: {
+    backgroundColor: '#00E676',
+    color: '#000',
+    fontSize: 12,
+    fontWeight: 'bold',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    textAlign: 'center',
+    minWidth: 24,
+  },
+  captainTag: {
+    backgroundColor: '#FFC107',
+  },
+  playerDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
   },
   playerPosition: {
     fontSize: 14,
-    color: '#666',
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
+    color: '#FFFFFF',
+    backgroundColor: 'rgba(0, 230, 118, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 6,
+    fontWeight: '500',
+  },
+  jerseyNumber: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '500',
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  ratingLabel: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '500',
   },
   starsContainer: {
     flexDirection: 'row',
@@ -291,6 +458,21 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   starText: {
-    fontSize: 24,
+    fontSize: 28,
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.5)',
+    textAlign: 'center',
   },
 });

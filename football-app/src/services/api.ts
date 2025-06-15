@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Configuration - Switch between Mock and Production
-const USE_MOCK = false; // 🚀 Using Railway production backend!
+const USE_MOCK = true; // 🧪 Using Mock data for bracket testing!
 const RAILWAY_URL = 'https://football-stars-production.up.railway.app/api'; // ✅ Your Railway URL
 const LOCAL_URL = 'http://192.168.0.108:3001/api'; // Update with your Mac's IP
 const API_BASE_URL = USE_MOCK ? 'MOCK' : RAILWAY_URL; // 🌐 Using RAILWAY backend!
@@ -824,9 +824,11 @@ class ApiService {
 
     if (endpoint.startsWith('/tournaments/') && !endpoint.includes('/standings') && !endpoint.includes('/register')) {
       const tournamentId = endpoint.split('/')[2];
-      return {
-        tournament: {
-          id: tournamentId,
+      
+      // Mock tournaments data - must match the tournaments list above
+      const mockTournaments = [
+        {
+          id: '1',
           name: 'Summer League 2024',
           description: 'Annual summer tournament for local teams with exciting matches and great prizes',
           tournamentType: 'LEAGUE',
@@ -840,8 +842,32 @@ class ApiService {
           createdBy: 'user-1',
           teams: [],
           matches: []
+        },
+        {
+          id: '2',
+          name: 'Champions Cup',
+          description: 'Knockout tournament for the best teams - single elimination format with exciting bracket matches',
+          tournamentType: 'KNOCKOUT',
+          startDate: '2024-05-15T00:00:00.000Z',
+          endDate: '2024-06-15T23:59:59.999Z',
+          maxTeams: 16,
+          registeredTeams: 12,
+          entryFee: 1000,
+          prizePool: 10000,
+          status: 'ACTIVE',
+          createdBy: 'user-1',
+          teams: [],
+          matches: []
         }
-      };
+      ];
+      
+      const tournament = mockTournaments.find(t => t.id === tournamentId);
+      if (tournament) {
+        return { tournament };
+      }
+      
+      // Fallback to first tournament if ID not found
+      return { tournament: mockTournaments[0] };
     }
 
     return { message: 'Mock response' };

@@ -5,9 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  FlatList,
-  Alert,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { apiService } from '../../services/api';
 import { TeamPlayerStats } from '../../types';
@@ -38,49 +37,40 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
   const [team, setTeam] = useState<Team | null>(null);
   const [teamStats, setTeamStats] = useState<TeamPlayerStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [statsLoading, setStatsLoading] = useState(false);
+  const [usingDemoStats, setUsingDemoStats] = useState(false);
 
   useEffect(() => {
     loadTeamDetails();
   }, []);
 
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      // Reload team details when screen comes into focus
-      loadTeamDetails();
-    });
-
-    return unsubscribe;
-  }, [navigation]);
-
   const loadTeamDetails = async () => {
     try {
       setIsLoading(true);
-      const response = await apiService.getTeamById(teamId);
-      console.log('📊 Team details response:', JSON.stringify(response, null, 2));
+      console.log('📊 Loading team details for teamId:', teamId);
       
-      // Transform the player data to match our interface
+      const response = await apiService.getTeamById(teamId);
+      console.log('✅ Team response:', response);
+      
       if (response.team && response.team.players) {
+        
         const transformedPlayers = response.team.players.map((tp: any) => ({
-          id: tp.player_id || tp.playerId,
-          name: tp.player?.name || tp.player_name || 'Unknown Player',
+          id: tp.player_id || tp.playerId || tp.player?.id,
+          name: tp.player?.name || tp.player_name || tp.name || 'Unknown Player',
           position: tp.player?.position || tp.position || 'Unknown',
           jerseyNumber: tp.jersey_number || tp.jerseyNumber,
           role: tp.role || 'PLAYER'
         }));
         
-        console.log('🔄 Transformed players:', transformedPlayers);
-        
         setTeam({
           ...response.team,
           players: transformedPlayers
         });
+        
+        // Load real team stats from backend
+        await loadTeamStats();
       } else {
         setTeam(response.team);
       }
-      
-      // Load team stats after getting team details
-      await loadTeamStats();
     } catch (error: any) {
       console.error('❌ Error loading team details:', error);
       Alert.alert('Error', 'Failed to load team details');
@@ -92,14 +82,47 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
 
   const loadTeamStats = async () => {
     try {
-      setStatsLoading(true);
+      console.log('📊 Loading REAL team stats for teamId:', teamId);
+      
       const response = await apiService.getTeamPlayersStats(teamId);
-      setTeamStats(response.players);
+      console.log('📊 Raw backend stats response structure:', {
+        hasResponse: !!response,
+        hasPlayers: !!(response?.players),
+        isPlayersArray: Array.isArray(response?.players),
+        playersLength: response?.players?.length || 0,
+        fullResponse: JSON.stringify(response, null, 2)
+      });
+      
+      if (response && response.players && Array.isArray(response.players)) {
+        console.log('✅ Backend returned', response.players.length, 'player stats');
+        
+        // Check if any players have actual match data
+        const playersWithStats = response.players.filter((p: any) => 
+          (p.goals > 0) || (p.assists > 0) || (p.matches_played > 0) || (p.matchesPlayed > 0)
+        );
+        
+        console.log('📊 Players with non-zero stats:', playersWithStats.length);
+        console.log('📊 Sample player data:', response.players[0]);
+        
+        
+        setTeamStats(response.players);
+        setUsingDemoStats(false);
+      } else {
+        console.log('⚠️ No valid stats data from backend - response structure invalid');
+        setTeamStats([]);
+        setUsingDemoStats(false);
+      }
     } catch (error: any) {
-      console.error('Error loading team stats:', error);
-      // Don't show alert for stats error, just log it
-    } finally {
-      setStatsLoading(false);
+      console.error('❌ Error loading REAL team stats:', error);
+      console.log('📋 API Error details:', {
+        message: error.message,
+        status: error.status,
+        response: error.response?.data,
+        stack: error.stack
+      });
+      // Show empty stats instead of dummy data
+      setTeamStats([]);
+      setUsingDemoStats(false);
     }
   };
 
@@ -117,99 +140,113 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
     switch (role) {
       case 'CAPTAIN': return '👑';
       case 'VICE_CAPTAIN': return '⭐';
-      default: return '⚽';
+      default: return '';
     }
   };
 
   const getPlayerStats = (playerId: string) => {
-    const stats = teamStats.find(stats => stats.playerId === playerId);
-    console.log(`📈 Stats for player ${playerId}:`, stats);
-    return stats;
+    return teamStats.find(stats => stats.playerId === playerId || stats.player_id === playerId);
   };
 
-  const removePlayerFromTeam = async (playerId: string, playerName: string) => {
-    Alert.alert(
-      'Remove Player',
-      `Are you sure you want to remove ${playerName} from the team?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await apiService.removePlayerFromTeam(teamId, playerId);
-              Alert.alert('Success', `${playerName} has been removed from the team`);
-              loadTeamDetails(); // Refresh team details
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to remove player');
-            }
-          }
-        }
-      ]
-    );
+  // Calculate team totals from REAL backend data only
+  const calculateTeamTotals = () => {
+    const baseTotals = {
+      totalPlayers: team?.players.length || 0,
+      totalGoals: 0,
+      totalAssists: 0,
+      totalMatches: 0
+    };
+
+    if (teamStats.length === 0) {
+      console.log('📊 No stats available, showing base totals');
+      return baseTotals;
+    }
+
+
+    // Only calculate if we have real backend data - convert strings to numbers
+    const totalGoals = teamStats.reduce((sum, player) => {
+      const goals = parseInt(player.goals) || 0;
+      return sum + goals;
+    }, 0);
+    
+    const totalAssists = teamStats.reduce((sum, player) => {
+      const assists = parseInt(player.assists) || 0;
+      return sum + assists;
+    }, 0);
+    
+    const totalMatches = teamStats.length > 0 ? Math.max(...teamStats.map(player => 
+      parseInt(player.matchesPlayed || player.matches_played) || 0), 0) : 0;
+
+    console.log('📊 Calculated totals from REAL data:', {
+      totalPlayers: baseTotals.totalPlayers,
+      totalGoals,
+      totalAssists,
+      totalMatches
+    });
+
+    return {
+      totalPlayers: baseTotals.totalPlayers,
+      totalGoals,
+      totalAssists,
+      totalMatches
+    };
   };
 
-  const renderPlayer = ({ item }: { item: Player }) => {
-    const playerStats = getPlayerStats(item.id);
+  const renderPlayerCard = (player: Player) => {
+    const playerStats = getPlayerStats(player.id);
+    
     
     return (
-      <View style={styles.playerCard}>
-        <View style={styles.playerInfo}>
-          <View style={styles.playerHeader}>
-            <Text style={styles.playerName}>{getRoleIcon(item.role)} {item.name}</Text>
-            <View style={styles.playerHeaderRight}>
-              {item.jerseyNumber && (
-                <View style={styles.jerseyBadge}>
-                  <Text style={styles.jerseyNumber}>#{item.jerseyNumber}</Text>
-                </View>
+      <View key={player.id} style={styles.playerCard}>
+        <View style={styles.playerHeader}>
+          <View style={styles.playerInfo}>
+            <View style={styles.playerNameRow}>
+              <Text style={styles.playerName}>{player.name}</Text>
+              {getRoleIcon(player.role) ? (
+                <Text style={styles.roleIcon}>{getRoleIcon(player.role)}</Text>
+              ) : null}
+            </View>
+            <View style={styles.playerDetails}>
+              <View style={[styles.positionTag, { backgroundColor: getPositionColor(player.position) }]}>
+                <Text style={styles.positionText}>{player.position}</Text>
+              </View>
+              {player.jerseyNumber && (
+                <Text style={styles.jerseyNumber}>#{player.jerseyNumber}</Text>
               )}
-              <TouchableOpacity 
-                style={styles.removeButton}
-                onPress={() => removePlayerFromTeam(item.id, item.name)}
-              >
-                <Text style={styles.removeButtonText}>✕</Text>
-              </TouchableOpacity>
             </View>
           </View>
-          <View style={styles.playerDetails}>
-            <View style={[styles.positionBadge, { backgroundColor: getPositionColor(item.position) }]}>
-              <Text style={styles.positionText}>{item.position}</Text>
-            </View>
-            <Text style={styles.roleText}>{item.role.replace('_', ' ')}</Text>
-          </View>
-          
-          {/* Player Stats */}
-          {statsLoading ? (
-            <View style={styles.statsLoading}>
-              <ActivityIndicator size="small" color="#2E7D32" />
-              <Text style={styles.statsLoadingText}>Loading stats...</Text>
-            </View>
-          ) : playerStats ? (
-            <View style={styles.playerStats}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{playerStats.goals}</Text>
-                <Text style={styles.statName}>Goals</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{playerStats.assists}</Text>
-                <Text style={styles.statName}>Assists</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{playerStats.matchesPlayed}</Text>
-                <Text style={styles.statName}>Matches</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{playerStats.yellowCards + playerStats.redCards}</Text>
-                <Text style={styles.statName}>Cards</Text>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.noStats}>
-              <Text style={styles.noStatsText}>No stats available</Text>
-            </View>
-          )}
         </View>
+        
+        {playerStats ? (
+          <View style={styles.playerStatsGrid}>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{parseInt(playerStats.goals) || 0}</Text>
+              <Text style={styles.statLabel} numberOfLines={1}>Goals</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{parseInt(playerStats.assists) || 0}</Text>
+              <Text style={styles.statLabel} numberOfLines={1}>Assists</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>
+                {parseInt(playerStats.matchesPlayed || playerStats.matches_played) || 0}
+              </Text>
+              <Text style={styles.statLabel} numberOfLines={1}>Matches</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>
+                {(parseInt(playerStats.yellowCards || playerStats.yellow_cards) || 0) + 
+                 (parseInt(playerStats.redCards || playerStats.red_cards) || 0)}
+              </Text>
+              <Text style={styles.statLabel} numberOfLines={1}>Cards</Text>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.noStatsAvailable}>
+            <Text style={styles.noStatsText}>No match data available</Text>
+            <Text style={styles.noStatsSubtext}>Stats will appear after playing matches</Text>
+          </View>
+        )}
       </View>
     );
   };
@@ -217,6 +254,7 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#00E676" />
         <Text style={styles.loadingText}>Loading team details...</Text>
       </View>
     );
@@ -226,100 +264,94 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>Team not found</Text>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
+  const totals = calculateTeamTotals();
+
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.backButtonText}>← Teams</Text>
-          </TouchableOpacity>
-          <Text style={styles.teamName}>{team.name}</Text>
-          {team.description && (
-            <Text style={styles.teamDescription}>{team.description}</Text>
-          )}
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.headerBackButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.headerBackText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.teamName}>{team.name}</Text>
+        {team.description && (
+          <Text style={styles.teamDescription}>{team.description}</Text>
+        )}
+        {teamStats.length === 0 && (
+          <View style={styles.noDataIndicator}>
+            <Text style={styles.noDataText}>⚠️ No match data yet</Text>
+          </View>
+        )}
+      </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Team Stats Overview */}
+        <View style={styles.statsOverview}>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{totals.totalPlayers}</Text>
+            <Text style={styles.statTitle} numberOfLines={1}>Players</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{totals.totalGoals}</Text>
+            <Text style={styles.statTitle} numberOfLines={1}>Goals</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{totals.totalAssists}</Text>
+            <Text style={styles.statTitle} numberOfLines={1}>Assists</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{totals.totalMatches}</Text>
+            <Text style={styles.statTitle} numberOfLines={1}>Matches</Text>
+          </View>
         </View>
 
-        {/* Team Stats */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{team.players.length}</Text>
-            <Text style={styles.statLabel}>Players</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>
-              {teamStats.length > 0 ? teamStats.reduce((sum, player) => sum + player.goals, 0) : 0}
-            </Text>
-            <Text style={styles.statLabel}>Total Goals</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>
-              {teamStats.length > 0 ? teamStats.reduce((sum, player) => sum + player.assists, 0) : 0}
-            </Text>
-            <Text style={styles.statLabel}>Total Assists</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>
-              {teamStats.length > 0 && teamStats.some(p => p.matchesPlayed > 0) 
-                ? Math.max(...teamStats.map(p => p.matchesPlayed)) 
-                : 0}
-            </Text>
-            <Text style={styles.statLabel}>Matches Played</Text>
-          </View>
+        {/* Team Actions */}
+        <View style={styles.teamActions}>
+          <TouchableOpacity 
+            style={styles.formationButton}
+            onPress={() => {
+              // Navigate to Matches stack and then to TeamFormation
+              navigation.getParent()?.navigate('Matches', {
+                screen: 'TeamFormation',
+                params: {
+                  teamId: team.id,
+                  teamName: team.name
+                }
+              });
+            }}
+          >
+            <View style={styles.formationButtonContent}>
+              <View style={styles.formationIcon}>
+                <Text style={styles.formationIconText}>⚽</Text>
+              </View>
+              <View style={styles.formationTextContainer}>
+                <Text style={styles.formationButtonTitle}>Team Formation</Text>
+                <Text style={styles.formationButtonSubtitle}>Plan your tactics • 5v5, 7v7, 11v11</Text>
+              </View>
+              <Text style={styles.formationArrow}>→</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Squad Section */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Squad ({team.players.length})</Text>
-            <TouchableOpacity 
-              style={styles.addPlayerButton}
-              onPress={() => navigation.navigate('AddPlayer', { teamId, teamName: team.name })}
-            >
-              <Text style={styles.addPlayerText}>+ Invite Player</Text>
-            </TouchableOpacity>
+          <Text style={styles.sectionTitle}>Squad</Text>
+          <View style={styles.playersContainer}>
+            {team.players.map(renderPlayerCard)}
           </View>
-
-          {team.players.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No players in this team yet</Text>
-              <Text style={styles.emptySubtext}>Invite friends to build your squad</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={team.players}
-              renderItem={renderPlayer}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-            />
-          )}
-        </View>
-
-        {/* Action Buttons */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity 
-            style={styles.primaryButton}
-            onPress={() => navigation.navigate('Matches', { 
-              screen: 'CreateMatch',
-              params: { homeTeamId: teamId, homeTeamName: team.name }
-            })}
-          >
-            <Text style={styles.primaryButtonText}>🏆 Create Match</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.secondaryButton}
-            onPress={() => navigation.navigate('Leaderboard')}
-          >
-            <Text style={styles.secondaryButtonText}>📊 View Stats</Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
     </View>
@@ -329,277 +361,280 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#121212',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#121212',
   },
   loadingText: {
+    marginTop: 12,
     fontSize: 16,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.7)',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#121212',
+    padding: 20,
   },
   errorText: {
-    fontSize: 16,
-    color: '#dc3545',
+    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: 20,
+    textAlign: 'center',
   },
   header: {
-    backgroundColor: '#2E7D32',
+    backgroundColor: '#1F1F1F',
     paddingTop: 60,
-    paddingBottom: 24,
-    paddingHorizontal: 24,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
-  backButton: {
+  headerBackButton: {
     marginBottom: 12,
+    padding: 8,
+    alignSelf: 'flex-start',
   },
-  backButtonText: {
-    color: '#fff',
+  headerBackText: {
+    color: '#00E676',
     fontSize: 16,
+    fontWeight: '500',
   },
   teamName: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#FFFFFF',
     marginBottom: 8,
   },
   teamDescription: {
     fontSize: 16,
-    color: '#e8f5e8',
+    color: 'rgba(255, 255, 255, 0.7)',
     lineHeight: 22,
+    marginBottom: 12,
   },
-  statsContainer: {
+  noDataIndicator: {
+    backgroundColor: 'rgba(255, 152, 0, 0.2)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#FF9800',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 4,
+  },
+  noDataText: {
+    color: '#FF9800',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  content: {
+    flex: 1,
+  },
+  statsOverview: {
     flexDirection: 'row',
-    padding: 24,
-    gap: 12,
+    padding: 16,
+    gap: 8,
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#fff',
-    padding: 16,
+    backgroundColor: '#1F1F1F',
     borderRadius: 12,
+    padding: 12,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    minHeight: 70,
+    justifyContent: 'center',
   },
   statNumber: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
-    color: '#2E7D32',
-    marginBottom: 4,
+    color: '#00E676',
+    marginBottom: 2,
   },
-  statLabel: {
-    fontSize: 14,
-    color: '#666',
+  statTitle: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textTransform: 'uppercase',
+    fontWeight: '500',
+    textAlign: 'center',
   },
   section: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+    backgroundColor: '#1F1F1F',
+    margin: 20,
+    marginTop: 0,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#333',
+    color: '#FFFFFF',
+    marginBottom: 20,
   },
-  addPlayerButton: {
-    backgroundColor: '#2E7D32',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  addPlayerText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
+  playersContainer: {
+    gap: 16,
   },
   playerCard: {
-    backgroundColor: '#fff',
-    padding: 16,
+    backgroundColor: '#2A2A2A',
     borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  playerHeader: {
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
   },
   playerInfo: {
     flex: 1,
   },
-  playerHeader: {
+  playerNameRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
   },
   playerName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#FFFFFF',
     flex: 1,
   },
-  playerHeaderRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  jerseyBadge: {
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  removeButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#ff4757',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  removeButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  jerseyNumber: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#666',
+  roleIcon: {
+    fontSize: 20,
+    marginLeft: 8,
   },
   playerDetails: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  positionBadge: {
-    paddingHorizontal: 8,
+  positionTag: {
+    paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   positionText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: 'bold',
   },
-  roleText: {
+  jerseyNumber: {
     fontSize: 14,
-    color: '#666',
-    textTransform: 'capitalize',
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '500',
   },
-  statsLoading: {
+  playerStatsGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    gap: 8,
   },
-  statsLoadingText: {
-    marginLeft: 8,
-    fontSize: 12,
-    color: '#666',
-  },
-  playerStats: {
-    flexDirection: 'row',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    justifyContent: 'space-between',
-  },
-  statItem: {
-    alignItems: 'center',
+  statBox: {
     flex: 1,
+    alignItems: 'center',
+    backgroundColor: '#333333',
+    borderRadius: 8,
+    padding: 10,
+    minHeight: 60,
+    justifyContent: 'center',
   },
   statValue: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#2E7D32',
+    color: '#00E676',
     marginBottom: 2,
   },
-  statName: {
-    fontSize: 10,
-    color: '#666',
+  statLabel: {
+    fontSize: 9,
+    color: 'rgba(255, 255, 255, 0.7)',
     textTransform: 'uppercase',
     fontWeight: '500',
-  },
-  noStats: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    alignItems: 'center',
-  },
-  noStatsText: {
-    fontSize: 12,
-    color: '#999',
-    fontStyle: 'italic',
-  },
-  emptyState: {
-    backgroundColor: '#fff',
-    padding: 32,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#666',
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#999',
     textAlign: 'center',
   },
-  actionButtons: {
-    padding: 24,
-    gap: 12,
-  },
-  primaryButton: {
-    backgroundColor: '#2E7D32',
-    paddingVertical: 16,
-    borderRadius: 8,
+  noStatsAvailable: {
+    padding: 20,
     alignItems: 'center',
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    backgroundColor: '#fff',
-    paddingVertical: 16,
+    backgroundColor: '#2A2A2A',
     borderRadius: 8,
-    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#2E7D32',
+    borderColor: 'rgba(255, 152, 0, 0.3)',
   },
-  secondaryButtonText: {
-    color: '#2E7D32',
+  noStatsText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  noStatsSubtext: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  backButton: {
+    backgroundColor: '#00E676',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 20,
+  },
+  backButtonText: {
+    color: '#000',
     fontSize: 16,
     fontWeight: '600',
+  },
+  teamActions: {
+    marginVertical: 20,
+    paddingHorizontal: 0,
+  },
+  formationButton: {
+    backgroundColor: 'rgba(0, 230, 118, 0.1)',
+    borderWidth: 1,
+    borderColor: '#00E676',
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    shadowColor: '#00E676',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  formationButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+  },
+  formationIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#00E676',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  formationIconText: {
+    fontSize: 20,
+  },
+  formationTextContainer: {
+    flex: 1,
+  },
+  formationButtonTitle: {
+    fontSize: 17,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  formationButtonSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  formationArrow: {
+    fontSize: 18,
+    color: '#00E676',
+    fontWeight: 'bold',
   },
 });

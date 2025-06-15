@@ -156,8 +156,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         setPlayerStats({
           ...stats,
           matchesPlayed: calculatedMatchesPlayed || stats?.matchesPlayed || 0,
-          goals: calculatedGoals || stats?.goals || 0,
-          assists: calculatedAssists || stats?.assists || 0,
+          goals: calculatedGoals || parseInt(stats?.goals) || 0,
+          assists: calculatedAssists || parseInt(stats?.assists) || 0,
           averageRating: ratedMatchCount > 0 ? (totalRatings / ratedMatchCount).toFixed(1) : '0.0',
           position: stats?.position || 'MID',
           yellowCards: stats?.yellowCards || 0,
