@@ -255,19 +255,19 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>
-              {teamStats.reduce((sum, player) => sum + player.goals, 0)}
+              {teamStats.length > 0 ? teamStats.reduce((sum, player) => sum + player.goals, 0) : 0}
             </Text>
             <Text style={styles.statLabel}>Total Goals</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>
-              {teamStats.reduce((sum, player) => sum + player.assists, 0)}
+              {teamStats.length > 0 ? teamStats.reduce((sum, player) => sum + player.assists, 0) : 0}
             </Text>
             <Text style={styles.statLabel}>Total Assists</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>
-              {Math.max(...teamStats.map(p => p.matchesPlayed), 0)}
+              {teamStats.length > 0 ? Math.max(...teamStats.map(p => p.matchesPlayed)) : 0}
             </Text>
             <Text style={styles.statLabel}>Matches Played</Text>
           </View>
