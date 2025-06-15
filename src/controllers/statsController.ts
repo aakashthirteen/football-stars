@@ -67,15 +67,10 @@ export const getCurrentUserStats = async (req: AuthRequest, res: Response): Prom
     const stats = await database.getPlayerStats(player.id);
     console.log(`📈 [${requestId}] Stats retrieved from database:`, stats);
 
-    // Get average rating for the user
-    const averageRating = await database.getUserAverageRating(req.user.id);
-    console.log(`⭐ [${requestId}] Average rating retrieved:`, averageRating);
-
     const responseData = {
       playerId: player.id,
       playerName: player.name,
       position: player.position,
-      averageRating,
       ...stats,
     };
     

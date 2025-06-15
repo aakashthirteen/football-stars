@@ -169,19 +169,6 @@ export class PostgresDatabase {
         )
       `);
 
-      // Player ratings table
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS player_ratings (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          match_id UUID REFERENCES matches(id) ON DELETE CASCADE,
-          player_id UUID REFERENCES players(id) ON DELETE CASCADE,
-          rater_id UUID REFERENCES users(id) ON DELETE CASCADE,
-          rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE(match_id, player_id, rater_id)
-        )
-      `);
-
       // Seed initial data
       await this.seedData(client);
       
@@ -862,75 +849,6 @@ export class PostgresDatabase {
       [userId, name, position, preferredFoot, 'Football enthusiast', 'Unknown']
     );
     return result.rows[0];
-  }
-
-  // Player rating operations
-  async submitPlayerRatings(matchId: string, ratings: Array<{
-    playerId: string;
-    rating: number;
-    raterId: string;
-  }>): Promise<void> {
-    const client = await this.pool.connect();
-    
-    try {
-      await client.query('BEGIN');
-      
-      for (const rating of ratings) {
-        // Insert or update rating (upsert)
-        await client.query(`
-          INSERT INTO player_ratings (match_id, player_id, rater_id, rating)
-          VALUES ($1, $2, $3, $4)
-          ON CONFLICT (match_id, player_id, rater_id)
-          DO UPDATE SET rating = EXCLUDED.rating, created_at = CURRENT_TIMESTAMP
-        `, [matchId, rating.playerId, rating.raterId, rating.rating]);
-      }
-      
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  async getMatchRatings(matchId: string): Promise<any[]> {
-    const result = await this.pool.query(`
-      SELECT 
-        pr.*,
-        p.name as player_name,
-        u.name as rater_name
-      FROM player_ratings pr
-      JOIN players p ON pr.player_id = p.id
-      JOIN users u ON pr.rater_id = u.id
-      WHERE pr.match_id = $1
-      ORDER BY pr.created_at DESC
-    `, [matchId]);
-    
-    return result.rows;
-  }
-
-  async getPlayerAverageRating(playerId: string): Promise<number> {
-    const result = await this.pool.query(`
-      SELECT AVG(rating::DECIMAL)::DECIMAL(3,2) as average_rating
-      FROM player_ratings pr
-      JOIN matches m ON pr.match_id = m.id
-      WHERE pr.player_id = $1 AND m.status = 'COMPLETED'
-    `, [playerId]);
-    
-    return parseFloat(result.rows[0]?.average_rating || '0');
-  }
-
-  async getUserAverageRating(userId: string): Promise<number> {
-    const result = await this.pool.query(`
-      SELECT AVG(rating::DECIMAL)::DECIMAL(3,2) as average_rating
-      FROM player_ratings pr
-      JOIN players p ON pr.player_id = p.id
-      JOIN matches m ON pr.match_id = m.id
-      WHERE p.user_id = $1 AND m.status = 'COMPLETED'
-    `, [userId]);
-    
-    return parseFloat(result.rows[0]?.average_rating || '0');
   }
 
   // Tournament operations

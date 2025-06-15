@@ -80,21 +80,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       // Load player stats
       try {
         const stats = await apiService.getCurrentUserStats();
-        console.log('📊 Loaded player stats from API:', stats);
-        
-        // Handle different field names from backend
-        const normalizedStats = {
-          goals: stats.goals || 0,
-          assists: stats.assists || 0,
-          matchesPlayed: stats.matchesPlayed || stats.matches_played || stats.matches || 0,
-          position: stats.position || 'MID',
-          yellowCards: stats.yellowCards || stats.yellow_cards || 0,
-          redCards: stats.redCards || stats.red_cards || 0,
-          minutesPlayed: stats.minutesPlayed || stats.minutes_played || 0,
-          averageRating: stats.averageRating || stats.average_rating || 0,
-        };
-        
-        setPlayerStats(normalizedStats);
+        setPlayerStats(stats);
       } catch (error) {
         console.error('Error loading stats:', error);
         setPlayerStats({
@@ -105,7 +91,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           yellowCards: 0,
           redCards: 0,
           minutesPlayed: 0,
-          averageRating: 0,
         });
       }
       
@@ -113,65 +98,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       try {
         const matchesResponse = await apiService.getMatches();
         const matches = matchesResponse.matches || [];
-        
-        // Calculate matches played by this user
-        const userData = await apiService.getCurrentUser();
-        const userId = userData?.id || userData?.user?.id;
-        
-        const userPlayedMatches = matches.filter((match: any) => {
-          if (match.status !== 'COMPLETED') return false;
-          
-          // Check if user is in either team
-          const inHomeTeam = match.homeTeam?.players?.some((p: any) => 
-            p.id === userId || p.playerId === userId || p.userId === userId
-          );
-          const inAwayTeam = match.awayTeam?.players?.some((p: any) => 
-            p.id === userId || p.playerId === userId || p.userId === userId
-          );
-          
-          return inHomeTeam || inAwayTeam;
-        });
-        
-        console.log(`📊 User has played in ${userPlayedMatches.length} matches`);
-        
-        // Calculate average rating from all matches where user was rated
-        let totalRating = 0;
-        let ratedMatches = 0;
-        
-        for (const match of userPlayedMatches) {
-          try {
-            const ratingsResponse = await apiService.getMatchRatings(match.id);
-            const userRatings = ratingsResponse.ratings?.filter((r: any) => 
-              r.playerId === userId || r.raterId === userId
-            );
-            
-            if (userRatings && userRatings.length > 0) {
-              const avgRatingForMatch = userRatings.reduce((sum: number, r: any) => sum + r.rating, 0) / userRatings.length;
-              totalRating += avgRatingForMatch;
-              ratedMatches++;
-            }
-          } catch (error) {
-            console.log(`No ratings found for match ${match.id}`);
-          }
-        }
-        
-        const averageRating = ratedMatches > 0 ? (totalRating / ratedMatches) : 0;
-        console.log(`📊 Calculated average rating: ${averageRating.toFixed(1)} from ${ratedMatches} rated matches`);
-        
-        // Update player stats with actual match count and calculated rating
-        setPlayerStats(prev => {
-          const updates: any = {};
-          
-          if (!prev?.matchesPlayed || prev.matchesPlayed === 0) {
-            updates.matchesPlayed = userPlayedMatches.length;
-          }
-          
-          if (!prev?.averageRating || prev.averageRating === 0) {
-            updates.averageRating = averageRating;
-          }
-          
-          return prev ? { ...prev, ...updates } : prev;
-        });
         
         const now = new Date();
         const userUpcomingMatches = matches
@@ -295,7 +221,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             goals: playerStats?.goals || 0,
             assists: playerStats?.assists || 0,
             matches: playerStats?.matchesPlayed || 0,
-            rating: playerStats?.averageRating || 0,
           }}
           onPress={() => navigation.navigate('Profile')}
         />

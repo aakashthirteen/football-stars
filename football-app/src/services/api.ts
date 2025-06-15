@@ -538,11 +538,7 @@ class ApiService {
         assists: 7,
         yellowCards: 2,
         redCards: 0,
-        minutesPlayed: 720,
-        averageRating: 4.2,
-        wins: 5,
-        draws: 2,
-        losses: 1
+        minutesPlayed: 720
       };
     }
 
@@ -1056,33 +1052,6 @@ class ApiService {
 
   async getTournamentStandings(tournamentId: string) {
     return this.request(`/tournaments/${tournamentId}/standings`);
-  }
-
-  // Player ratings
-  async submitPlayerRatings(matchId: string, ratings: Array<{
-    playerId: string;
-    rating: number;
-    matchId: string;
-    raterId: string;
-  }>) {
-    return this.request(`/matches/${matchId}/ratings`, {
-      method: 'POST',
-      body: JSON.stringify({ ratings }),
-    });
-  }
-
-  async getMatchRatings(matchId: string) {
-    return this.request(`/matches/${matchId}/ratings`);
-  }
-
-  async getCurrentUser() {
-    // This should return the current user info from auth context
-    // For now, returning mock data
-    return {
-      id: 'user-1',
-      name: 'John Doe',
-      email: 'john@example.com'
-    };
   }
 
   // Health check

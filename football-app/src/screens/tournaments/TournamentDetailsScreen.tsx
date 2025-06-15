@@ -9,15 +9,9 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
-  Animated,
-  Dimensions,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
 import { apiService } from '../../services/api';
-
-const { width } = Dimensions.get('window');
 
 interface Tournament {
   id: string;
@@ -55,8 +49,6 @@ interface TournamentDetailsScreenProps {
   route: any;
 }
 
-const TABS = ['Overview', 'Standings', 'Schedule', 'Stats'];
-
 export default function TournamentDetailsScreen({ navigation, route }: TournamentDetailsScreenProps) {
   const { tournamentId } = route.params;
   const { user } = useAuthStore();
@@ -66,10 +58,6 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
   const [loading, setLoading] = useState(true);
   const [showTeamSelector, setShowTeamSelector] = useState(false);
   const [registering, setRegistering] = useState(false);
-  const [activeTab, setActiveTab] = useState('Overview');
-  const [matches, setMatches] = useState<any[]>([]);
-  
-  const tabSlideAnimation = new Animated.Value(0);
 
   useEffect(() => {
     loadTournamentDetails();
@@ -77,23 +65,11 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
     loadUserTeams();
   }, []);
 
-  useEffect(() => {
-    // Animate tab change
-    Animated.timing(tabSlideAnimation, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => {
-      tabSlideAnimation.setValue(0);
-    });
-  }, [activeTab]);
-
   const loadTournamentDetails = async () => {
     try {
       setLoading(true);
       const response = await apiService.getTournamentById(tournamentId);
       setTournament(response.tournament);
-      setMatches(response.tournament.matches || []);
     } catch (error: any) {
       console.error('Error loading tournament:', error);
       Alert.alert('Error', 'Failed to load tournament details');
@@ -106,25 +82,7 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
   const loadStandings = async () => {
     try {
       const response = await apiService.getTournamentStandings(tournamentId);
-      console.log('🏆 Raw standings response:', response);
-      
-      // Normalize standings data - backend might use different field names
-      const normalizedStandings = (response.standings || []).map((standing: any) => ({
-        ...standing,
-        teamName: standing.teamName || standing.team_name || standing.name || standing.team?.name || 'Unknown Team',
-        matches: standing.matches || standing.matchesPlayed || standing.gamesPlayed || 0,
-        wins: standing.wins || standing.victories || 0,
-        draws: standing.draws || standing.ties || 0,
-        losses: standing.losses || standing.defeats || 0,
-        goalsFor: standing.goalsFor || standing.goals_for || standing.scored || 0,
-        goalsAgainst: standing.goalsAgainst || standing.goals_against || standing.conceded || 0,
-        goalDifference: standing.goalDifference || standing.goal_difference || 
-          ((standing.goalsFor || standing.goals_for || 0) - (standing.goalsAgainst || standing.goals_against || 0)),
-        points: standing.points || standing.pts || 0,
-      }));
-      
-      console.log('✅ Normalized standings:', normalizedStandings);
-      setStandings(normalizedStandings);
+      setStandings(response.standings || []);
     } catch (error: any) {
       console.error('Error loading standings:', error);
     }
@@ -146,7 +104,7 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
       
       Alert.alert('Success', 'Team registered successfully!');
       setShowTeamSelector(false);
-      loadTournamentDetails();
+      loadTournamentDetails(); // Refresh tournament data
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to register team');
     } finally {
@@ -176,207 +134,19 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { 
       weekday: 'short',
+      year: 'numeric',
       month: 'short', 
       day: 'numeric' 
     });
   };
 
-  const renderTabContent = () => {
-    const fadeIn = 1; // Remove opacity animation to prevent greying out
-
-    switch (activeTab) {
-      case 'Overview':
-        return (
-          <Animated.View style={{ opacity: fadeIn }}>
-            {renderOverview()}
-          </Animated.View>
-        );
-      
-      case 'Standings':
-        return (
-          <Animated.View style={{ opacity: fadeIn }}>
-            {renderStandings()}
-          </Animated.View>
-        );
-      
-      case 'Schedule':
-        return (
-          <Animated.View style={{ opacity: fadeIn }}>
-            {renderSchedule()}
-          </Animated.View>
-        );
-      
-      case 'Stats':
-        return (
-          <Animated.View style={{ opacity: fadeIn }}>
-            {renderStats()}
-          </Animated.View>
-        );
-    }
-  };
-
-  const renderOverview = () => (
-    <View style={styles.tabContent}>
-      {/* Tournament Info Card */}
-      <LinearGradient
-        colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.03)']}
-        style={styles.infoCard}
-      >
-        <View style={styles.tournamentHeader}>
-          <Text style={styles.tournamentIcon}>{getTypeIcon(tournament!.tournamentType)}</Text>
-          <View style={styles.titleContainer}>
-            <Text style={styles.tournamentName}>{tournament!.name}</Text>
-            <View style={styles.statusRow}>
-              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(tournament!.status) }]}>
-                <Text style={styles.statusText}>{tournament!.status}</Text>
-              </View>
-              <Text style={styles.tournamentType}>{tournament!.tournamentType.replace('_', ' ')}</Text>
-            </View>
-          </View>
-        </View>
-
-        {tournament!.description && (
-          <Text style={styles.description}>{tournament!.description}</Text>
-        )}
-
-        <View style={styles.infoGrid}>
-          <InfoItem
-            icon="people"
-            label="Teams"
-            value={`${tournament!.registeredTeams}/${tournament!.maxTeams}`}
-          />
-          <InfoItem
-            icon="calendar"
-            label="Duration"
-            value={`${formatDate(tournament!.startDate)} - ${formatDate(tournament!.endDate)}`}
-          />
-          {tournament!.prizePool && (
-            <InfoItem
-              icon="trophy"
-              label="Prize Pool"
-              value={`₹${tournament!.prizePool.toLocaleString()}`}
-              valueColor="#FFD700"
-            />
-          )}
-        </View>
-
-        {tournament!.status === 'UPCOMING' && tournament!.registeredTeams < tournament!.maxTeams && (
-          <TouchableOpacity onPress={() => setShowTeamSelector(true)}>
-            <LinearGradient
-              colors={['#4CAF50', '#2E7D32']}
-              style={styles.registerButton}
-            >
-              <Ionicons name="add-circle" size={24} color="#fff" />
-              <Text style={styles.registerButtonText}>Register Team</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
-      </LinearGradient>
-    </View>
-  );
-
-  const renderStandings = () => (
-    <View style={styles.tabContent}>
-      {standings.length > 0 ? (
-        <LinearGradient
-          colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.03)']}
-          style={styles.standingsCard}
-        >
-          {/* Header */}
-          <View style={styles.standingHeader}>
-            <View style={styles.positionContainer}>
-              <Text style={styles.headerText}>#</Text>
-            </View>
-            <View style={styles.teamContainer}>
-              <Text style={styles.headerText}>Team</Text>
-            </View>
-            <View style={styles.statsContainer}>
-              <Text style={styles.headerText}>MP</Text>
-              <Text style={styles.headerText}>W</Text>
-              <Text style={styles.headerText}>D</Text>
-              <Text style={styles.headerText}>L</Text>
-              <Text style={styles.headerText}>GD</Text>
-              <Text style={styles.headerText}>Pts</Text>
-            </View>
-          </View>
-
-          <FlatList
-            data={standings}
-            renderItem={renderStandingRow}
-            keyExtractor={(item) => item.teamId}
-            scrollEnabled={false}
-          />
-        </LinearGradient>
-      ) : (
-        <View style={styles.emptyState}>
-          <Ionicons name="podium-outline" size={64} color="rgba(255, 255, 255, 0.3)" />
-          <Text style={styles.emptyTitle}>No Standings Yet</Text>
-          <Text style={styles.emptySubtitle}>
-            Standings will appear once matches begin
-          </Text>
-        </View>
-      )}
-    </View>
-  );
-
-  const renderSchedule = () => (
-    <View style={styles.tabContent}>
-      {matches.length > 0 ? (
-        <FlatList
-          data={matches}
-          renderItem={renderMatch}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-        />
-      ) : (
-        <View style={styles.emptyState}>
-          <Ionicons name="calendar-outline" size={64} color="rgba(255, 255, 255, 0.3)" />
-          <Text style={styles.emptyTitle}>No Matches Scheduled</Text>
-          <Text style={styles.emptySubtitle}>
-            Match schedule will be available soon
-          </Text>
-        </View>
-      )}
-    </View>
-  );
-
-  const renderStats = () => (
-    <View style={styles.tabContent}>
-      <LinearGradient
-        colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.03)']}
-        style={styles.statsCard}
-      >
-        <Text style={styles.statsTitle}>Tournament Statistics</Text>
-        
-        <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Top Scorer</Text>
-          <Text style={styles.statValue}>Coming Soon</Text>
-        </View>
-        
-        <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Most Assists</Text>
-          <Text style={styles.statValue}>Coming Soon</Text>
-        </View>
-        
-        <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Total Goals</Text>
-          <Text style={styles.statValue}>0</Text>
-        </View>
-      </LinearGradient>
-    </View>
-  );
-
-  const renderStandingRow = ({ item, index }: { item: Standing; index: number }) => (
-    <View style={[styles.standingRow, index === 0 && styles.firstPlace]}>
+  const renderStanding = ({ item, index }: { item: Standing; index: number }) => (
+    <View style={[styles.standingRow, index % 2 === 0 && styles.standingRowEven]}>
       <View style={styles.positionContainer}>
-        <Text style={[styles.position, index === 0 && styles.firstPlaceText]}>
-          {item.position}
-        </Text>
+        <Text style={styles.position}>{item.position}</Text>
       </View>
       <View style={styles.teamContainer}>
-        <Text style={[styles.teamName, index === 0 && styles.firstPlaceText]}>
-          {item.teamName}
-        </Text>
+        <Text style={styles.teamName}>{item.teamName}</Text>
       </View>
       <View style={styles.statsContainer}>
         <Text style={styles.statText}>{item.matches}</Text>
@@ -389,50 +159,22 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
     </View>
   );
 
-  const renderMatch = ({ item }: { item: any }) => (
-    <LinearGradient
-      colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.03)']}
-      style={styles.matchCard}
-    >
-      <Text style={styles.matchDate}>{formatDate(item.matchDate)}</Text>
-      <View style={styles.matchTeams}>
-        <Text style={styles.matchTeamName}>{item.homeTeam?.name || 'TBD'}</Text>
-        <Text style={styles.matchVs}>vs</Text>
-        <Text style={styles.matchTeamName}>{item.awayTeam?.name || 'TBD'}</Text>
-      </View>
-      {item.venue && <Text style={styles.matchVenue}>{item.venue}</Text>}
-    </LinearGradient>
-  );
-
   const renderTeamOption = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={styles.teamOption}
       onPress={() => handleRegisterTeam(item.id)}
       disabled={registering}
     >
-      <LinearGradient
-        colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.03)']}
-        style={styles.teamOptionGradient}
-      >
-        <View style={styles.teamOptionInfo}>
-          <Text style={styles.teamOptionName}>{item.name}</Text>
-          <Text style={styles.teamOptionPlayers}>
-            <Ionicons name="people" size={14} color="rgba(255, 255, 255, 0.6)" />
-            {' '}{item.players?.length || 0} players
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color="rgba(255, 255, 255, 0.6)" />
-      </LinearGradient>
+      <Text style={styles.teamOptionName}>{item.name}</Text>
+      <Text style={styles.teamOptionPlayers}>{item.players?.length || 0} players</Text>
     </TouchableOpacity>
   );
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <LinearGradient colors={['#0A0E27', '#1A1F3A']} style={styles.loadingGradient}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-          <Text style={styles.loadingText}>Loading tournament...</Text>
-        </LinearGradient>
+        <ActivityIndicator size="large" color="#2E7D32" />
+        <Text style={styles.loadingText}>Loading tournament...</Text>
       </View>
     );
   }
@@ -440,52 +182,116 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
   if (!tournament) {
     return (
       <View style={styles.errorContainer}>
-        <LinearGradient colors={['#0A0E27', '#1A1F3A']} style={styles.errorGradient}>
-          <Text style={styles.errorText}>Tournament not found</Text>
-        </LinearGradient>
+        <Text style={styles.errorText}>Tournament not found</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#0A0E27', '#1A1F3A']} style={styles.backgroundGradient} />
-      
       {/* Header */}
-      <LinearGradient
-        colors={['#2E7D32', '#1B5E20']}
-        style={styles.header}
-      >
+      <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Text style={styles.backButtonText}>← Tournaments</Text>
         </TouchableOpacity>
-        
         <Text style={styles.headerTitle}>{tournament.name}</Text>
-        
         <View style={styles.placeholder} />
-      </LinearGradient>
-
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        {TABS.map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === tab && styles.activeTab]}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-              {tab}
-            </Text>
-          </TouchableOpacity>
-        ))}
       </View>
 
-      {/* Tab Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {renderTabContent()}
+        {/* Tournament Info */}
+        <View style={styles.infoCard}>
+          <View style={styles.tournamentHeader}>
+            <Text style={styles.tournamentIcon}>{getTypeIcon(tournament.tournamentType)}</Text>
+            <View style={styles.titleContainer}>
+              <Text style={styles.tournamentName}>{tournament.name}</Text>
+              <View style={styles.statusRow}>
+                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(tournament.status) }]}>
+                  <Text style={styles.statusText}>{tournament.status}</Text>
+                </View>
+                <Text style={styles.tournamentType}>{tournament.tournamentType.replace('_', ' ')}</Text>
+              </View>
+            </View>
+          </View>
+
+          {tournament.description && (
+            <Text style={styles.description}>{tournament.description}</Text>
+          )}
+
+          <View style={styles.infoGrid}>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Teams</Text>
+              <Text style={styles.infoValue}>{tournament.registeredTeams}/{tournament.maxTeams}</Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Duration</Text>
+              <Text style={styles.infoValue}>
+                {formatDate(tournament.startDate)} - {formatDate(tournament.endDate)}
+              </Text>
+            </View>
+            {tournament.prizePool && (
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Prize Pool</Text>
+                <Text style={styles.prizeValue}>₹{tournament.prizePool.toLocaleString()}</Text>
+              </View>
+            )}
+          </View>
+
+          {tournament.status === 'UPCOMING' && tournament.registeredTeams < tournament.maxTeams && (
+            <TouchableOpacity 
+              style={styles.registerButton}
+              onPress={() => setShowTeamSelector(true)}
+            >
+              <Text style={styles.registerButtonText}>Register Team</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Standings */}
+        {standings.length > 0 && (
+          <View style={styles.standingsCard}>
+            <Text style={styles.sectionTitle}>Standings</Text>
+            
+            {/* Header */}
+            <View style={styles.standingHeader}>
+              <View style={styles.positionContainer}>
+                <Text style={styles.headerText}>#</Text>
+              </View>
+              <View style={styles.teamContainer}>
+                <Text style={styles.headerText}>Team</Text>
+              </View>
+              <View style={styles.statsContainer}>
+                <Text style={styles.headerText}>MP</Text>
+                <Text style={styles.headerText}>W</Text>
+                <Text style={styles.headerText}>D</Text>
+                <Text style={styles.headerText}>L</Text>
+                <Text style={styles.headerText}>GD</Text>
+                <Text style={styles.headerText}>Pts</Text>
+              </View>
+            </View>
+
+            <FlatList
+              data={standings}
+              renderItem={renderStanding}
+              keyExtractor={(item) => item.teamId}
+              scrollEnabled={false}
+            />
+          </View>
+        )}
+
+        {/* Empty State for New Tournament */}
+        {standings.length === 0 && tournament.status === 'UPCOMING' && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>📋</Text>
+            <Text style={styles.emptyTitle}>Tournament Not Started</Text>
+            <Text style={styles.emptySubtitle}>
+              Standings will appear once matches begin
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* Team Selection Modal */}
@@ -495,106 +301,75 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
         presentationStyle="pageSheet"
       >
         <View style={styles.modalContainer}>
-          <LinearGradient colors={['#0A0E27', '#1A1F3A']} style={styles.modalGradient}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity 
-                onPress={() => setShowTeamSelector(false)}
-                style={styles.modalCloseButton}
-              >
-                <Ionicons name="close" size={24} color="#fff" />
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>Select Team to Register</Text>
-              <View style={styles.placeholder} />
-            </View>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity 
+              onPress={() => setShowTeamSelector(false)}
+              style={styles.modalCloseButton}
+            >
+              <Text style={styles.modalCloseText}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Select Team to Register</Text>
+            <View style={styles.placeholder} />
+          </View>
 
-            <View style={styles.modalContent}>
-              {teams.length > 0 ? (
-                <FlatList
-                  data={teams}
-                  renderItem={renderTeamOption}
-                  keyExtractor={(item) => item.id}
-                  showsVerticalScrollIndicator={false}
-                />
-              ) : (
-                <View style={styles.noTeamsState}>
-                  <Ionicons name="people-outline" size={64} color="rgba(255, 255, 255, 0.3)" />
-                  <Text style={styles.noTeamsTitle}>No Teams Available</Text>
-                  <Text style={styles.noTeamsSubtitle}>
-                    Create a team first to register for tournaments
-                  </Text>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      setShowTeamSelector(false);
-                      navigation.navigate('Teams');
-                    }}
-                  >
-                    <LinearGradient
-                      colors={['#4CAF50', '#2E7D32']}
-                      style={styles.createTeamButton}
-                    >
-                      <Text style={styles.createTeamButtonText}>Create Team</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          </LinearGradient>
+          <View style={styles.modalContent}>
+            {teams.length > 0 ? (
+              <FlatList
+                data={teams}
+                renderItem={renderTeamOption}
+                keyExtractor={(item) => item.id}
+                showsVerticalScrollIndicator={false}
+              />
+            ) : (
+              <View style={styles.noTeamsState}>
+                <Text style={styles.noTeamsIcon}>👥</Text>
+                <Text style={styles.noTeamsTitle}>No Teams Available</Text>
+                <Text style={styles.noTeamsSubtitle}>
+                  Create a team first to register for tournaments
+                </Text>
+                <TouchableOpacity 
+                  style={styles.createTeamButton}
+                  onPress={() => {
+                    setShowTeamSelector(false);
+                    navigation.navigate('Teams');
+                  }}
+                >
+                  <Text style={styles.createTeamButtonText}>Create Team</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
       </Modal>
     </View>
   );
 }
 
-const InfoItem: React.FC<{
-  icon: string;
-  label: string;
-  value: string;
-  valueColor?: string;
-}> = ({ icon, label, value, valueColor = '#fff' }) => (
-  <View style={styles.infoItem}>
-    <View style={styles.infoItemHeader}>
-      <Ionicons name={icon as any} size={16} color="rgba(255, 255, 255, 0.6)" />
-      <Text style={styles.infoLabel}>{label}</Text>
-    </View>
-    <Text style={[styles.infoValue, { color: valueColor }]}>{value}</Text>
-  </View>
-);
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  backgroundGradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
+    backgroundColor: '#f8f9fa',
   },
   loadingContainer: {
     flex: 1,
-  },
-  loadingGradient: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#f8f9fa',
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: '#666',
   },
   errorContainer: {
     flex: 1,
-  },
-  errorGradient: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#f8f9fa',
   },
   errorText: {
     fontSize: 16,
-    color: '#ff4757',
+    color: '#dc3545',
   },
   header: {
     flexDirection: 'row',
@@ -603,14 +378,14 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 16,
     paddingHorizontal: 20,
+    backgroundColor: '#2E7D32',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: '#fff',
   },
   headerTitle: {
     fontSize: 18,
@@ -621,46 +396,22 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
   },
   placeholder: {
-    width: 40,
-  },
-  tabs: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    marginHorizontal: 20,
-    borderRadius: 12,
-    padding: 4,
-    marginTop: 16,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  activeTab: {
-    backgroundColor: '#2E7D32',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  activeTabText: {
-    color: '#fff',
+    width: 60,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-  },
-  tabContent: {
-    paddingVertical: 20,
+    padding: 20,
   },
   infoCard: {
-    borderRadius: 16,
+    backgroundColor: '#fff',
     padding: 20,
+    borderRadius: 12,
     marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   tournamentHeader: {
     flexDirection: 'row',
@@ -677,7 +428,7 @@ const styles = StyleSheet.create({
   tournamentName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#333',
     marginBottom: 8,
   },
   statusRow: {
@@ -698,13 +449,13 @@ const styles = StyleSheet.create({
   },
   tournamentType: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: '#666',
     textTransform: 'uppercase',
     fontWeight: '500',
   },
   description: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: '#666',
     lineHeight: 22,
     marginBottom: 20,
   },
@@ -712,30 +463,29 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   infoItem: {
-    marginBottom: 16,
-  },
-  infoItemHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
   infoLabel: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
-    marginLeft: 8,
+    fontSize: 16,
+    color: '#666',
   },
   infoValue: {
     fontSize: 16,
-    color: '#fff',
-    fontWeight: '600',
+    color: '#333',
+    fontWeight: '500',
+  },
+  prizeValue: {
+    fontSize: 16,
+    color: '#2E7D32',
+    fontWeight: 'bold',
   },
   registerButton: {
-    flexDirection: 'row',
+    backgroundColor: '#2E7D32',
+    paddingVertical: 12,
+    borderRadius: 8,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
   },
   registerButtonText: {
     color: '#fff',
@@ -743,10 +493,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   standingsCard: {
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 16,
   },
   standingHeader: {
     flexDirection: 'row',
@@ -759,13 +520,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: '#f0f0f0',
   },
-  firstPlace: {
-    backgroundColor: 'rgba(255, 215, 0, 0.1)',
-  },
-  firstPlaceText: {
-    color: '#FFD700',
+  standingRowEven: {
+    backgroundColor: '#f8f9fa',
   },
   positionContainer: {
     width: 30,
@@ -774,7 +532,7 @@ const styles = StyleSheet.create({
   position: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#333',
   },
   teamContainer: {
     flex: 1,
@@ -782,7 +540,7 @@ const styles = StyleSheet.create({
   },
   teamName: {
     fontSize: 16,
-    color: '#fff',
+    color: '#333',
     fontWeight: '500',
   },
   statsContainer: {
@@ -794,105 +552,45 @@ const styles = StyleSheet.create({
   headerText: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#2E7D32',
     textAlign: 'center',
   },
   statText: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: '#666',
     textAlign: 'center',
     minWidth: 20,
   },
   pointsText: {
     fontWeight: 'bold',
-    color: '#4CAF50',
-  },
-  matchCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  matchDate: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.6)',
-    marginBottom: 8,
-  },
-  matchTeams: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  matchTeamName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  matchVs: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  matchVenue: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.6)',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  statsCard: {
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  statsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 20,
-  },
-  statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  statLabel: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  statValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
+    color: '#2E7D32',
   },
   emptyState: {
     alignItems: 'center',
-    padding: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
-    marginTop: 20,
+    padding: 40,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 16,
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
-    marginTop: 16,
+    color: '#333',
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: '#666',
     textAlign: 'center',
     lineHeight: 20,
   },
   modalContainer: {
     flex: 1,
-  },
-  modalGradient: {
-    flex: 1,
+    backgroundColor: '#fff',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -902,75 +600,68 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: '#f0f0f0',
   },
   modalCloseButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 8,
+  },
+  modalCloseText: {
+    fontSize: 16,
+    color: '#2E7D32',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 16,
+    color: '#333',
   },
   modalContent: {
     flex: 1,
     padding: 20,
   },
   teamOption: {
-    marginBottom: 12,
-  },
-  teamOptionGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: '#f8f9fa',
     padding: 16,
     borderRadius: 12,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  teamOptionInfo: {
-    flex: 1,
+    borderColor: '#e0e0e0',
   },
   teamOptionName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: '#333',
     marginBottom: 4,
   },
   teamOptionPlayers: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: '#666',
   },
   noTeamsState: {
     alignItems: 'center',
-    padding: 60,
+    padding: 40,
+  },
+  noTeamsIcon: {
+    fontSize: 48,
+    marginBottom: 16,
   },
   noTeamsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
-    marginTop: 16,
+    color: '#333',
     marginBottom: 8,
   },
   noTeamsSubtitle: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: '#666',
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 24,
   },
   createTeamButton: {
+    backgroundColor: '#2E7D32',
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 24,
+    borderRadius: 8,
   },
   createTeamButtonText: {
     color: '#fff',

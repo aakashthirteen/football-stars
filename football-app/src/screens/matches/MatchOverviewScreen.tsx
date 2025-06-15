@@ -13,7 +13,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { apiService } from '../../services/api';
 import PitchFormation from '../../components/PitchFormation';
-import PitchFormationSplit from '../../components/PitchFormationSplit';
 
 const { width } = Dimensions.get('window');
 
@@ -179,7 +178,7 @@ export default function MatchOverviewScreen({ navigation, route }: MatchOverview
           </LinearGradient>
         </Animated.View>
 
-        {/* Pitch Formation - Google Style Split View */}
+        {/* Pitch Formation */}
         {match && match.homeTeam && match.awayTeam && (
           <Animated.View 
             style={[
@@ -191,14 +190,12 @@ export default function MatchOverviewScreen({ navigation, route }: MatchOverview
             ]}
           >
             <LinearGradient colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']} style={styles.pitchFormationGradient}>
-              <Text style={styles.sectionTitle}>Team Formations</Text>
-              <PitchFormationSplit
+              <Text style={styles.sectionTitle}>Formation</Text>
+              <PitchFormation
                 homeTeam={match.homeTeam}
                 awayTeam={match.awayTeam}
-                homeScore={match.homeScore || 0}
-                awayScore={match.awayScore || 0}
-                onPlayerPress={(player, teamType) => {
-                  console.log('Player pressed:', player.name, 'from', teamType);
+                onPlayerPress={(player) => {
+                  console.log('Player pressed:', player.name);
                   // Future: Navigate to player profile
                 }}
                 showPlayerNames={true}

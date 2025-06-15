@@ -16,7 +16,6 @@ import {
 import { apiService } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import PitchFormation from '../../components/PitchFormation';
-import PitchFormationSplit from '../../components/PitchFormationSplit';
 
 const { width } = Dimensions.get('window');
 
@@ -53,8 +52,6 @@ interface Player {
   jerseyNumber?: number;
 }
 
-const TABS = ['Actions', 'Formation', 'Commentary', 'Timeline'];
-
 const COMMENTARY_TEMPLATES = {
   GOAL: [
     "GOOOOOAL! 🔥 What a strike from {player}!",
@@ -89,18 +86,17 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const [selectedEventType, setSelectedEventType] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [latestCommentary, setLatestCommentary] = useState<string>('');
+  const [showQuickActions, setShowQuickActions] = useState(true);
   const [isProcessingEvent, setIsProcessingEvent] = useState(false);
   const [lastEventTime, setLastEventTime] = useState(0);
   const [goalScorerId, setGoalScorerId] = useState<string | null>(null);
   const [showAssistModal, setShowAssistModal] = useState(false);
+  const [showLineups, setShowLineups] = useState(false);
   const [goalScorerTeam, setGoalScorerTeam] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState('Actions');
-  const [commentaryHistory, setCommentaryHistory] = useState<string[]>([]);
   
   const scoreAnimation = useRef(new Animated.Value(1)).current;
   const commentaryAnimation = useRef(new Animated.Value(0)).current;
   const ballAnimation = useRef(new Animated.Value(0)).current;
-  const tabSlideAnimation = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadMatchDetails();
@@ -132,17 +128,6 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     return () => clearInterval(interval);
   }, [isLive]);
 
-  useEffect(() => {
-    // Animate tab change
-    Animated.timing(tabSlideAnimation, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => {
-      tabSlideAnimation.setValue(0);
-    });
-  }, [activeTab]);
-
   const loadMatchDetails = async () => {
     try {
       console.log('🔍 Loading match details for ID:', matchId);
@@ -160,14 +145,35 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       
       const matchData = response.match;
       
+      console.log('🔍 Raw match data from API:', {
+        homeTeam: matchData.homeTeam,
+        awayTeam: matchData.awayTeam,
+        homeTeamPlayers: matchData.homeTeam?.players,
+        awayTeamPlayers: matchData.awayTeam?.players
+      });
+      
       // Ensure events array exists
       if (!matchData.events) {
         matchData.events = [];
       }
       
+      // DO NOT override team data - it should come from backend correctly
+      
+      console.log('👥 Team players count:', {
+        homeTeam: matchData.homeTeam.players?.length || 0,
+        awayTeam: matchData.awayTeam.players?.length || 0
+      });
+      
       // Ensure scores are properly mapped from database fields
       matchData.homeScore = matchData.homeScore || matchData.home_score || 0;
       matchData.awayScore = matchData.awayScore || matchData.away_score || 0;
+      
+      console.log('📊 Final scores:', { 
+        homeScore: matchData.homeScore, 
+        awayScore: matchData.awayScore,
+        home_score: matchData.home_score,
+        away_score: matchData.away_score
+      });
       
       setMatch(matchData);
       setIsLive(matchData.status === 'LIVE');
@@ -178,6 +184,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
           const matchStart = new Date(matchDateValue);
           const now = new Date();
           const elapsed = Math.floor((now.getTime() - matchStart.getTime()) / (1000 * 60));
+          // Cap at reasonable match time (max 120 minutes including extra time)
           setCurrentMinute(Math.max(0, Math.min(elapsed, 120)));
         } catch (dateError) {
           console.error('Error calculating match time:', dateError);
@@ -213,7 +220,6 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   const showCommentary = (text: string) => {
     setLatestCommentary(text);
-    setCommentaryHistory(prev => [text, ...prev]);
     Animated.sequence([
       Animated.timing(commentaryAnimation, {
         toValue: 1,
@@ -235,6 +241,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     const now = Date.now();
     const frontendRequestId = now + '-' + Math.random().toString(36).substr(2, 9);
     
+    // Prevent rapid-fire calls (1 second debounce)
     if (isProcessingEvent) {
       console.log(`🚫 [${frontendRequestId}] FRONTEND: Already processing event, ignoring rapid click`);
       return;
@@ -247,6 +254,8 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     
     setIsProcessingEvent(true);
     setLastEventTime(now);
+    
+    console.log(`🎯 [${frontendRequestId}] FRONTEND: Starting addGoalWithAssist:`, { goalScorerId, assistPlayerId, teamId: goalScorerTeam.id });
 
     try {
       const goalScorer = goalScorerTeam.players.find((p: Player) => p.id === goalScorerId);
@@ -260,6 +269,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         description: `GOAL by ${goalScorerTeam.name}`,
       };
 
+      console.log(`📤 [${frontendRequestId}] FRONTEND: Creating goal event:`, goalEventData);
       await apiService.addMatchEvent(matchId, goalEventData);
       
       // Create assist event if there's an assist
@@ -273,8 +283,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
           description: `ASSIST by ${goalScorerTeam.name}`,
         };
         
+        console.log(`📤 [${frontendRequestId}] FRONTEND: Creating assist event:`, assistEventData);
         await apiService.addMatchEvent(matchId, assistEventData);
       }
+      
+      console.log(`✅ [${frontendRequestId}] FRONTEND: Goal and assist events completed successfully`);
       
       // Generate commentary
       const assistPlayer = assistPlayerId ? goalScorerTeam.players.find((p: Player) => p.id === assistPlayerId) : null;
@@ -294,13 +307,17 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       animateScore();
       Vibration.vibrate([0, 200, 100, 200]);
 
+      console.log(`🔄 [${frontendRequestId}] FRONTEND: About to call loadMatchDetails to refresh match state`);
       await loadMatchDetails();
+      console.log(`🔄 [${frontendRequestId}] FRONTEND: loadMatchDetails completed`);
       
     } catch (error: any) {
       console.error(`💥 [${frontendRequestId}] FRONTEND: Error in addGoalWithAssist:`, error);
       Alert.alert('Error', error.message || 'Failed to add goal and assist events');
     } finally {
+      // Always reset processing state after request completes (success or error)
       setIsProcessingEvent(false);
+      console.log(`🔄 [${frontendRequestId}] FRONTEND: Reset processing state`);
     }
   };
 
@@ -310,16 +327,22 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     const now = Date.now();
     const frontendRequestId = now + '-' + Math.random().toString(36).substr(2, 9);
     
+    // Prevent rapid-fire calls (1 second debounce)
     if (isProcessingEvent) {
+      console.log(`🚫 [${frontendRequestId}] FRONTEND: Already processing event, ignoring rapid click`);
       return;
     }
     
     if (now - lastEventTime < 1000) {
+      console.log(`🚫 [${frontendRequestId}] FRONTEND: Too soon after last event (${now - lastEventTime}ms), ignoring`);
       return;
     }
     
     setIsProcessingEvent(true);
     setLastEventTime(now);
+    
+    console.log(`🎯 [${frontendRequestId}] FRONTEND: Starting addEvent:`, { playerId, eventType, teamId: selectedTeam.id });
+    console.log(`🕐 [${frontendRequestId}] FRONTEND: Timestamp:`, new Date().toISOString());
 
     try {
       const player = selectedTeam.players.find((p: Player) => p.id === playerId);
@@ -331,7 +354,12 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         description: `${eventType} by ${selectedTeam.name}`,
       };
 
+      console.log(`📤 [${frontendRequestId}] FRONTEND: Calling API with event data:`, eventData);
+      console.log(`📤 [${frontendRequestId}] FRONTEND: About to call apiService.addMatchEvent`);
+
       await apiService.addMatchEvent(matchId, eventData);
+      
+      console.log(`✅ [${frontendRequestId}] FRONTEND: API call completed successfully`);
       
       // Generate commentary
       const templates = COMMENTARY_TEMPLATES[eventType as keyof typeof COMMENTARY_TEMPLATES] || [];
@@ -347,12 +375,17 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         Vibration.vibrate(100);
       }
 
+      console.log(`🔄 [${frontendRequestId}] FRONTEND: About to call loadMatchDetails to refresh match state`);
       await loadMatchDetails();
+      console.log(`🔄 [${frontendRequestId}] FRONTEND: loadMatchDetails completed`);
       
     } catch (error: any) {
+      console.error(`💥 [${frontendRequestId}] FRONTEND: Error in addEvent:`, error);
       Alert.alert('Error', error.message || 'Failed to add event');
     } finally {
+      // Always reset processing state after request completes (success or error)
       setIsProcessingEvent(false);
+      console.log(`🔄 [${frontendRequestId}] FRONTEND: Reset processing state`);
     }
   };
 
@@ -372,9 +405,19 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   };
 
   const openEventModal = (team: any, eventType: string) => {
+    console.log('🎯 Opening event modal:', {
+      teamName: team?.name,
+      teamId: team?.id,
+      playersCount: team?.players?.length,
+      players: team?.players,
+      eventType
+    });
+    
+    // Add small delay to ensure state is set before modal opens
     setSelectedTeam(team);
     setSelectedEventType(eventType);
     
+    // Use setTimeout to ensure state is updated before modal shows
     setTimeout(() => {
       setShowEventModal(true);
     }, 50);
@@ -393,11 +436,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             try {
               await apiService.endMatch(matchId);
               showCommentary("📢 Full time! The match has ended!");
-              
-              // Navigate to rating screen or match overview
               setTimeout(() => {
-                navigation.replace('PlayerRating', { matchId });
-              }, 1500);
+                navigation.goBack();
+              }, 2000);
             } catch (error) {
               Alert.alert('Error', 'Failed to end match');
             }
@@ -414,11 +455,13 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         onPress={() => {
           if (!isProcessingEvent) {
             if (selectedEventType === 'GOAL') {
+              // For goals, store scorer info and open assist modal
               setGoalScorerId(item.id);
               setGoalScorerTeam(selectedTeam);
               setShowEventModal(false);
               setShowAssistModal(true);
             } else {
+              // For other events, proceed normally
               setShowEventModal(false);
               addEvent(item.id, selectedEventType);
             }
@@ -474,6 +517,13 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       case 'YELLOW_CARD': return 'Yellow Card';
       case 'RED_CARD': return 'Red Card';
       case 'SUBSTITUTION': return 'Substitution';
+      case 'PENALTY': return 'Penalty';
+      case 'OWN_GOAL': return 'Own Goal';
+      case 'CORNER_KICK': return 'Corner Kick';
+      case 'FREE_KICK': return 'Free Kick';
+      case 'OFFSIDE': return 'Offside';
+      case 'FOUL': return 'Foul';
+      case 'INJURY': return 'Injury';
       default: return eventType ? eventType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Unknown Event';
     }
   };
@@ -505,209 +555,6 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       </View>
     </Animated.View>
   );
-
-  const renderTabContent = () => {
-    const fadeIn = 1; // Remove opacity animation to prevent greying out
-
-    switch (activeTab) {
-      case 'Actions':
-        return (
-          <Animated.View style={[styles.tabContent, { opacity: fadeIn }]}>
-            {!isLive && match?.status === 'SCHEDULED' && (
-              <View style={styles.controls}>
-                <TouchableOpacity style={styles.startButton} onPress={startMatch}>
-                  <Ionicons name="play-circle" size={32} color="#fff" />
-                  <Text style={styles.startButtonText}>Start Match</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {isLive && (
-              <View style={styles.quickActionsContainer}>
-                <Text style={styles.quickActionsTitle}>Quick Actions</Text>
-                
-                <View style={styles.quickActionsGrid}>
-                  <TouchableOpacity 
-                    style={[styles.quickAction, styles.goalAction, isProcessingEvent && styles.disabledAction]}
-                    onPress={() => !isProcessingEvent && openEventModal(match.homeTeam, 'GOAL')}
-                    disabled={isProcessingEvent}
-                  >
-                    <Ionicons name="football" size={24} color="#fff" />
-                    <Text style={styles.quickActionText}>{match.homeTeam.name}</Text>
-                    <Text style={styles.quickActionLabel}>Goal</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={[styles.quickAction, styles.goalAction, isProcessingEvent && styles.disabledAction]}
-                    onPress={() => !isProcessingEvent && openEventModal(match.awayTeam, 'GOAL')}
-                    disabled={isProcessingEvent}
-                  >
-                    <Ionicons name="football" size={24} color="#fff" />
-                    <Text style={styles.quickActionText}>{match.awayTeam.name}</Text>
-                    <Text style={styles.quickActionLabel}>Goal</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={[styles.quickAction, styles.cardAction, isProcessingEvent && styles.disabledAction]}
-                    onPress={() => !isProcessingEvent && openEventModal(match.homeTeam, 'YELLOW_CARD')}
-                    disabled={isProcessingEvent}
-                  >
-                    <Text style={styles.cardIcon}>🟨</Text>
-                    <Text style={styles.quickActionText}>{match.homeTeam.name}</Text>
-                    <Text style={styles.quickActionLabel}>Card</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={[styles.quickAction, styles.cardAction, isProcessingEvent && styles.disabledAction]}
-                    onPress={() => !isProcessingEvent && openEventModal(match.awayTeam, 'YELLOW_CARD')}
-                    disabled={isProcessingEvent}
-                  >
-                    <Text style={styles.cardIcon}>🟨</Text>
-                    <Text style={styles.quickActionText}>{match.awayTeam.name}</Text>
-                    <Text style={styles.quickActionLabel}>Card</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity style={styles.endMatchButton} onPress={endMatch}>
-                  <Ionicons name="stop-circle" size={24} color="#fff" />
-                  <Text style={styles.endMatchText}>End Match</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </Animated.View>
-        );
-
-      case 'Formation':
-        return (
-          <Animated.View style={[styles.tabContent, { opacity: fadeIn }]}>
-            {match && match.homeTeam && match.awayTeam && (
-              <>
-                <PitchFormationSplit
-                  homeTeam={match.homeTeam}
-                  awayTeam={match.awayTeam}
-                  homeScore={match.homeScore || 0}
-                  awayScore={match.awayScore || 0}
-                  onPlayerPress={(player, teamType) => {
-                    console.log('Player pressed:', player.name, 'from', teamType);
-                  }}
-                  showPlayerNames={true}
-                />
-                
-                {/* Team Lineups */}
-                <View style={styles.lineupsContainer}>
-                  <Text style={styles.lineupsTitle}>Team Lineups</Text>
-                  
-                  <View style={styles.lineupsContent}>
-                    <View style={styles.teamNamesRow}>
-                      <Text style={styles.teamNameHeader}>{match.homeTeam?.name}</Text>
-                      <Text style={styles.teamNameHeader}>{match.awayTeam?.name}</Text>
-                    </View>
-                    
-                    <View style={styles.playersRow}>
-                      <View style={styles.teamPlayersList}>
-                        {match.homeTeam?.players?.map((player: any, index: number) => (
-                          <TouchableOpacity 
-                            key={player.id || index} 
-                            style={styles.playerListItem}
-                          >
-                            <View style={[
-                              styles.playerJerseyList, 
-                              { backgroundColor: getPositionColor(player.position) }
-                            ]}>
-                              <Text style={styles.playerNumberList}>{player.jerseyNumber || index + 1}</Text>
-                            </View>
-                            <View style={styles.playerInfoList}>
-                              <Text style={styles.playerNameList} numberOfLines={1}>
-                                {player.name || 'Player'}
-                              </Text>
-                              <Text style={styles.playerPositionList}>{player.position}</Text>
-                            </View>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                      
-                      <View style={styles.teamPlayersList}>
-                        {match.awayTeam?.players?.map((player: any, index: number) => (
-                          <TouchableOpacity 
-                            key={player.id || index} 
-                            style={styles.playerListItem}
-                          >
-                            <View style={[
-                              styles.playerJerseyList, 
-                              { backgroundColor: getPositionColor(player.position) }
-                            ]}>
-                              <Text style={styles.playerNumberList}>{player.jerseyNumber || index + 1}</Text>
-                            </View>
-                            <View style={styles.playerInfoList}>
-                              <Text style={styles.playerNameList} numberOfLines={1}>
-                                {player.name || 'Player'}
-                              </Text>
-                              <Text style={styles.playerPositionList}>{player.position}</Text>
-                            </View>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              </>
-            )}
-          </Animated.View>
-        );
-
-      case 'Commentary':
-        return (
-          <Animated.View style={[styles.tabContent, { opacity: fadeIn }]}>
-            <View style={styles.commentaryContainer}>
-              <Text style={styles.commentaryTitle}>Live Commentary</Text>
-              <ScrollView style={styles.commentaryList}>
-                {commentaryHistory.length > 0 ? (
-                  commentaryHistory.map((comment, index) => (
-                    <View key={index} style={styles.commentaryItem}>
-                      <Text style={styles.commentaryItemText}>{comment}</Text>
-                      <Text style={styles.commentaryTime}>
-                        {currentMinute}' - {new Date().toLocaleTimeString()}
-                      </Text>
-                    </View>
-                  ))
-                ) : (
-                  <View style={styles.noCommentary}>
-                    <Ionicons name="mic-outline" size={48} color="#ccc" />
-                    <Text style={styles.noCommentaryText}>No commentary yet</Text>
-                    <Text style={styles.noCommentarySubtext}>
-                      {isLive ? "Match events will appear here" : "Start the match to see commentary"}
-                    </Text>
-                  </View>
-                )}
-              </ScrollView>
-            </View>
-          </Animated.View>
-        );
-
-      case 'Timeline':
-        return (
-          <Animated.View style={[styles.tabContent, { opacity: fadeIn }]}>
-            <View style={styles.timelineContainer}>
-              <Text style={styles.timelineTitle}>Match Timeline</Text>
-              
-              {match.events.length > 0 ? (
-                <ScrollView style={styles.timeline}>
-                  {match.events.sort((a, b) => b.minute - a.minute).map(renderEvent)}
-                </ScrollView>
-              ) : (
-                <View style={styles.noEvents}>
-                  <Ionicons name="time-outline" size={48} color="#ccc" />
-                  <Text style={styles.noEventsText}>No events yet</Text>
-                  <Text style={styles.noEventsSubtext}>
-                    {isLive ? "Add events using quick actions" : "Start the match to begin"}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </Animated.View>
-        );
-    }
-  };
 
   if (isLoading) {
     return (
@@ -756,6 +603,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
               <Ionicons name="location" size={14} color="#fff" /> {match.venue}
             </Text>
           )}
+          {match.match_date && (
+            <Text style={styles.venue}>
+              <Ionicons name="calendar" size={14} color="#fff" /> {new Date(match.match_date).toLocaleDateString()} at {new Date(match.match_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          )}
           <View style={styles.statusContainer}>
             {isLive && <View style={styles.liveDot} />}
             <Text style={[styles.status, isLive && styles.liveStatus]}>
@@ -763,9 +615,15 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             </Text>
           </View>
         </View>
+        
+        {isLive && (
+          <TouchableOpacity onPress={endMatch}>
+            <Ionicons name="stop-circle" size={24} color="#fff" />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Commentary Bar */}
+      {/* Commentary */}
       {latestCommentary && (
         <Animated.View 
           style={[
@@ -785,54 +643,225 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         </Animated.View>
       )}
 
-      {/* Score Display */}
-      <View style={styles.scoreSection}>
-        <Animated.View style={[styles.scoreContainer, { transform: [{ scale: scoreAnimation }] }]}>
-          <View style={styles.teamScoreSection}>
-            <Text style={styles.teamName}>{match.homeTeam.name}</Text>
-            <Text style={styles.score}>{match.homeScore}</Text>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Score Display */}
+        <View style={styles.scoreSection}>
+          <Animated.View style={[styles.scoreContainer, { transform: [{ scale: scoreAnimation }] }]}>
+            <View style={styles.teamScoreSection}>
+              <Text style={styles.teamName}>{match.homeTeam.name}</Text>
+              <Text style={styles.score}>{match.homeScore}</Text>
+            </View>
+            
+            <View style={styles.scoreCenter}>
+              <Animated.View style={[
+                styles.ballIcon,
+                {
+                  transform: [{
+                    translateX: ballAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-30, 30]
+                    })
+                  }]
+                }
+              ]}>
+                <Ionicons name="football" size={32} color="#fff" />
+              </Animated.View>
+            </View>
+            
+            <View style={styles.teamScoreSection}>
+              <Text style={styles.teamName}>{match.awayTeam.name}</Text>
+              <Text style={styles.score}>{match.awayScore}</Text>
+            </View>
+          </Animated.View>
+        </View>
+
+        {/* Pitch Formation */}
+        {match && match.homeTeam && match.awayTeam && (
+          <View style={styles.pitchFormationContainer}>
+            <Text style={styles.pitchFormationTitle}>Formation</Text>
+            <PitchFormation
+              homeTeam={match.homeTeam}
+              awayTeam={match.awayTeam}
+              onPlayerPress={(player) => {
+                console.log('Player pressed:', player.name);
+                // Future: Navigate to player profile
+              }}
+              showPlayerNames={true}
+            />
+          </View>
+        )}
+
+        {/* Match Controls */}
+        {!isLive && match.status === 'SCHEDULED' && (
+          <View style={styles.controls}>
+            <TouchableOpacity style={styles.startButton} onPress={startMatch}>
+              <Ionicons name="play-circle" size={32} color="#fff" />
+              <Text style={styles.startButtonText}>Start Match</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Live Controls */}
+        {isLive && showQuickActions && (
+          <View style={styles.quickActionsContainer}>
+            <Text style={styles.quickActionsTitle}>Quick Actions</Text>
+            
+            <View style={styles.quickActionsGrid}>
+              <TouchableOpacity 
+                style={[styles.quickAction, styles.goalAction, isProcessingEvent && styles.disabledAction]}
+                onPress={() => !isProcessingEvent && openEventModal(match.homeTeam, 'GOAL')}
+                disabled={isProcessingEvent}
+              >
+                <Ionicons name="football" size={24} color="#fff" />
+                <Text style={styles.quickActionText}>{match.homeTeam.name}</Text>
+                <Text style={styles.quickActionLabel}>Goal</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.quickAction, styles.goalAction, isProcessingEvent && styles.disabledAction]}
+                onPress={() => !isProcessingEvent && openEventModal(match.awayTeam, 'GOAL')}
+                disabled={isProcessingEvent}
+              >
+                <Ionicons name="football" size={24} color="#fff" />
+                <Text style={styles.quickActionText}>{match.awayTeam.name}</Text>
+                <Text style={styles.quickActionLabel}>Goal</Text>
+              </TouchableOpacity>
+              
+              
+              <TouchableOpacity 
+                style={[styles.quickAction, styles.cardAction, isProcessingEvent && styles.disabledAction]}
+                onPress={() => !isProcessingEvent && openEventModal(match.homeTeam, 'YELLOW_CARD')}
+                disabled={isProcessingEvent}
+              >
+                <Text style={styles.cardIcon}>🟨</Text>
+                <Text style={styles.quickActionText}>{match.homeTeam.name}</Text>
+                <Text style={styles.quickActionLabel}>Card</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.quickAction, styles.cardAction, isProcessingEvent && styles.disabledAction]}
+                onPress={() => !isProcessingEvent && openEventModal(match.awayTeam, 'YELLOW_CARD')}
+                disabled={isProcessingEvent}
+              >
+                <Text style={styles.cardIcon}>🟨</Text>
+                <Text style={styles.quickActionText}>{match.awayTeam.name}</Text>
+                <Text style={styles.quickActionLabel}>Card</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Team Lineups */}
+        {match && (
+          <View style={styles.lineupsContainer}>
+            <TouchableOpacity 
+              style={styles.lineupsHeader}
+              onPress={() => setShowLineups(!showLineups)}
+            >
+              <Text style={styles.lineupsTitle}>Team Lineups</Text>
+              <Ionicons 
+                name={showLineups ? "chevron-up" : "chevron-down"} 
+                size={20} 
+                color="#fff" 
+              />
+            </TouchableOpacity>
+            
+            {showLineups && (
+              <View style={styles.lineupsContent}>
+                {/* Team Names Side by Side */}
+                <View style={styles.teamNamesRow}>
+                  <Text style={styles.teamNameHeader}>{match.homeTeam?.name}</Text>
+                  <Text style={styles.teamNameHeader}>{match.awayTeam?.name}</Text>
+                </View>
+                
+                {/* Players Lists Side by Side */}
+                <View style={styles.playersRow}>
+                  {/* Home Team Players */}
+                  <View style={styles.teamPlayersList}>
+                    {match.homeTeam?.players?.map((player: any, index: number) => (
+                      <TouchableOpacity 
+                        key={player.id || index} 
+                        style={styles.playerListItem}
+                        onPress={() => {
+                          // Navigate to player profile (placeholder for now)
+                          console.log('Navigate to player profile:', player.id, player.name);
+                        }}
+                      >
+                        <View style={[
+                          styles.playerJerseyList, 
+                          { backgroundColor: getPositionColor(player.position) }
+                        ]}>
+                          <Text style={styles.playerNumberList}>{player.jerseyNumber || index + 1}</Text>
+                        </View>
+                        <View style={styles.playerInfoList}>
+                          <Text style={styles.playerNameList} numberOfLines={1}>
+                            {player.name || 'Player'}
+                          </Text>
+                          <Text style={styles.playerPositionList}>{player.position}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  
+                  {/* Away Team Players */}
+                  <View style={styles.teamPlayersList}>
+                    {match.awayTeam?.players?.map((player: any, index: number) => (
+                      <TouchableOpacity 
+                        key={player.id || index} 
+                        style={styles.playerListItem}
+                        onPress={() => {
+                          // Navigate to player profile (placeholder for now)
+                          console.log('Navigate to player profile:', player.id, player.name);
+                        }}
+                      >
+                        <View style={[
+                          styles.playerJerseyList, 
+                          { backgroundColor: getPositionColor(player.position) }
+                        ]}>
+                          <Text style={styles.playerNumberList}>{player.jerseyNumber || index + 1}</Text>
+                        </View>
+                        <View style={styles.playerInfoList}>
+                          <Text style={styles.playerNameList} numberOfLines={1}>
+                            {player.name || 'Player'}
+                          </Text>
+                          <Text style={styles.playerPositionList}>{player.position}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Match Timeline */}
+        <View style={styles.timelineContainer}>
+          <View style={styles.timelineHeader}>
+            <Text style={styles.timelineTitle}>Match Timeline</Text>
+            <TouchableOpacity onPress={() => setShowQuickActions(!showQuickActions)}>
+              <Ionicons 
+                name={showQuickActions ? "chevron-up" : "chevron-down"} 
+                size={20} 
+                color="#666" 
+              />
+            </TouchableOpacity>
           </View>
           
-          <View style={styles.scoreCenter}>
-            <Animated.View style={[
-              styles.ballIcon,
-              {
-                transform: [{
-                  translateX: ballAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-30, 30]
-                  })
-                }]
-              }]}>
-              <Ionicons name="football" size={32} color="#fff" />
-            </Animated.View>
-          </View>
-          
-          <View style={styles.teamScoreSection}>
-            <Text style={styles.teamName}>{match.awayTeam.name}</Text>
-            <Text style={styles.score}>{match.awayScore}</Text>
-          </View>
-        </Animated.View>
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        {TABS.map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === tab && styles.activeTab]}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-              {tab}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Tab Content */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {renderTabContent()}
+          {match.events.length > 0 ? (
+            <View style={styles.timeline}>
+              {match.events.sort((a, b) => b.minute - a.minute).map(renderEvent)}
+            </View>
+          ) : (
+            <View style={styles.noEvents}>
+              <Ionicons name="time-outline" size={48} color="#ccc" />
+              <Text style={styles.noEventsText}>No events yet</Text>
+              <Text style={styles.noEventsSubtext}>
+                {isLive ? "Add events using quick actions above" : "Start the match to begin"}
+              </Text>
+            </View>
+          )}
+        </View>
       </ScrollView>
 
       {/* Player Selection Modal */}
@@ -858,12 +887,41 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             {selectedTeam?.name} - {selectedEventType ? selectedEventType.replace('_', ' ') : 'Unknown Event'}
           </Text>
           
+          <View style={{ padding: 10, backgroundColor: '#f0f0f0', margin: 10, borderRadius: 8 }}>
+            <Text style={{ fontSize: 12, color: '#666' }}>
+              Debug Info: Team "{selectedTeam?.name}" has {selectedTeam?.players?.length || 0} players
+            </Text>
+            <TouchableOpacity 
+              style={{ backgroundColor: '#007AFF', padding: 8, borderRadius: 4, marginTop: 8 }}
+              onPress={() => {
+                console.log('🔄 Refreshing modal data:', selectedTeam);
+                setShowEventModal(false);
+                setTimeout(() => openEventModal(selectedTeam, selectedEventType), 100);
+              }}
+            >
+              <Text style={{ color: 'white', textAlign: 'center', fontSize: 12 }}>Refresh Data</Text>
+            </TouchableOpacity>
+          </View>
+          
           <FlatList
             data={selectedTeam?.players || []}
             renderItem={renderPlayer}
             keyExtractor={(item) => item.id}
             style={styles.playersList}
             contentContainerStyle={styles.playersListContent}
+            ListEmptyComponent={() => (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <Text style={{ color: '#666', fontSize: 16 }}>
+                  No players available for {selectedTeam?.name}
+                </Text>
+                <Text style={{ color: '#666', fontSize: 14, marginTop: 8 }}>
+                  Players in team: {selectedTeam?.players?.length || 0}
+                </Text>
+                <Text style={{ color: '#666', fontSize: 12, marginTop: 8 }}>
+                  Debug: {JSON.stringify(selectedTeam?.players || [])}
+                </Text>
+              </View>
+            )}
           />
         </View>
       </Modal>
@@ -895,6 +953,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             {goalScorerTeam?.name} - Who provided the assist?
           </Text>
           
+          {/* None option */}
           <TouchableOpacity
             style={[styles.playerItem, { backgroundColor: '#e3f2fd', marginHorizontal: 20, marginTop: 10 }]}
             onPress={() => {
@@ -953,6 +1012,13 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             keyExtractor={(item) => item.id}
             style={styles.playersList}
             contentContainerStyle={styles.playersListContent}
+            ListEmptyComponent={() => (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <Text style={{ color: '#666', fontSize: 16 }}>
+                  No other players available for assist
+                </Text>
+              </View>
+            )}
           />
         </View>
       </Modal>
@@ -1091,43 +1157,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tabs: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    marginTop: 20,
-    marginHorizontal: 20,
-    borderRadius: 12,
-    padding: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  activeTab: {
-    backgroundColor: '#2E7D32',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-  },
-  activeTabText: {
-    color: '#fff',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  tabContent: {
-    paddingVertical: 20,
-  },
   controls: {
     padding: 24,
     alignItems: 'center',
@@ -1152,14 +1181,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   quickActionsContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
+    margin: 20,
   },
   quickActionsTitle: {
     fontSize: 18,
@@ -1171,7 +1193,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
-    marginBottom: 20,
   },
   quickAction: {
     flex: 1,
@@ -1187,6 +1208,9 @@ const styles = StyleSheet.create({
   },
   goalAction: {
     backgroundColor: '#4CAF50',
+  },
+  assistAction: {
+    backgroundColor: '#2196F3',
   },
   cardAction: {
     backgroundColor: '#FF9800',
@@ -1205,73 +1229,8 @@ const styles = StyleSheet.create({
   cardIcon: {
     fontSize: 24,
   },
-  disabledAction: {
-    opacity: 0.5,
-  },
-  endMatchButton: {
-    backgroundColor: '#dc3545',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
-  },
-  endMatchText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  commentaryContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  commentaryTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 16,
-  },
-  commentaryList: {
-    maxHeight: 300,
-  },
-  commentaryItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f2f5',
-  },
-  commentaryItemText: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 4,
-  },
-  commentaryTime: {
-    fontSize: 12,
-    color: '#999',
-  },
-  noCommentary: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  noCommentaryText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#999',
-    marginTop: 12,
-  },
-  noCommentarySubtext: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 4,
-    textAlign: 'center',
-  },
   timelineContainer: {
+    margin: 20,
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: 20,
@@ -1280,15 +1239,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 3,
+  },
+  timelineHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   timelineTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 16,
   },
   timeline: {
-    maxHeight: 400,
+    gap: 12,
   },
   eventItem: {
     flexDirection: 'row',
@@ -1344,79 +1308,6 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 4,
     textAlign: 'center',
-  },
-  lineupsContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  lineupsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 16,
-  },
-  lineupsContent: {
-    gap: 20,
-  },
-  teamNamesRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  teamNameHeader: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    flex: 1,
-    textAlign: 'center',
-  },
-  playersRow: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  teamPlayersList: {
-    flex: 1,
-  },
-  playerListItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-  },
-  playerJerseyList: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  playerNumberList: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  playerInfoList: {
-    flex: 1,
-  },
-  playerNameList: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 2,
-  },
-  playerPositionList: {
-    fontSize: 11,
-    color: '#666',
   },
   modalContainer: {
     flex: 1,
@@ -1507,5 +1398,179 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.8)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  disabledAction: {
+    opacity: 0.5,
+  },
+  lineupsContainer: {
+    margin: 24,
+    marginTop: 32,
+    marginBottom: 32,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  lineupsHeader: {
+    backgroundColor: '#2E7D32',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  lineupsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  lineupsContent: {
+    padding: 28,
+    paddingTop: 32,
+    paddingBottom: 32,
+    gap: 36,
+  },
+  teamLineup: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  teamLineupsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  playersGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    justifyContent: 'space-between',
+  },
+  lineupPlayer: {
+    width: '47%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#f0f2f5',
+  },
+  playerJerseyMini: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  playerNumberMini: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  playerInfoMini: {
+    flex: 1,
+  },
+  playerNameMini: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  playerPositionMini: {
+    fontSize: 12,
+    color: '#666',
+  },
+  // New List-Based Lineup Styles
+  teamNamesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  teamNameHeader: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+    textAlign: 'center',
+  },
+  playersRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  teamPlayersList: {
+    flex: 1,
+  },
+  playerListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#f0f2f5',
+  },
+  playerJerseyList: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  playerNumberList: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  playerInfoList: {
+    flex: 1,
+  },
+  playerNameList: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  playerPositionList: {
+    fontSize: 11,
+    color: '#666',
+  },
+  // Pitch Formation Styles
+  pitchFormationContainer: {
+    marginHorizontal: 20,
+    marginVertical: 16,
+  },
+  pitchFormationTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+    textAlign: 'center',
   },
 });
