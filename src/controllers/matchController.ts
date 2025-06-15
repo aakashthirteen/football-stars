@@ -571,14 +571,9 @@ export const submitPlayerRatings = async (req: AuthRequest, res: Response): Prom
       ratingsSubmitted: ratings.length
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('❌ Error submitting player ratings:', error);
-    console.error('❌ Error message:', error.message);
-    console.error('❌ Error stack:', error.stack);
-    res.status(500).json({ 
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
