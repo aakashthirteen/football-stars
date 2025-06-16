@@ -85,7 +85,7 @@ const FORMATIONS: Record<string, Formation[]> = {
         { x: 30, y: 25, position: 'DEF' },       // Left defender
         { x: 70, y: 25, position: 'DEF' },       // Right defender
         { x: 50, y: 35, position: 'MID' },       // Central midfielder
-        { x: 50, y: 45, position: 'FWD' },       // Forward (at halfway line)
+        { x: 50, y: 42, position: 'FWD' },       // Forward (pulled back from center line)
       ],
     },
     {
@@ -98,7 +98,7 @@ const FORMATIONS: Record<string, Formation[]> = {
         { x: 50, y: 25, position: 'DEF' },       // Central defender
         { x: 30, y: 35, position: 'MID' },       // Left midfielder
         { x: 70, y: 35, position: 'MID' },       // Right midfielder
-        { x: 50, y: 45, position: 'FWD' },       // Forward at halfway
+        { x: 50, y: 42, position: 'FWD' },       // Forward (pulled back from center line)
       ],
     },
     {
@@ -110,8 +110,8 @@ const FORMATIONS: Record<string, Formation[]> = {
         { x: 50, y: 10, position: 'GK' },        // GK in goal
         { x: 50, y: 25, position: 'DEF' },       // Central defender
         { x: 50, y: 35, position: 'MID' },       // Central midfielder
-        { x: 35, y: 45, position: 'FWD' },       // Left forward
-        { x: 65, y: 45, position: 'FWD' },       // Right forward
+        { x: 35, y: 42, position: 'FWD' },       // Left forward (pulled back from center line)
+        { x: 65, y: 42, position: 'FWD' },       // Right forward (pulled back from center line)
       ],
     },
   ],
@@ -128,7 +128,7 @@ const FORMATIONS: Record<string, Formation[]> = {
         { x: 75, y: 25, position: 'DEF' },       // Right defender
         { x: 35, y: 35, position: 'MID' },       // Left midfielder
         { x: 65, y: 35, position: 'MID' },       // Right midfielder
-        { x: 50, y: 45, position: 'FWD' },       // Forward at halfway
+        { x: 50, y: 42, position: 'FWD' },       // Forward (pulled back from center line)
       ],
     },
     {
@@ -143,7 +143,7 @@ const FORMATIONS: Record<string, Formation[]> = {
         { x: 25, y: 35, position: 'MID' },       // Left midfielder
         { x: 50, y: 35, position: 'MID' },       // Central midfielder
         { x: 75, y: 35, position: 'MID' },       // Right midfielder
-        { x: 50, y: 45, position: 'FWD' },       // Forward at halfway
+        { x: 50, y: 42, position: 'FWD' },       // Forward (pulled back from center line)
       ],
     },
     {
@@ -158,7 +158,7 @@ const FORMATIONS: Record<string, Formation[]> = {
         { x: 60, y: 25, position: 'DEF' },       // Right center-back
         { x: 80, y: 25, position: 'DEF' },       // Right defender
         { x: 50, y: 35, position: 'MID' },       // Defensive midfielder
-        { x: 50, y: 45, position: 'FWD' },       // Forward at halfway
+        { x: 50, y: 42, position: 'FWD' },       // Forward (pulled back from center line)
       ],
     },
   ],
@@ -413,10 +413,10 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
         const newX = position.x + gestureState.dx;
         const newY = position.y + gestureState.dy;
         
-        // Update visual position immediately
+        // Update visual position immediately (keep in defensive half with margin for names)
         setPosition({
           x: Math.max(0, Math.min(PITCH_WIDTH - feature.playerRadius * 2, newX)),
-          y: Math.max(0, Math.min(PITCH_HEIGHT / 2 - feature.playerRadius * 2, newY))
+          y: Math.max(0, Math.min(PITCH_HEIGHT * 0.46 - feature.playerRadius * 2, newY)) // Stop before center line with name margin
         });
       },
       
@@ -428,7 +428,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
         const finalY = position.y + gestureState.dy + feature.playerRadius;
         
         const percentX = Math.max(5, Math.min(95, (finalX / PITCH_WIDTH) * 100));
-        const percentY = Math.max(5, Math.min(50, (finalY / PITCH_HEIGHT) * 100));
+        const percentY = Math.max(5, Math.min(46, (finalY / PITCH_HEIGHT) * 100)); // Stop at 46% to leave room for names
         
         console.log('🎯 Released at:', { percentX, percentY });
         
@@ -535,37 +535,15 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
   };
 
   const renderFootballPitch = () => {
-    const pitchType = selectedGameFormat.pitchType;
-    
-    // Adjust pitch features based on game format
-    const features = {
-      small: { // 5v5
-        centerCircleRadius: PITCH_HEIGHT * 0.08,
-        penaltyAreaWidth: PITCH_WIDTH * 0.25,
-        penaltyAreaHeight: PITCH_HEIGHT * 0.15,
-        goalAreaWidth: PITCH_WIDTH * 0.15,
-        goalAreaHeight: PITCH_HEIGHT * 0.08,
-        playerRadius: 14,
-      },
-      medium: { // 7v7
-        centerCircleRadius: PITCH_HEIGHT * 0.10,
-        penaltyAreaWidth: PITCH_WIDTH * 0.22,
-        penaltyAreaHeight: PITCH_HEIGHT * 0.18,
-        goalAreaWidth: PITCH_WIDTH * 0.12,
-        goalAreaHeight: PITCH_HEIGHT * 0.10,
-        playerRadius: 15,
-      },
-      full: { // 11v11
-        centerCircleRadius: PITCH_HEIGHT * 0.12,
-        penaltyAreaWidth: PITCH_WIDTH * 0.20,
-        penaltyAreaHeight: PITCH_HEIGHT * 0.20,
-        goalAreaWidth: PITCH_WIDTH * 0.10,
-        goalAreaHeight: PITCH_HEIGHT * 0.12,
-        playerRadius: 16,
-      },
+    // Standard football pitch proportions - always the same regardless of game format
+    const feature = {
+      centerCircleRadius: PITCH_HEIGHT * 0.10,
+      penaltyAreaWidth: PITCH_WIDTH * 0.30,
+      penaltyAreaHeight: PITCH_HEIGHT * 0.18,
+      goalAreaWidth: PITCH_WIDTH * 0.18,
+      goalAreaHeight: PITCH_HEIGHT * 0.10,
+      playerRadius: selectedGameFormat.id === '5v5' ? 14 : selectedGameFormat.id === '7v7' ? 15 : 16,
     };
-
-    const feature = features[pitchType];
     
     return (
       <Svg width={PITCH_WIDTH} height={PITCH_HEIGHT} style={styles.pitch}>
