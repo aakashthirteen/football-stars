@@ -241,29 +241,16 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
     }
 
     // First update just the status
+    const now = new Date();
+    console.log('🕐 Starting match with timestamp:', now.toISOString());
+    
     const updatedMatch = await database.updateMatch(id, { 
-      status: 'LIVE'
+      status: 'LIVE',
+      live_start_time: now,
+      current_minute: 0
     });
     
-    // Then try to update timing fields separately with error handling
-    try {
-      console.log('🕐 Attempting to update timing fields for match:', id);
-      const timingUpdate = await database.updateMatch(id, {
-        live_start_time: new Date(),
-        current_minute: 0
-      });
-      console.log('✅ Timing fields updated successfully:', {
-        live_start_time: (timingUpdate as any)?.live_start_time,
-        current_minute: (timingUpdate as any)?.current_minute
-      });
-    } catch (timingError) {
-      console.error('❌ Failed to update timing fields:', timingError);
-      console.error('Error details:', {
-        message: timingError instanceof Error ? timingError.message : String(timingError),
-        stack: timingError instanceof Error ? timingError.stack : undefined
-      });
-      // Continue anyway - match is started even if timing fields fail
-    }
+    console.log('✅ Match started successfully with timing fields');
 
     res.json({
       match: updatedMatch,
@@ -301,6 +288,35 @@ export const updateMatchMinute = async (req: AuthRequest, res: Response): Promis
     });
   } catch (error) {
     console.error('Update match minute error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const debugMatch = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    
+    // Get raw match data from database
+    const { PostgresDatabase } = require('../models/postgresDatabase');
+    const db = new PostgresDatabase();
+    
+    const result = await db.pool.query('SELECT * FROM matches WHERE id = $1', [id]);
+    const match = result.rows[0];
+    
+    if (!match) {
+      res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+    
+    res.json({
+      message: 'Debug match data',
+      rawMatch: match,
+      hasLiveStartTime: !!match.live_start_time,
+      hasCurrentMinute: !!match.current_minute,
+      columnNames: Object.keys(match)
+    });
+  } catch (error) {
+    console.error('Debug match error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
