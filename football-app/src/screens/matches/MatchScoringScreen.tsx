@@ -185,7 +185,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
           // Recalculate current minute from live start time to keep accurate
           const now = new Date();
           const elapsed = Math.floor((now.getTime() - liveStartTime.getTime()) / (1000 * 60));
-          const newMinute = Math.max(0, Math.min(elapsed, 120));
+          const newMinute = Math.max(1, Math.min(elapsed + 1, 120)); // Always at least 1' when live
           
           setCurrentMinute(prev => {
             // Only trigger effects if the minute actually changed
@@ -299,25 +299,21 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       setIsLive(matchData.status === 'LIVE');
       
       if (matchData.status === 'LIVE') {
-        // Check if match has a live start time stored
-        if (matchData.liveStartTime) {
-          try {
-            const liveStart = new Date(matchData.liveStartTime);
-            setLiveStartTime(liveStart);
-            const now = new Date();
-            const elapsed = Math.floor((now.getTime() - liveStart.getTime()) / (1000 * 60));
-            setCurrentMinute(Math.max(0, Math.min(elapsed, 120)));
-          } catch (dateError) {
-            console.error('Error calculating live match time:', dateError);
-            setCurrentMinute(0);
-          }
-        } else {
-          // Fallback for matches that were started before this update - use stored currentMinute if available
-          setCurrentMinute(matchData.currentMinute || 0);
-          // Set live start time to now - (currentMinute * 60000) to maintain continuity
-          const estimatedStartTime = new Date(Date.now() - ((matchData.currentMinute || 0) * 60000));
-          setLiveStartTime(estimatedStartTime);
-        }
+        // TEMPORARY FIX: Since backend isn't saving live_start_time properly,
+        // we'll calculate it from when the match data was last modified
+        // This assumes match was started when status changed to LIVE
+        
+        // Use the match created_at timestamp as a proxy for start time
+        // This is a workaround until backend properly saves live_start_time
+        const matchStartTime = new Date(matchData.createdAt || matchData.created_at);
+        setLiveStartTime(matchStartTime);
+        
+        const now = new Date();
+        const elapsed = Math.floor((now.getTime() - matchStartTime.getTime()) / (1000 * 60));
+        const calculatedMinute = Math.max(1, Math.min(elapsed + 1, 120)); // Start at 1, not 0
+        
+        console.log('🕐 Calculated minute:', calculatedMinute, 'from start time:', matchStartTime);
+        setCurrentMinute(calculatedMinute);
       } else {
         setCurrentMinute(0);
         setLiveStartTime(null);
