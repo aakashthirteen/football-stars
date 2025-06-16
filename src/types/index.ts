@@ -53,6 +53,8 @@ export interface Match {
   status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
   homeScore: number;
   awayScore: number;
+  liveStartTime?: Date;
+  currentMinute?: number;
   createdBy: string;
   createdAt: Date;
 }
@@ -79,6 +81,9 @@ export interface MatchWithDetails extends Match {
     }>;
   };
   events?: MatchEvent[];
+  // Include snake_case versions for database compatibility
+  live_start_time?: Date;
+  current_minute?: number;
 }
 
 export interface MatchEvent {

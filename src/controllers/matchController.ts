@@ -247,12 +247,21 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
     
     // Then try to update timing fields separately with error handling
     try {
-      await database.updateMatch(id, {
+      console.log('🕐 Attempting to update timing fields for match:', id);
+      const timingUpdate = await database.updateMatch(id, {
         live_start_time: new Date(),
         current_minute: 0
       });
+      console.log('✅ Timing fields updated successfully:', {
+        live_start_time: (timingUpdate as any)?.live_start_time,
+        current_minute: (timingUpdate as any)?.current_minute
+      });
     } catch (timingError) {
-      console.error('Failed to update timing fields (columns may not exist):', timingError);
+      console.error('❌ Failed to update timing fields:', timingError);
+      console.error('Error details:', {
+        message: timingError instanceof Error ? timingError.message : String(timingError),
+        stack: timingError instanceof Error ? timingError.stack : undefined
+      });
       // Continue anyway - match is started even if timing fields fail
     }
 

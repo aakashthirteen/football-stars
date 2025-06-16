@@ -137,7 +137,12 @@ export class PostgresDatabase {
         `);
         console.log('✅ Added live timing columns to matches table');
       } catch (error) {
-        console.log('ℹ️ Live timing columns may already exist in matches table');
+        console.error('⚠️ Error adding live timing columns:', error);
+        console.error('Error details:', {
+          message: error instanceof Error ? error.message : String(error),
+          code: (error as any)?.code,
+          detail: (error as any)?.detail
+        });
       }
 
       // Tournaments table
@@ -778,11 +783,27 @@ export class PostgresDatabase {
     const fields = Object.keys(updates).map((key, index) => `${key} = $${index + 2}`).join(', ');
     const values = Object.values(updates);
     
-    const result = await this.pool.query(
-      `UPDATE matches SET ${fields} WHERE id = $1 RETURNING *`,
-      [id, ...values]
-    );
-    return result.rows[0] || null;
+    console.log('🔍 updateMatch called with:', {
+      id,
+      updates,
+      fields,
+      values,
+      query: `UPDATE matches SET ${fields} WHERE id = $1`
+    });
+    
+    try {
+      const result = await this.pool.query(
+        `UPDATE matches SET ${fields} WHERE id = $1 RETURNING *`,
+        [id, ...values]
+      );
+      console.log('✅ updateMatch successful, updated fields:', Object.keys(updates));
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error('❌ updateMatch error:', error);
+      console.error('SQL Query:', `UPDATE matches SET ${fields} WHERE id = $1`);
+      console.error('Parameters:', [id, ...values]);
+      throw error;
+    }
   }
 
   async createMatchEvent(event: any): Promise<MatchEvent> {
