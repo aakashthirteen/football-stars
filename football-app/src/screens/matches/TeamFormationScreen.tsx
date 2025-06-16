@@ -288,7 +288,8 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
       const player = sortedPlayers[index] || { 
         id: `placeholder-${index}`, 
         name: 'Empty', 
-        position: pos.position 
+        position: pos.position,
+        jerseyNumber: index + 1 // Assign sequential jersey numbers to placeholders
       };
       return {
         ...player,
@@ -478,15 +479,27 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
               strokeWidth={isBeingDragged ? 4 : 2}
               opacity={isBeingDragged ? 0.8 : 1}
             />
+            {/* Jersey Number */}
             <SvgText
               x={feature.playerRadius}
-              y={feature.playerRadius + 4}
+              y={feature.playerRadius - 2}
               textAnchor="middle"
-              fontSize="11"
+              fontSize="12"
               fill="#FFFFFF"
               fontWeight="bold"
             >
               {player.jerseyNumber || index + 1}
+            </SvgText>
+            {/* Player First Name */}
+            <SvgText
+              x={feature.playerRadius}
+              y={feature.playerRadius + 10}
+              textAnchor="middle"
+              fontSize="8"
+              fill="#FFFFFF"
+              fontWeight="600"
+            >
+              {player.name.split(' ')[0]}
             </SvgText>
           </Svg>
           {/* Invisible larger touch area */}
@@ -691,15 +704,27 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
                 stroke="#FFFFFF"
                 strokeWidth="2"
               />
+              {/* Jersey Number */}
               <SvgText
                 x={x}
-                y={y + 4}
+                y={y - 2}
                 textAnchor="middle"
-                fontSize="11"
+                fontSize="12"
                 fill="#FFFFFF"
                 fontWeight="bold"
               >
                 {player.jerseyNumber || index + 1}
+              </SvgText>
+              {/* Player First Name */}
+              <SvgText
+                x={x}
+                y={y + 10}
+                textAnchor="middle"
+                fontSize="8"
+                fill="#FFFFFF"
+                fontWeight="600"
+              >
+                {player.name.split(' ')[0]}
               </SvgText>
             </G>
           );
