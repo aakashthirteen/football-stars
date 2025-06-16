@@ -193,6 +193,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             // Handle commentary for minute changes
             handleMinuteCommentary(newMinute);
             
+            // Save current minute to backend
+            saveCurrentMinute(newMinute);
+            
             return newMinute;
           });
         } else {
@@ -202,6 +205,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             
             // Handle commentary for minute changes
             handleMinuteCommentary(newMinute);
+            
+            // Save current minute to backend
+            saveCurrentMinute(newMinute);
             
             return newMinute;
           });
@@ -274,9 +280,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         matchData.awayTeam.players = [];
       }
       
-      // Ensure scores are properly mapped from database fields
+      // Ensure scores and timing are properly mapped from database fields
       matchData.homeScore = matchData.homeScore || matchData.home_score || 0;
       matchData.awayScore = matchData.awayScore || matchData.away_score || 0;
+      matchData.liveStartTime = matchData.liveStartTime || matchData.live_start_time;
+      matchData.currentMinute = matchData.currentMinute || matchData.current_minute || 0;
       
       setMatch(matchData);
       setIsLive(matchData.status === 'LIVE');
@@ -341,6 +349,15 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       Vibration.vibrate(100);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to start match');
+    }
+  };
+
+  const saveCurrentMinute = async (minute: number) => {
+    try {
+      await apiService.updateMatchMinute(matchId, minute);
+    } catch (error) {
+      console.error('Failed to save current minute:', error);
+      // Don't show alert for this background operation
     }
   };
 

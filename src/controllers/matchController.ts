@@ -240,7 +240,11 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    const updatedMatch = await database.updateMatch(id, { status: 'LIVE' });
+    const updatedMatch = await database.updateMatch(id, { 
+      status: 'LIVE',
+      live_start_time: new Date(),
+      current_minute: 0
+    });
 
     res.json({
       match: updatedMatch,
@@ -248,6 +252,36 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
     });
   } catch (error) {
     console.error('Start match error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateMatchMinute = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { currentMinute } = req.body;
+    
+    const match = await database.getMatchById(id);
+    if (!match) {
+      res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+
+    if (match.status !== 'LIVE') {
+      res.status(400).json({ error: 'Can only update minute for live matches' });
+      return;
+    }
+
+    const updatedMatch = await database.updateMatch(id, { 
+      current_minute: currentMinute
+    });
+
+    res.json({
+      match: updatedMatch,
+      message: 'Match minute updated successfully',
+    });
+  } catch (error) {
+    console.error('Update match minute error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

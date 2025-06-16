@@ -99,6 +99,8 @@ export class PostgresDatabase {
           status VARCHAR(20) CHECK (status IN ('SCHEDULED', 'LIVE', 'COMPLETED', 'CANCELLED')) DEFAULT 'SCHEDULED',
           home_score INTEGER DEFAULT 0,
           away_score INTEGER DEFAULT 0,
+          live_start_time TIMESTAMP,
+          current_minute INTEGER DEFAULT 0,
           created_by UUID REFERENCES users(id) ON DELETE CASCADE,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -125,6 +127,18 @@ export class PostgresDatabase {
       `);
       
       console.log('✅ Added unique constraint to prevent duplicate match events');
+
+      // Add live timing columns to existing matches table if they don't exist
+      try {
+        await client.query(`
+          ALTER TABLE matches 
+          ADD COLUMN IF NOT EXISTS live_start_time TIMESTAMP,
+          ADD COLUMN IF NOT EXISTS current_minute INTEGER DEFAULT 0
+        `);
+        console.log('✅ Added live timing columns to matches table');
+      } catch (error) {
+        console.log('ℹ️ Live timing columns may already exist in matches table');
+      }
 
       // Tournaments table
       await client.query(`
@@ -403,6 +417,7 @@ export class PostgresDatabase {
     
     return result.rows.map(row => ({
       ...row,
+      minute: row.current_minute || 0,  // Map current_minute to minute for MatchCard compatibility
       homeTeam: { name: row.home_team_name || 'Unknown Home Team' },
       awayTeam: { name: row.away_team_name || 'Unknown Away Team' },
       events: []

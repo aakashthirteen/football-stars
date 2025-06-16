@@ -184,7 +184,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onPress, style }) =
             <View style={styles.footer}>
               <View style={styles.statusPill}>
                 <Text style={styles.statusText}>
-                  {isCompleted ? 'Full Time' : isLive ? `${match.minute || 0}'` : 'Upcoming'}
+                  {isCompleted ? 'Full Time' : isLive ? `${match.minute || match.current_minute || 0}'` : 'Upcoming'}
                 </Text>
               </View>
               
