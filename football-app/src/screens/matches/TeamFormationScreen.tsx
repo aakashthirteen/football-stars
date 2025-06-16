@@ -76,8 +76,8 @@ const GAME_FORMATS: GameFormat[] = [
 const FORMATIONS: Record<string, Formation[]> = {
   '5v5': [
     {
-      id: '1-2-1',
-      name: '1-2-1',
+      id: '1-2-1-1',
+      name: '1-2-1-1',
       gameFormat: '5v5',
       playerCount: 5,
       positions: [
@@ -89,8 +89,8 @@ const FORMATIONS: Record<string, Formation[]> = {
       ],
     },
     {
-      id: '1-1-2',
-      name: '1-1-2',
+      id: '1-1-2-1',
+      name: '1-1-2-1',
       gameFormat: '5v5',
       playerCount: 5,
       positions: [
@@ -102,23 +102,23 @@ const FORMATIONS: Record<string, Formation[]> = {
       ],
     },
     {
-      id: '1-3-0',
-      name: '1-3-0',
+      id: '1-2-2-0',
+      name: '1-2-2-0',
       gameFormat: '5v5',
       playerCount: 5,
       positions: [
         { x: 50, y: 10, position: 'GK' },        // GK in goal
-        { x: 25, y: 25, position: 'DEF' },       // Left defender
-        { x: 50, y: 25, position: 'DEF' },       // Central defender
-        { x: 75, y: 25, position: 'DEF' },       // Right defender
-        { x: 50, y: 40, position: 'MID' },       // Defensive midfielder
+        { x: 30, y: 25, position: 'DEF' },       // Left defender
+        { x: 70, y: 25, position: 'DEF' },       // Right defender
+        { x: 30, y: 40, position: 'MID' },       // Left midfielder
+        { x: 70, y: 40, position: 'MID' },       // Right midfielder
       ],
     },
   ],
   '7v7': [
     {
-      id: '1-3-2',
-      name: '1-3-2',
+      id: '1-3-2-1',
+      name: '1-3-2-1',
       gameFormat: '7v7',
       playerCount: 7,
       positions: [
@@ -132,8 +132,8 @@ const FORMATIONS: Record<string, Formation[]> = {
       ],
     },
     {
-      id: '1-2-3',
-      name: '1-2-3',
+      id: '1-2-3-1',
+      name: '1-2-3-1',
       gameFormat: '7v7',
       playerCount: 7,
       positions: [
@@ -147,8 +147,8 @@ const FORMATIONS: Record<string, Formation[]> = {
       ],
     },
     {
-      id: '1-4-1',
-      name: '1-4-1',
+      id: '1-4-1-1',
+      name: '1-4-1-1',
       gameFormat: '7v7',
       playerCount: 7,
       positions: [
@@ -232,6 +232,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
   const [isDragMode, setIsDragMode] = useState(false); // Start with drag mode disabled
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
+  const [isCustomFormation, setIsCustomFormation] = useState(false); // Track if formation has been customized
   const [pitchLayout, setPitchLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -316,6 +317,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
       formation
     );
     setPlayers(updatedPlayers);
+    setIsCustomFormation(false); // Reset custom flag when changing templates
   };
 
 
@@ -364,6 +366,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
       selectedFormation
     );
     setPlayers(updatedPlayers);
+    setIsCustomFormation(false); // Reset custom flag
     setIsDragMode(false);
   };
 
@@ -436,6 +439,9 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
               : p
           )
         );
+        
+        // Mark formation as customized
+        setIsCustomFormation(true);
         
         setDraggedPlayerId(null);
       },
@@ -784,40 +790,56 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
           </ScrollView>
         </View>
 
-        {/* Drag Mode Controls */}
-        <View style={styles.dragControls}>
-          <Text style={styles.sectionTitle}>Formation: {selectedFormation.name}</Text>
-          <View style={styles.dragButtonsRow}>
-            <TouchableOpacity
-              style={[styles.dragToggleButton, isDragMode && styles.dragToggleButtonActive]}
-              onPress={() => {
-                setIsDragMode(!isDragMode);
-                setDraggedPlayerId(null);
-              }}
-            >
-              <Text style={[styles.dragToggleText, isDragMode && styles.dragToggleTextActive]}>
-                {isDragMode ? '🔒 Lock Formation' : '✋ Drag Players'}
-              </Text>
-            </TouchableOpacity>
-            
-            {isDragMode && (
-              <>
-                <TouchableOpacity
-                  style={styles.resetButton}
-                  onPress={resetToFormation}
-                >
-                  <Text style={styles.resetButtonText}>↺ Reset</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={styles.saveCustomButton}
-                  onPress={saveCustomFormation}
-                >
-                  <Text style={styles.saveCustomButtonText}>💾 Save</Text>
-                </TouchableOpacity>
-              </>
+        {/* Formation Controls */}
+        <View style={styles.formationControls}>
+          <View style={styles.formationHeader}>
+            <Text style={styles.sectionTitle}>
+              Formation: {isCustomFormation ? `${selectedFormation.name} (Custom)` : selectedFormation.name}
+            </Text>
+            {isCustomFormation && (
+              <View style={styles.customBadge}>
+                <Text style={styles.customBadgeText}>✨ CUSTOM</Text>
+              </View>
             )}
           </View>
+          
+          {/* Main Edit Toggle */}
+          <TouchableOpacity
+            style={[styles.editToggleButton, isDragMode && styles.editToggleButtonActive]}
+            onPress={() => {
+              setIsDragMode(!isDragMode);
+              setDraggedPlayerId(null);
+            }}
+          >
+            <Text style={[styles.editToggleText, isDragMode && styles.editToggleTextActive]}>
+              {isDragMode ? '🔒 Stop Editing' : '✏️ Edit Positions'}
+            </Text>
+          </TouchableOpacity>
+          
+          {/* Action Buttons (only in edit mode) */}
+          {isDragMode && (
+            <View style={styles.editActionButtons}>
+              <TouchableOpacity
+                style={styles.resetButton}
+                onPress={resetToFormation}
+              >
+                <Text style={styles.resetButtonText}>↺ Reset</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.saveTemplateButton}
+                onPress={saveCustomFormation}
+              >
+                <Text style={styles.saveTemplateButtonText}>💾 Save Template</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          
+          {isDragMode && (
+            <Text style={styles.buttonExplanation}>
+              Reset = Restore original • Save = Create new template
+            </Text>
+          )}
           
           {isDragMode && (
             <Text style={styles.dragInstructions}>
@@ -827,7 +849,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
           
           {!isDragMode && (
             <Text style={styles.formationInstructions}>
-              ⚽ Formation locked. Tap "Enable Drag Mode" to customize player positions.
+              ⚽ Formation positions are locked. Tap "Edit Positions" to customize player locations.
             </Text>
           )}
         </View>
@@ -897,10 +919,10 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
           ) : (
             <>
               <TouchableOpacity style={styles.saveButton}>
-                <Text style={styles.saveButtonText}>Save Formation</Text>
+                <Text style={styles.saveButtonText}>💾 Save Formation to Library</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.proceedButton}>
-                <Text style={styles.proceedButtonText}>Proceed to Match</Text>
+                <Text style={styles.proceedButtonText}>⚽ Use This Formation</Text>
               </TouchableOpacity>
             </>
           )}
@@ -1063,26 +1085,33 @@ const styles = StyleSheet.create({
   },
   actionButtons: {
     marginBottom: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    gap: 12,
   },
   saveButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingVertical: 15,
+    backgroundColor: 'rgba(76, 175, 80, 0.9)',
+    paddingVertical: 16,
     borderRadius: 10,
     alignItems: 'center',
-    marginBottom: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: '#4CAF50',
   },
   saveButtonText: {
     fontSize: 16,
     color: '#FFFFFF',
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   proceedButton: {
-    backgroundColor: '#00E676',
-    paddingVertical: 15,
+    backgroundColor: '#FFD700',
+    paddingVertical: 16,
     borderRadius: 10,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FFC107',
   },
   proceedButtonText: {
     fontSize: 16,
@@ -1090,61 +1119,88 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   
-  // Drag Mode Styles
-  dragControls: {
-    marginBottom: 20,
+  // Formation Controls Styles
+  formationControls: {
+    marginBottom: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  dragButtonsRow: {
+  formationHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
-    gap: 10,
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
   },
-  dragToggleButton: {
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#1976D2',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  dragToggleButtonActive: {
+  customBadge: {
     backgroundColor: '#FFD700',
-    borderColor: '#FFC107',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginLeft: 8,
   },
-  dragToggleText: {
-    color: '#FFFFFF',
-    fontSize: 14,
+  customBadgeText: {
+    color: '#121212',
+    fontSize: 12,
     fontWeight: 'bold',
   },
-  dragToggleTextActive: {
+  editToggleButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+  },
+  editToggleButtonActive: {
+    backgroundColor: '#FFD700',
+    borderColor: '#FFD700',
+  },
+  editToggleText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  editToggleTextActive: {
     color: '#121212',
   },
+  editActionButtons: {
+    flexDirection: 'row',
+    marginTop: 12,
+    gap: 12,
+  },
   resetButton: {
-    backgroundColor: '#FF5722',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
+    flex: 1,
+    backgroundColor: 'rgba(255, 87, 34, 0.9)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FF5722',
   },
   resetButtonText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
   },
-  saveCustomButton: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
+  saveTemplateButton: {
+    flex: 1,
+    backgroundColor: 'rgba(76, 175, 80, 0.9)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#4CAF50',
   },
-  saveCustomButtonText: {
+  saveTemplateButtonText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
   },
   dragInstructions: {
@@ -1163,6 +1219,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
     textAlign: 'center',
+  },
+  buttonExplanation: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginTop: 5,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
   playerOverlay: {
     position: 'absolute',
@@ -1191,10 +1254,12 @@ const styles = StyleSheet.create({
   // Pre-Match Mode Styles
   saveForMatchButton: {
     backgroundColor: '#4CAF50',
-    paddingVertical: 15,
+    paddingVertical: 16,
     borderRadius: 10,
     alignItems: 'center',
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#388E3C',
   },
   saveForMatchButtonText: {
     fontSize: 16,
@@ -1203,15 +1268,15 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 10,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   cancelButtonText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
     fontWeight: '600',
   },
 });
