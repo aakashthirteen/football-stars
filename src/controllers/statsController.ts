@@ -99,6 +99,48 @@ export const getAllPlayersStats = async (req: AuthRequest, res: Response): Promi
   }
 };
 
+export const addPlayerRating = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { playerId, matchId } = req.params;
+    const { rating } = req.body;
+
+    if (!playerId || !matchId || !rating) {
+      res.status(400).json({ error: 'Player ID, match ID, and rating are required' });
+      return;
+    }
+
+    if (rating < 1 || rating > 5) {
+      res.status(400).json({ error: 'Rating must be between 1 and 5' });
+      return;
+    }
+
+    await database.addPlayerRating(playerId, matchId, rating);
+
+    res.json({ message: 'Rating added successfully' });
+  } catch (error) {
+    console.error('Add player rating error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getPlayerRating = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { playerId, matchId } = req.params;
+
+    if (!playerId || !matchId) {
+      res.status(400).json({ error: 'Player ID and match ID are required' });
+      return;
+    }
+
+    const rating = await database.getPlayerRating(playerId, matchId);
+
+    res.json({ rating });
+  } catch (error) {
+    console.error('Get player rating error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const getTeamPlayersStats = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) {

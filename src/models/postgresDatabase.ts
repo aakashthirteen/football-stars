@@ -126,6 +126,17 @@ export class PostgresDatabase {
       
       console.log('✅ Added unique constraint to prevent duplicate match events');
 
+      // Simple player ratings table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS player_ratings (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          player_id UUID REFERENCES players(id) ON DELETE CASCADE,
+          match_id UUID REFERENCES matches(id) ON DELETE CASCADE,
+          rating INTEGER CHECK (rating >= 1 AND rating <= 5) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(player_id, match_id)
+        )
+      `);
 
       // Tournaments table
       await client.query(`
@@ -550,7 +561,13 @@ export class PostgresDatabase {
            WHERE me_inner.player_id = p.id AND m.status = 'COMPLETED'
            GROUP BY me_inner.player_id), 
           0
-        ) as minutes_played
+        ) as minutes_played,
+        COALESCE(
+          (SELECT ROUND(AVG(rating::numeric), 1) 
+           FROM player_ratings 
+           WHERE player_id = p.id), 
+          NULL
+        ) as rating
       FROM players p
       WHERE p.id = $1
     `, [playerId]);
@@ -576,7 +593,13 @@ export class PostgresDatabase {
            WHERE me_inner.player_id = p.id AND m.status = 'COMPLETED'
            GROUP BY me_inner.player_id), 
           0
-        ) as minutes_played
+        ) as minutes_played,
+        COALESCE(
+          (SELECT ROUND(AVG(rating::numeric), 1) 
+           FROM player_ratings 
+           WHERE player_id = p.id), 
+          NULL
+        ) as rating
       FROM players p
       ORDER BY 
         (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'GOAL') DESC,
@@ -585,6 +608,25 @@ export class PostgresDatabase {
     `);
     
     return result.rows;
+  }
+
+  // Simple rating system
+  async addPlayerRating(playerId: string, matchId: string, rating: number): Promise<void> {
+    await this.pool.query(`
+      INSERT INTO player_ratings (player_id, match_id, rating)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (player_id, match_id) 
+      DO UPDATE SET rating = $3
+    `, [playerId, matchId, rating]);
+  }
+
+  async getPlayerRating(playerId: string, matchId: string): Promise<number | null> {
+    const result = await this.pool.query(`
+      SELECT rating FROM player_ratings 
+      WHERE player_id = $1 AND match_id = $2
+    `, [playerId, matchId]);
+    
+    return result.rows[0]?.rating || null;
   }
 
   // Additional methods for controller compatibility
