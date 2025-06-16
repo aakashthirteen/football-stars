@@ -217,10 +217,8 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         }
       };
       
-      // Update immediately
-      updateTimer();
-      
-      // Then update every 10 seconds for smoother UX
+      // Don't update immediately if we just started - it would reset to 0
+      // Wait 10 seconds for first update to avoid resetting the initial 1'
       interval = setInterval(updateTimer, 10000); // Update every 10 seconds
       
       // Animate ball movement
@@ -345,9 +343,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       const response = await apiService.startMatch(matchId);
       
       // Set local state immediately for instant feedback
+      console.log('🚀 Starting match - setting currentMinute to 1');
       setIsLive(true);
       setCurrentMinute(1); // Start at 1' not 0'
       setLiveStartTime(startTime);
+      console.log('🚀 Match started - currentMinute should be 1');
       
       // Don't reload - it would reset our timer. Backend will have the data next time user navigates.
       
