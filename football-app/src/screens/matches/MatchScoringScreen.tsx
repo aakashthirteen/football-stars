@@ -369,7 +369,8 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   const saveCurrentMinute = async (minute: number) => {
     try {
-      await apiService.updateMatchMinute(matchId, minute);
+      // Temporarily disabled until backend is fixed
+      // await apiService.updateMatchMinute(matchId, minute);
     } catch (error) {
       console.error('Failed to save current minute:', error);
       // Don't show alert for this background operation
