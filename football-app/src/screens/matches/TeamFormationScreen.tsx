@@ -110,8 +110,8 @@ const FORMATIONS: Record<string, Formation[]> = {
         { x: 50, y: 10, position: 'GK' },        // GK in goal
         { x: 50, y: 25, position: 'DEF' },       // Central defender
         { x: 50, y: 35, position: 'MID' },       // Central midfielder
-        { x: 35, y: 42, position: 'FWD' },       // Left forward (pulled back from center line)
-        { x: 65, y: 42, position: 'FWD' },       // Right forward (pulled back from center line)
+        { x: 30, y: 42, position: 'FWD' },       // Left forward (pulled back from center line)
+        { x: 70, y: 42, position: 'FWD' },       // Right forward (pulled back from center line)
       ],
     },
   ],
@@ -123,11 +123,11 @@ const FORMATIONS: Record<string, Formation[]> = {
       playerCount: 7,
       positions: [
         { x: 50, y: 10, position: 'GK' },        // GK in goal
-        { x: 25, y: 25, position: 'DEF' },       // Left defender
+        { x: 20, y: 25, position: 'DEF' },       // Left defender
         { x: 50, y: 25, position: 'DEF' },       // Central defender
-        { x: 75, y: 25, position: 'DEF' },       // Right defender
-        { x: 35, y: 35, position: 'MID' },       // Left midfielder
-        { x: 65, y: 35, position: 'MID' },       // Right midfielder
+        { x: 80, y: 25, position: 'DEF' },       // Right defender
+        { x: 30, y: 35, position: 'MID' },       // Left midfielder
+        { x: 70, y: 35, position: 'MID' },       // Right midfielder
         { x: 50, y: 42, position: 'FWD' },       // Forward (pulled back from center line)
       ],
     },
@@ -140,9 +140,9 @@ const FORMATIONS: Record<string, Formation[]> = {
         { x: 50, y: 10, position: 'GK' },        // GK in goal
         { x: 35, y: 25, position: 'DEF' },       // Left defender
         { x: 65, y: 25, position: 'DEF' },       // Right defender
-        { x: 25, y: 35, position: 'MID' },       // Left midfielder
+        { x: 20, y: 35, position: 'MID' },       // Left midfielder
         { x: 50, y: 35, position: 'MID' },       // Central midfielder
-        { x: 75, y: 35, position: 'MID' },       // Right midfielder
+        { x: 80, y: 35, position: 'MID' },       // Right midfielder
         { x: 50, y: 42, position: 'FWD' },       // Forward (pulled back from center line)
       ],
     },
@@ -505,20 +505,21 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
         {/* Player Name Outside Circle */}
         <View style={{
           position: 'absolute',
-          top: feature.playerRadius * 2 + 2,
-          left: -feature.playerRadius * 0.5,
-          width: feature.playerRadius * 3,
+          top: feature.playerRadius * 2 + 4,
+          left: -feature.playerRadius * 0.8,
+          width: feature.playerRadius * 3.6,
           alignItems: 'center',
         }}>
           <Text style={{
             color: '#FFFFFF',
-            fontSize: 10,
+            fontSize: 9,
             fontWeight: '600',
             textAlign: 'center',
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            paddingHorizontal: 4,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            paddingHorizontal: 3,
             paddingVertical: 1,
             borderRadius: 3,
+            minHeight: 14,
           }}>
             {player.name.split(' ')[0]}
           </Text>
@@ -535,13 +536,14 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
   };
 
   const renderFootballPitch = () => {
-    // Standard football pitch proportions - always the same regardless of game format
+    // FIFA standard football pitch proportions (105m x 68m ratio ≈ 1.54:1)
     const feature = {
-      centerCircleRadius: PITCH_HEIGHT * 0.10,
-      penaltyAreaWidth: PITCH_WIDTH * 0.30,
-      penaltyAreaHeight: PITCH_HEIGHT * 0.18,
-      goalAreaWidth: PITCH_WIDTH * 0.18,
-      goalAreaHeight: PITCH_HEIGHT * 0.10,
+      centerCircleRadius: PITCH_HEIGHT * 0.13,  // 9.15m radius on 105m length ≈ 8.7%
+      penaltyAreaWidth: PITCH_WIDTH * 0.647,    // 44m width on 68m ≈ 64.7%
+      penaltyAreaHeight: PITCH_HEIGHT * 0.171,  // 18m length on 105m ≈ 17.1%
+      goalAreaWidth: PITCH_WIDTH * 0.294,       // 20m width on 68m ≈ 29.4%
+      goalAreaHeight: PITCH_HEIGHT * 0.057,     // 6m length on 105m ≈ 5.7%
+      goalWidth: PITCH_WIDTH * 0.108,           // 7.32m goal width on 68m ≈ 10.8%
       playerRadius: selectedGameFormat.id === '5v5' ? 14 : selectedGameFormat.id === '7v7' ? 15 : 16,
     };
     
@@ -656,21 +658,35 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
           strokeWidth="2"
         />
 
-        {/* Goals */}
+        {/* Penalty spots */}
+        <Circle
+          cx={PITCH_WIDTH / 2}
+          cy={feature.penaltyAreaHeight * 0.67}
+          r="2"
+          fill="#FFFFFF"
+        />
+        <Circle
+          cx={PITCH_WIDTH / 2}
+          cy={PITCH_HEIGHT - feature.penaltyAreaHeight * 0.67}
+          r="2"
+          fill="#FFFFFF"
+        />
+
+        {/* Goals (FIFA standard 7.32m width) */}
         <Rect
-          x={(PITCH_WIDTH - 40) / 2}
-          y="-5"
-          width="40"
-          height="10"
+          x={(PITCH_WIDTH - feature.goalWidth) / 2}
+          y="-3"
+          width={feature.goalWidth}
+          height="6"
           fill="none"
           stroke="#FFFFFF"
           strokeWidth="3"
         />
         <Rect
-          x={(PITCH_WIDTH - 40) / 2}
-          y={PITCH_HEIGHT - 5}
-          width="40"
-          height="10"
+          x={(PITCH_WIDTH - feature.goalWidth) / 2}
+          y={PITCH_HEIGHT - 3}
+          width={feature.goalWidth}
+          height="6"
           fill="none"
           stroke="#FFFFFF"
           strokeWidth="3"
@@ -707,9 +723,9 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
               {/* Player Name Below Circle */}
               <SvgText
                 x={x}
-                y={y + feature.playerRadius + 14}
+                y={y + feature.playerRadius + 16}
                 textAnchor="middle"
-                fontSize="10"
+                fontSize="9"
                 fill="#FFFFFF"
                 fontWeight="600"
               >
