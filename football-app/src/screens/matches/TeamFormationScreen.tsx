@@ -153,10 +153,10 @@ const FORMATIONS: Record<string, Formation[]> = {
       playerCount: 7,
       positions: [
         { x: 50, y: 10, position: 'GK' },        // GK in goal
-        { x: 20, y: 25, position: 'DEF' },       // Left defender
-        { x: 40, y: 25, position: 'DEF' },       // Left center-back
-        { x: 60, y: 25, position: 'DEF' },       // Right center-back
-        { x: 80, y: 25, position: 'DEF' },       // Right defender
+        { x: 15, y: 25, position: 'DEF' },       // Left defender
+        { x: 38, y: 25, position: 'DEF' },       // Left center-back
+        { x: 62, y: 25, position: 'DEF' },       // Right center-back
+        { x: 85, y: 25, position: 'DEF' },       // Right defender
         { x: 50, y: 35, position: 'MID' },       // Defensive midfielder
         { x: 50, y: 42, position: 'FWD' },       // Forward (pulled back from center line)
       ],
@@ -170,16 +170,16 @@ const FORMATIONS: Record<string, Formation[]> = {
       playerCount: 11,
       positions: [
         { x: 50, y: 8, position: 'GK' },         // GK in goal
-        { x: 15, y: 20, position: 'DEF' },       // Left-back
-        { x: 40, y: 20, position: 'DEF' },       // Left center-back
-        { x: 60, y: 20, position: 'DEF' },       // Right center-back
-        { x: 85, y: 20, position: 'DEF' },       // Right-back
-        { x: 20, y: 32, position: 'MID' },       // Left midfielder
-        { x: 40, y: 32, position: 'MID' },       // Left central midfielder
-        { x: 60, y: 32, position: 'MID' },       // Right central midfielder
-        { x: 80, y: 32, position: 'MID' },       // Right midfielder
-        { x: 40, y: 44, position: 'FWD' },       // Left forward
-        { x: 60, y: 44, position: 'FWD' },       // Right forward
+        { x: 10, y: 20, position: 'DEF' },       // Left-back
+        { x: 35, y: 20, position: 'DEF' },       // Left center-back
+        { x: 65, y: 20, position: 'DEF' },       // Right center-back
+        { x: 90, y: 20, position: 'DEF' },       // Right-back
+        { x: 15, y: 32, position: 'MID' },       // Left midfielder
+        { x: 35, y: 32, position: 'MID' },       // Left central midfielder
+        { x: 65, y: 32, position: 'MID' },       // Right central midfielder
+        { x: 85, y: 32, position: 'MID' },       // Right midfielder
+        { x: 35, y: 40, position: 'FWD' },       // Left forward (pulled back from center line)
+        { x: 65, y: 40, position: 'FWD' },       // Right forward (pulled back from center line)
       ],
     },
     {
@@ -189,16 +189,16 @@ const FORMATIONS: Record<string, Formation[]> = {
       playerCount: 11,
       positions: [
         { x: 50, y: 8, position: 'GK' },         // GK in goal
-        { x: 15, y: 20, position: 'DEF' },       // Left-back
-        { x: 40, y: 20, position: 'DEF' },       // Left center-back
-        { x: 60, y: 20, position: 'DEF' },       // Right center-back
-        { x: 85, y: 20, position: 'DEF' },       // Right-back
-        { x: 25, y: 32, position: 'MID' },       // Left midfielder
+        { x: 10, y: 20, position: 'DEF' },       // Left-back
+        { x: 35, y: 20, position: 'DEF' },       // Left center-back
+        { x: 65, y: 20, position: 'DEF' },       // Right center-back
+        { x: 90, y: 20, position: 'DEF' },       // Right-back
+        { x: 20, y: 32, position: 'MID' },       // Left midfielder
         { x: 50, y: 32, position: 'MID' },       // Central midfielder
-        { x: 75, y: 32, position: 'MID' },       // Right midfielder
-        { x: 25, y: 44, position: 'FWD' },       // Left winger
-        { x: 50, y: 44, position: 'FWD' },       // Striker
-        { x: 75, y: 44, position: 'FWD' },       // Right winger
+        { x: 80, y: 32, position: 'MID' },       // Right midfielder
+        { x: 20, y: 40, position: 'FWD' },       // Left winger (pulled back from center line)
+        { x: 50, y: 40, position: 'FWD' },       // Striker (pulled back from center line)
+        { x: 80, y: 40, position: 'FWD' },       // Right winger (pulled back from center line)
       ],
     },
     {
@@ -208,16 +208,16 @@ const FORMATIONS: Record<string, Formation[]> = {
       playerCount: 11,
       positions: [
         { x: 50, y: 8, position: 'GK' },         // GK in goal
-        { x: 30, y: 20, position: 'DEF' },       // Left center-back
+        { x: 25, y: 20, position: 'DEF' },       // Left center-back
         { x: 50, y: 20, position: 'DEF' },       // Central center-back
-        { x: 70, y: 20, position: 'DEF' },       // Right center-back
-        { x: 15, y: 32, position: 'MID' },       // Left wing-back
-        { x: 35, y: 32, position: 'MID' },       // Left midfielder
+        { x: 75, y: 20, position: 'DEF' },       // Right center-back
+        { x: 10, y: 32, position: 'MID' },       // Left wing-back
+        { x: 30, y: 32, position: 'MID' },       // Left midfielder
         { x: 50, y: 32, position: 'MID' },       // Central midfielder
-        { x: 65, y: 32, position: 'MID' },       // Right midfielder
-        { x: 85, y: 32, position: 'MID' },       // Right wing-back
-        { x: 40, y: 44, position: 'FWD' },       // Left forward
-        { x: 60, y: 44, position: 'FWD' },       // Right forward
+        { x: 70, y: 32, position: 'MID' },       // Right midfielder
+        { x: 90, y: 32, position: 'MID' },       // Right wing-back
+        { x: 35, y: 40, position: 'FWD' },       // Left forward (pulled back from center line)
+        { x: 65, y: 40, position: 'FWD' },       // Right forward (pulled back from center line)
       ],
     },
   ],
@@ -512,14 +512,15 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
         }}>
           <Text style={{
             color: '#FFFFFF',
-            fontSize: 9,
+            fontSize: 8,
             fontWeight: '600',
             textAlign: 'center',
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            paddingHorizontal: 3,
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            paddingHorizontal: 2,
             paddingVertical: 1,
-            borderRadius: 3,
-            minHeight: 14,
+            borderRadius: 2,
+            minHeight: 12,
+            maxWidth: 40,
           }}>
             {player.name.split(' ')[0]}
           </Text>
@@ -725,7 +726,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
                 x={x}
                 y={y + feature.playerRadius + 16}
                 textAnchor="middle"
-                fontSize="9"
+                fontSize="8"
                 fill="#FFFFFF"
                 fontWeight="600"
               >
