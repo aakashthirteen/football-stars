@@ -302,38 +302,23 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       setIsLive(matchData.status === 'LIVE');
       
       if (matchData.status === 'LIVE') {
-        // First check if we have a stored start time in AsyncStorage
-        let matchStartTime = null;
-        try {
-          const storedStartTime = await AsyncStorage.getItem(`match_start_${matchId}`);
-          if (storedStartTime) {
-            matchStartTime = new Date(storedStartTime);
-            console.log('🕐 Using stored start time from AsyncStorage:', matchStartTime);
-          }
-        } catch (e) {
-          console.error('Failed to retrieve stored start time:', e);
+        // Use proper backend live_start_time
+        if (matchData.liveStartTime) {
+          const liveStart = new Date(matchData.liveStartTime);
+          setLiveStartTime(liveStart);
+          
+          const now = new Date();
+          const elapsed = Math.floor((now.getTime() - liveStart.getTime()) / (1000 * 60));
+          const calculatedMinute = Math.max(1, Math.min(elapsed + 1, 120));
+          
+          console.log('🕐 Using backend live_start_time:', liveStart);
+          console.log('🕐 Calculated minute:', calculatedMinute);
+          setCurrentMinute(calculatedMinute);
+        } else {
+          // Fallback for matches started before this fix
+          setCurrentMinute(matchData.currentMinute || 1);
+          console.log('⚠️ No live_start_time, using stored minute:', matchData.currentMinute);
         }
-        
-        // If no stored time, check backend live_start_time
-        if (!matchStartTime && matchData.liveStartTime) {
-          matchStartTime = new Date(matchData.liveStartTime);
-          console.log('🕐 Using backend live_start_time:', matchStartTime);
-        }
-        
-        // Last resort: use created_at (not ideal but better than nothing)
-        if (!matchStartTime) {
-          matchStartTime = new Date(matchData.createdAt || matchData.created_at);
-          console.log('⚠️ WARNING: Using created_at as fallback:', matchStartTime);
-        }
-        
-        setLiveStartTime(matchStartTime);
-        
-        const now = new Date();
-        const elapsed = Math.floor((now.getTime() - matchStartTime.getTime()) / (1000 * 60));
-        const calculatedMinute = Math.max(1, Math.min(elapsed + 1, 120)); // Start at 1, not 0
-        
-        console.log('🕐 Calculated minute:', calculatedMinute, 'from start time:', matchStartTime);
-        setCurrentMinute(calculatedMinute);
       } else {
         setCurrentMinute(0);
         setLiveStartTime(null);
@@ -359,20 +344,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       const response = await apiService.startMatch(matchId);
       
       // Set local state immediately for instant feedback
-      console.log('🚀 Starting match - setting currentMinute to 1');
       setIsLive(true);
-      setCurrentMinute(1); // Start at 1' not 0'
+      setCurrentMinute(1);
       setLiveStartTime(startTime);
-      console.log('🚀 Match started - currentMinute should be 1');
       
-      // TEMPORARY: Store start time in AsyncStorage as backup
-      try {
-        await AsyncStorage.setItem(`match_start_${matchId}`, startTime.toISOString());
-      } catch (e) {
-        console.error('Failed to store match start time:', e);
-      }
-      
-      // Don't reload - it would reset our timer. Backend will have the data next time user navigates.
+      console.log('🚀 Match started - backend should now save live_start_time');
       
       // Enhanced start commentary
       const kickoffTemplates = COMMENTARY_TEMPLATES.KICKOFF;
@@ -392,8 +368,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   const saveCurrentMinute = async (minute: number) => {
     try {
-      // Temporarily disabled until backend is fixed
-      // await apiService.updateMatchMinute(matchId, minute);
+      await apiService.updateMatchMinute(matchId, minute);
     } catch (error) {
       console.error('Failed to save current minute:', error);
       // Don't show alert for this background operation
