@@ -179,7 +179,8 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isLive) {
-      interval = setInterval(() => {
+      // Calculate current minute immediately on mount and then every 10 seconds
+      const updateTimer = () => {
         if (liveStartTime) {
           // Recalculate current minute from live start time to keep accurate
           const now = new Date();
@@ -193,8 +194,10 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             // Handle commentary for minute changes
             handleMinuteCommentary(newMinute);
             
-            // Save current minute to backend
-            saveCurrentMinute(newMinute);
+            // Save current minute to backend every minute
+            if (newMinute !== prev && newMinute > 0) {
+              saveCurrentMinute(newMinute);
+            }
             
             return newMinute;
           });
@@ -212,7 +215,13 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             return newMinute;
           });
         }
-      }, 60000); // Increment every minute
+      };
+      
+      // Update immediately
+      updateTimer();
+      
+      // Then update every 10 seconds for smoother UX
+      interval = setInterval(updateTimer, 10000); // Update every 10 seconds
       
       // Animate ball movement
       Animated.loop(
@@ -254,6 +263,8 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       
       const response = await apiService.getMatchById(matchId);
       console.log('📊 Match details response:', response);
+      console.log('🕐 Live start time from backend:', response.match?.live_start_time);
+      console.log('🕐 Current minute from backend:', response.match?.current_minute);
       
       if (!response || !response.match) {
         throw new Error('Invalid match data received');
@@ -333,8 +344,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       const startTime = new Date();
       await apiService.startMatch(matchId);
       setIsLive(true);
-      setCurrentMinute(0);
+      setCurrentMinute(1); // Start at 1' not 0'
       setLiveStartTime(startTime);
+      
+      // Reload match details to get updated data from backend
+      await loadMatchDetails();
       
       // Enhanced start commentary
       const kickoffTemplates = COMMENTARY_TEMPLATES.KICKOFF;

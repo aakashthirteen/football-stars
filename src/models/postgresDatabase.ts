@@ -515,6 +515,8 @@ export class PostgresDatabase {
         matchDate: match.match_date,
         createdBy: match.created_by,
         createdAt: match.created_at,
+        liveStartTime: match.live_start_time,
+        currentMinute: match.current_minute || 0,
         homeTeam: { 
           id: match.home_team_id,
           name: match.home_team_name,
