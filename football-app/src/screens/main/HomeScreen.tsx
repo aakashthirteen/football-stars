@@ -129,23 +129,35 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           throw new Error('No stats data');
         }
         
-        // Use API stats directly - no calculations needed
+        // Use API stats directly - handle both camelCase and snake_case
+        // Also convert string values to numbers
+        const matchesPlayed = parseInt(stats.matchesPlayed || stats.matches_played || '0');
+        const goals = parseInt(stats.goals || '0');
+        const assists = parseInt(stats.assists || '0');
+        
+        // Calculate average rating if not provided (simple formula based on goals + assists per match)
+        let averageRating = parseFloat(stats.averageRating || stats.average_rating || '0');
+        if (averageRating === 0 && matchesPlayed > 0) {
+          // Simple rating formula: base 5.0 + (goals + assists) / matches, capped at 10
+          averageRating = Math.min(5.0 + ((goals + assists) / matchesPlayed), 10.0);
+        }
+        
         setPlayerStats({
-          matchesPlayed: stats.matchesPlayed || 0,
-          goals: stats.goals || 0,
-          assists: stats.assists || 0,
-          averageRating: stats.averageRating || 0,
+          matchesPlayed,
+          goals,
+          assists,
+          averageRating,
           position: stats.position || 'MID',
-          yellowCards: stats.yellowCards || 0,
-          redCards: stats.redCards || 0,
-          minutesPlayed: stats.minutesPlayed || 0,
+          yellowCards: parseInt(stats.yellowCards || stats.yellow_cards || '0'),
+          redCards: parseInt(stats.redCards || stats.red_cards || '0'),
+          minutesPlayed: parseInt(stats.minutesPlayed || stats.minutes_played || '0'),
         });
         
         console.log('📊 Final player stats set:', {
-          matchesPlayed: stats?.matchesPlayed || 0,
-          goals: stats?.goals || 0,
-          assists: stats?.assists || 0,
-          averageRating: stats?.averageRating || 0,
+          matchesPlayed,
+          goals,
+          assists,
+          averageRating,
         });
       } catch (error) {
         console.error('Error loading stats:', error);
