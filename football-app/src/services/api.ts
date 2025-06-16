@@ -1134,6 +1134,10 @@ class ApiService {
     });
   }
 
+  async debugMatch(id: string) {
+    return this.request(`/matches/${id}/debug`);
+  }
+
   async addMatchEvent(matchId: string, eventData: {
     playerId: string;
     teamId: string;

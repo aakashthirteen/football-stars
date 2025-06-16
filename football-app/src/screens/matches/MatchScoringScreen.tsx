@@ -267,6 +267,14 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       console.log('📅 Match date:', response.match?.match_date);
       console.log('📅 Created at:', response.match?.created_at);
       
+      // Debug: Check raw database state
+      try {
+        const debugResponse = await apiService.debugMatch(matchId);
+        console.log('🔍 Raw database data:', debugResponse);
+      } catch (debugError) {
+        console.error('Debug endpoint failed:', debugError);
+      }
+      
       if (!response || !response.match) {
         throw new Error('Invalid match data received');
       }
@@ -315,9 +323,17 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
           console.log('🕐 Calculated minute:', calculatedMinute);
           setCurrentMinute(calculatedMinute);
         } else {
-          // Fallback for matches started before this fix
-          setCurrentMinute(matchData.currentMinute || 1);
-          console.log('⚠️ No live_start_time, using stored minute:', matchData.currentMinute);
+          // Fallback for old backend without timing fields
+          // Estimate start time as created_at timestamp (temporary)
+          const estimatedStart = new Date(matchData.createdAt || matchData.created_at);
+          setLiveStartTime(estimatedStart);
+          
+          const now = new Date();
+          const elapsed = Math.floor((now.getTime() - estimatedStart.getTime()) / (1000 * 60));
+          const estimatedMinute = Math.max(1, Math.min(elapsed + 1, 120));
+          
+          setCurrentMinute(estimatedMinute);
+          console.log('⚠️ Fallback: estimated minute from created_at:', estimatedMinute);
         }
       } else {
         setCurrentMinute(0);
@@ -368,7 +384,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   const saveCurrentMinute = async (minute: number) => {
     try {
-      await apiService.updateMatchMinute(matchId, minute);
+      // Temporarily disabled until Railway deployment completes
+      // await apiService.updateMatchMinute(matchId, minute);
+      console.log('💾 Would save minute:', minute, '(disabled until backend deploys)');
     } catch (error) {
       console.error('Failed to save current minute:', error);
       // Don't show alert for this background operation
