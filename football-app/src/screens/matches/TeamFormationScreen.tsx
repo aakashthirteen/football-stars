@@ -102,16 +102,16 @@ const FORMATIONS: Record<string, Formation[]> = {
       ],
     },
     {
-      id: '1-2-2-0',
-      name: '1-2-2-0',
+      id: '1-1-1-2',
+      name: '1-1-1-2',
       gameFormat: '5v5',
       playerCount: 5,
       positions: [
         { x: 50, y: 10, position: 'GK' },        // GK in goal
-        { x: 30, y: 25, position: 'DEF' },       // Left defender
-        { x: 70, y: 25, position: 'DEF' },       // Right defender
-        { x: 30, y: 40, position: 'MID' },       // Left midfielder
-        { x: 70, y: 40, position: 'MID' },       // Right midfielder
+        { x: 50, y: 25, position: 'DEF' },       // Central defender
+        { x: 50, y: 35, position: 'MID' },       // Central midfielder
+        { x: 35, y: 45, position: 'FWD' },       // Left forward
+        { x: 65, y: 45, position: 'FWD' },       // Right forward
       ],
     },
   ],
@@ -482,24 +482,13 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
             {/* Jersey Number */}
             <SvgText
               x={feature.playerRadius}
-              y={feature.playerRadius - 2}
+              y={feature.playerRadius + 4}
               textAnchor="middle"
               fontSize="12"
               fill="#FFFFFF"
               fontWeight="bold"
             >
               {player.jerseyNumber || index + 1}
-            </SvgText>
-            {/* Player First Name */}
-            <SvgText
-              x={feature.playerRadius}
-              y={feature.playerRadius + 10}
-              textAnchor="middle"
-              fontSize="8"
-              fill="#FFFFFF"
-              fontWeight="600"
-            >
-              {player.name.split(' ')[0]}
             </SvgText>
           </Svg>
           {/* Invisible larger touch area */}
@@ -511,6 +500,28 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
             top: -feature.playerRadius * 0.5,
             backgroundColor: 'transparent',
           }} />
+        </View>
+        
+        {/* Player Name Outside Circle */}
+        <View style={{
+          position: 'absolute',
+          top: feature.playerRadius * 2 + 2,
+          left: -feature.playerRadius * 0.5,
+          width: feature.playerRadius * 3,
+          alignItems: 'center',
+        }}>
+          <Text style={{
+            color: '#FFFFFF',
+            fontSize: 10,
+            fontWeight: '600',
+            textAlign: 'center',
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            paddingHorizontal: 4,
+            paddingVertical: 1,
+            borderRadius: 3,
+          }}>
+            {player.name.split(' ')[0]}
+          </Text>
         </View>
         
         {/* Player name tooltip when dragging */}
@@ -707,7 +718,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
               {/* Jersey Number */}
               <SvgText
                 x={x}
-                y={y - 2}
+                y={y + 4}
                 textAnchor="middle"
                 fontSize="12"
                 fill="#FFFFFF"
@@ -715,12 +726,12 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
               >
                 {player.jerseyNumber || index + 1}
               </SvgText>
-              {/* Player First Name */}
+              {/* Player Name Below Circle */}
               <SvgText
                 x={x}
-                y={y + 10}
+                y={y + feature.playerRadius + 14}
                 textAnchor="middle"
-                fontSize="8"
+                fontSize="10"
                 fill="#FFFFFF"
                 fontWeight="600"
               >
