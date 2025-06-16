@@ -240,17 +240,14 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    // First update just the status
+    // Simple solution: Update match_date to current time when starting
+    // This serves as our "live start time" using existing column
     const now = new Date();
-    console.log('🕐 Starting match with timestamp:', now.toISOString());
     
     const updatedMatch = await database.updateMatch(id, { 
       status: 'LIVE',
-      live_start_time: now,
-      current_minute: 0
+      match_date: now  // Use existing column as start time
     });
-    
-    console.log('✅ Match started successfully with timing fields');
 
     res.json({
       match: updatedMatch,
@@ -262,64 +259,7 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
   }
 };
 
-export const updateMatchMinute = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const { currentMinute } = req.body;
-    
-    const match = await database.getMatchById(id);
-    if (!match) {
-      res.status(404).json({ error: 'Match not found' });
-      return;
-    }
 
-    if (match.status !== 'LIVE') {
-      res.status(400).json({ error: 'Can only update minute for live matches' });
-      return;
-    }
-
-    const updatedMatch = await database.updateMatch(id, { 
-      current_minute: currentMinute
-    });
-
-    res.json({
-      match: updatedMatch,
-      message: 'Match minute updated successfully',
-    });
-  } catch (error) {
-    console.error('Update match minute error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export const debugMatch = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    
-    // Get raw match data from database
-    const { PostgresDatabase } = require('../models/postgresDatabase');
-    const db = new PostgresDatabase();
-    
-    const result = await db.pool.query('SELECT * FROM matches WHERE id = $1', [id]);
-    const match = result.rows[0];
-    
-    if (!match) {
-      res.status(404).json({ error: 'Match not found' });
-      return;
-    }
-    
-    res.json({
-      message: 'Debug match data',
-      rawMatch: match,
-      hasLiveStartTime: !!match.live_start_time,
-      hasCurrentMinute: !!match.current_minute,
-      columnNames: Object.keys(match)
-    });
-  } catch (error) {
-    console.error('Debug match error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
 
 export const populateTeamsWithPlayers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {

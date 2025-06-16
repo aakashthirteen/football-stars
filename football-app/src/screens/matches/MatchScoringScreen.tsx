@@ -180,47 +180,21 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isLive) {
-      // Calculate current minute immediately on mount and then every 10 seconds
-      const updateTimer = () => {
+      // Simple timer update every 10 seconds
+      interval = setInterval(() => {
         if (liveStartTime) {
-          // Recalculate current minute from live start time to keep accurate
           const now = new Date();
           const elapsed = Math.floor((now.getTime() - liveStartTime.getTime()) / (1000 * 60));
-          const newMinute = Math.max(1, Math.min(elapsed + 1, 120)); // Always at least 1' when live
+          const newMinute = Math.max(1, Math.min(elapsed + 1, 120));
           
           setCurrentMinute(prev => {
-            // Only trigger effects if the minute actually changed
-            if (newMinute === prev) return prev;
-            
-            // Handle commentary for minute changes
-            handleMinuteCommentary(newMinute);
-            
-            // Save current minute to backend every minute
-            if (newMinute !== prev && newMinute > 0) {
-              saveCurrentMinute(newMinute);
+            if (newMinute !== prev) {
+              handleMinuteCommentary(newMinute);
             }
-            
-            return newMinute;
-          });
-        } else {
-          // Fallback for matches without live start time - use old increment logic
-          setCurrentMinute(prev => {
-            const newMinute = prev + 1;
-            
-            // Handle commentary for minute changes
-            handleMinuteCommentary(newMinute);
-            
-            // Save current minute to backend
-            saveCurrentMinute(newMinute);
-            
             return newMinute;
           });
         }
-      };
-      
-      // Don't update immediately if we just started - it would reset to 0
-      // Wait 10 seconds for first update to avoid resetting the initial 1'
-      interval = setInterval(updateTimer, 10000); // Update every 10 seconds
+      }, 10000);
       
       // Animate ball movement
       Animated.loop(
@@ -261,19 +235,6 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       }
       
       const response = await apiService.getMatchById(matchId);
-      console.log('📊 Match details response:', response);
-      console.log('🕐 Live start time from backend:', response.match?.live_start_time);
-      console.log('🕐 Current minute from backend:', response.match?.current_minute);
-      console.log('📅 Match date:', response.match?.match_date);
-      console.log('📅 Created at:', response.match?.created_at);
-      
-      // Debug: Check raw database state
-      try {
-        const debugResponse = await apiService.debugMatch(matchId);
-        console.log('🔍 Raw database data:', debugResponse);
-      } catch (debugError) {
-        console.error('Debug endpoint failed:', debugError);
-      }
       
       if (!response || !response.match) {
         throw new Error('Invalid match data received');
@@ -310,31 +271,16 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       setIsLive(matchData.status === 'LIVE');
       
       if (matchData.status === 'LIVE') {
-        // Use proper backend live_start_time
-        if (matchData.liveStartTime) {
-          const liveStart = new Date(matchData.liveStartTime);
-          setLiveStartTime(liveStart);
-          
-          const now = new Date();
-          const elapsed = Math.floor((now.getTime() - liveStart.getTime()) / (1000 * 60));
-          const calculatedMinute = Math.max(1, Math.min(elapsed + 1, 120));
-          
-          console.log('🕐 Using backend live_start_time:', liveStart);
-          console.log('🕐 Calculated minute:', calculatedMinute);
-          setCurrentMinute(calculatedMinute);
-        } else {
-          // Fallback for old backend without timing fields
-          // Estimate start time as created_at timestamp (temporary)
-          const estimatedStart = new Date(matchData.createdAt || matchData.created_at);
-          setLiveStartTime(estimatedStart);
-          
-          const now = new Date();
-          const elapsed = Math.floor((now.getTime() - estimatedStart.getTime()) / (1000 * 60));
-          const estimatedMinute = Math.max(1, Math.min(elapsed + 1, 120));
-          
-          setCurrentMinute(estimatedMinute);
-          console.log('⚠️ Fallback: estimated minute from created_at:', estimatedMinute);
-        }
+        // Simple: Use match_date as start time
+        const matchStart = new Date(matchData.matchDate || matchData.match_date);
+        setLiveStartTime(matchStart);
+        
+        const now = new Date();
+        const elapsed = Math.floor((now.getTime() - matchStart.getTime()) / (1000 * 60));
+        const currentMin = Math.max(1, Math.min(elapsed + 1, 120));
+        
+        setCurrentMinute(currentMin);
+        console.log('⚽ Live match - minute:', currentMin);
       } else {
         setCurrentMinute(0);
         setLiveStartTime(null);
@@ -356,25 +302,15 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   const startMatch = async () => {
     try {
-      const startTime = new Date();
-      const response = await apiService.startMatch(matchId);
+      await apiService.startMatch(matchId);
       
-      // Set local state immediately for instant feedback
-      setIsLive(true);
-      setCurrentMinute(1);
-      setLiveStartTime(startTime);
+      // Reload match details to get updated data with new match_date
+      await loadMatchDetails();
       
-      console.log('🚀 Match started - backend should now save live_start_time');
-      
-      // Enhanced start commentary
+      // Start commentary
       const kickoffTemplates = COMMENTARY_TEMPLATES.KICKOFF;
       const kickoffCommentary = kickoffTemplates[Math.floor(Math.random() * kickoffTemplates.length)];
       showCommentary(kickoffCommentary);
-      
-      // Add stadium atmosphere
-      setTimeout(() => {
-        showCommentary("🏟️ The atmosphere is electric as both teams take the field!");
-      }, 3000);
       
       Vibration.vibrate(100);
     } catch (error: any) {
@@ -382,16 +318,6 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     }
   };
 
-  const saveCurrentMinute = async (minute: number) => {
-    try {
-      // Temporarily disabled until Railway deployment completes
-      // await apiService.updateMatchMinute(matchId, minute);
-      console.log('💾 Would save minute:', minute, '(disabled until backend deploys)');
-    } catch (error) {
-      console.error('Failed to save current minute:', error);
-      // Don't show alert for this background operation
-    }
-  };
 
   const handleMinuteCommentary = (minute: number) => {
     // Dynamic commentary based on match phases

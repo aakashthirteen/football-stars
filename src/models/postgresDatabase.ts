@@ -99,8 +99,6 @@ export class PostgresDatabase {
           status VARCHAR(20) CHECK (status IN ('SCHEDULED', 'LIVE', 'COMPLETED', 'CANCELLED')) DEFAULT 'SCHEDULED',
           home_score INTEGER DEFAULT 0,
           away_score INTEGER DEFAULT 0,
-          live_start_time TIMESTAMP,
-          current_minute INTEGER DEFAULT 0,
           created_by UUID REFERENCES users(id) ON DELETE CASCADE,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -128,22 +126,6 @@ export class PostgresDatabase {
       
       console.log('✅ Added unique constraint to prevent duplicate match events');
 
-      // Add live timing columns to existing matches table if they don't exist
-      try {
-        await client.query(`
-          ALTER TABLE matches 
-          ADD COLUMN IF NOT EXISTS live_start_time TIMESTAMP,
-          ADD COLUMN IF NOT EXISTS current_minute INTEGER DEFAULT 0
-        `);
-        console.log('✅ Added live timing columns to matches table');
-      } catch (error) {
-        console.error('⚠️ Error adding live timing columns:', error);
-        console.error('Error details:', {
-          message: error instanceof Error ? error.message : String(error),
-          code: (error as any)?.code,
-          detail: (error as any)?.detail
-        });
-      }
 
       // Tournaments table
       await client.query(`
@@ -422,7 +404,6 @@ export class PostgresDatabase {
     
     return result.rows.map(row => ({
       ...row,
-      minute: row.current_minute || 0,  // Map current_minute to minute for MatchCard compatibility
       homeTeam: { name: row.home_team_name || 'Unknown Home Team' },
       awayTeam: { name: row.away_team_name || 'Unknown Away Team' },
       events: []
@@ -512,7 +493,7 @@ export class PostgresDatabase {
       
       const finalMatchData = {
         ...match,
-        // Proper field mapping from snake_case to camelCase
+        // Simple field mapping
         homeTeamId: match.home_team_id,
         awayTeamId: match.away_team_id,
         homeScore: match.home_score || 0,
@@ -520,8 +501,6 @@ export class PostgresDatabase {
         matchDate: match.match_date,
         createdBy: match.created_by,
         createdAt: match.created_at,
-        liveStartTime: match.live_start_time,
-        currentMinute: match.current_minute || 0,
         homeTeam: { 
           id: match.home_team_id,
           name: match.home_team_name,

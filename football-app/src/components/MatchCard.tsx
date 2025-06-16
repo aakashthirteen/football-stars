@@ -27,25 +27,14 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onPress, style }) =
   const isCompleted = match.status === 'COMPLETED';
   const isScheduled = match.status === 'SCHEDULED';
   
-  // Calculate current minute for live matches using proper backend data
+  // Simple minute calculation from match_date
   const calculateLiveMinute = () => {
     if (!isLive) return 0;
     
-    // First check if backend provides calculated minute
-    if (match.minute && match.minute > 0) {
-      return match.minute;
-    }
-    
-    // If backend has live_start_time, calculate from it
-    if (match.liveStartTime) {
-      const matchStartTime = new Date(match.liveStartTime);
-      const now = new Date();
-      const elapsed = Math.floor((now.getTime() - matchStartTime.getTime()) / (1000 * 60));
-      return Math.max(1, Math.min(elapsed + 1, 120));
-    }
-    
-    // Fallback to stored current_minute
-    return Math.max(1, match.current_minute || match.currentMinute || 1);
+    const matchStart = new Date(match.matchDate || match.match_date);
+    const now = new Date();
+    const elapsed = Math.floor((now.getTime() - matchStart.getTime()) / (1000 * 60));
+    return Math.max(1, Math.min(elapsed + 1, 120));
   };
   
   const [liveMinute, setLiveMinute] = useState(calculateLiveMinute());

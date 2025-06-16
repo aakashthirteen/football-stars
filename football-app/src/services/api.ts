@@ -1127,16 +1127,6 @@ class ApiService {
     });
   }
 
-  async updateMatchMinute(id: string, currentMinute: number) {
-    return this.request(`/matches/${id}/minute`, {
-      method: 'PATCH',
-      body: JSON.stringify({ currentMinute }),
-    });
-  }
-
-  async debugMatch(id: string) {
-    return this.request(`/matches/${id}/debug`);
-  }
 
   async addMatchEvent(matchId: string, eventData: {
     playerId: string;
