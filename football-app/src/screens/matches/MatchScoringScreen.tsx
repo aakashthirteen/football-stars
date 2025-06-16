@@ -17,6 +17,7 @@ import { apiService } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import PitchFormation from '../../components/PitchFormation';
 import { useMatchNotifications } from '../../hooks/useNotifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -263,6 +264,8 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       console.log('📊 Match details response:', response);
       console.log('🕐 Live start time from backend:', response.match?.live_start_time);
       console.log('🕐 Current minute from backend:', response.match?.current_minute);
+      console.log('📅 Match date:', response.match?.match_date);
+      console.log('📅 Created at:', response.match?.created_at);
       
       if (!response || !response.match) {
         throw new Error('Invalid match data received');
@@ -299,13 +302,30 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       setIsLive(matchData.status === 'LIVE');
       
       if (matchData.status === 'LIVE') {
-        // TEMPORARY FIX: Since backend isn't saving live_start_time properly,
-        // we'll calculate it from when the match data was last modified
-        // This assumes match was started when status changed to LIVE
+        // First check if we have a stored start time in AsyncStorage
+        let matchStartTime = null;
+        try {
+          const storedStartTime = await AsyncStorage.getItem(`match_start_${matchId}`);
+          if (storedStartTime) {
+            matchStartTime = new Date(storedStartTime);
+            console.log('🕐 Using stored start time from AsyncStorage:', matchStartTime);
+          }
+        } catch (e) {
+          console.error('Failed to retrieve stored start time:', e);
+        }
         
-        // Use the match created_at timestamp as a proxy for start time
-        // This is a workaround until backend properly saves live_start_time
-        const matchStartTime = new Date(matchData.createdAt || matchData.created_at);
+        // If no stored time, check backend live_start_time
+        if (!matchStartTime && matchData.liveStartTime) {
+          matchStartTime = new Date(matchData.liveStartTime);
+          console.log('🕐 Using backend live_start_time:', matchStartTime);
+        }
+        
+        // Last resort: use created_at (not ideal but better than nothing)
+        if (!matchStartTime) {
+          matchStartTime = new Date(matchData.createdAt || matchData.created_at);
+          console.log('⚠️ WARNING: Using created_at as fallback:', matchStartTime);
+        }
+        
         setLiveStartTime(matchStartTime);
         
         const now = new Date();
@@ -344,6 +364,13 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       setCurrentMinute(1); // Start at 1' not 0'
       setLiveStartTime(startTime);
       console.log('🚀 Match started - currentMinute should be 1');
+      
+      // TEMPORARY: Store start time in AsyncStorage as backup
+      try {
+        await AsyncStorage.setItem(`match_start_${matchId}`, startTime.toISOString());
+      } catch (e) {
+        console.error('Failed to store match start time:', e);
+      }
       
       // Don't reload - it would reset our timer. Backend will have the data next time user navigates.
       
