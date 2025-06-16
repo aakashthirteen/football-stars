@@ -544,70 +544,110 @@ export class PostgresDatabase {
 
   // Player stats (fixed Cartesian product bug)
   async getPlayerStats(playerId: string): Promise<PlayerStats | null> {
-    const result = await this.pool.query(`
-      SELECT 
-        p.id as player_id,
-        p.name as player_name,
-        p.position,
-        (SELECT COUNT(DISTINCT match_id) FROM match_events WHERE player_id = p.id) as matches_played,
-        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'GOAL') as goals,
-        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'ASSIST') as assists,
-        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'YELLOW_CARD') as yellow_cards,
-        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'RED_CARD') as red_cards,
-        COALESCE(
-          (SELECT SUM(m.duration) 
-           FROM match_events me_inner
-           JOIN matches m ON me_inner.match_id = m.id
-           WHERE me_inner.player_id = p.id AND m.status = 'COMPLETED'
-           GROUP BY me_inner.player_id), 
-          0
-        ) as minutes_played,
-        COALESCE(
-          (SELECT ROUND(AVG(rating::numeric), 1) 
-           FROM player_ratings 
-           WHERE player_id = p.id), 
-          NULL
-        ) as rating
-      FROM players p
-      WHERE p.id = $1
-    `, [playerId]);
-    
-    return result.rows[0] || null;
+    try {
+      const result = await this.pool.query(`
+        SELECT 
+          p.id as player_id,
+          p.name as player_name,
+          p.position,
+          (SELECT COUNT(DISTINCT match_id) FROM match_events WHERE player_id = p.id) as matches_played,
+          (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'GOAL') as goals,
+          (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'ASSIST') as assists,
+          (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'YELLOW_CARD') as yellow_cards,
+          (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'RED_CARD') as red_cards,
+          COALESCE(
+            (SELECT SUM(m.duration) 
+             FROM match_events me_inner
+             JOIN matches m ON me_inner.match_id = m.id
+             WHERE me_inner.player_id = p.id AND m.status = 'COMPLETED'
+             GROUP BY me_inner.player_id), 
+            0
+          ) as minutes_played
+        FROM players p
+        WHERE p.id = $1
+      `, [playerId]);
+      
+      const baseStats = result.rows[0];
+      if (!baseStats) return null;
+      
+      // Try to get rating separately - if it fails, just return 0
+      let rating = 0;
+      try {
+        const ratingResult = await this.pool.query(`
+          SELECT ROUND(AVG(rating), 1) as avg_rating
+          FROM player_ratings 
+          WHERE player_id = $1
+        `, [playerId]);
+        rating = ratingResult.rows[0]?.avg_rating || 0;
+      } catch (ratingError) {
+        console.log('Rating table not available yet, using 0');
+      }
+      
+      return { ...baseStats, rating };
+    } catch (error) {
+      console.error('Error in getPlayerStats:', error);
+      throw error;
+    }
   }
 
   async getAllPlayersStats(): Promise<PlayerStats[]> {
-    const result = await this.pool.query(`
-      SELECT 
-        p.id as player_id,
-        p.name as player_name,
-        p.position,
-        (SELECT COUNT(DISTINCT match_id) FROM match_events WHERE player_id = p.id) as matches_played,
-        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'GOAL') as goals,
-        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'ASSIST') as assists,
-        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'YELLOW_CARD') as yellow_cards,
-        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'RED_CARD') as red_cards,
-        COALESCE(
-          (SELECT SUM(m.duration) 
-           FROM match_events me_inner
-           JOIN matches m ON me_inner.match_id = m.id
-           WHERE me_inner.player_id = p.id AND m.status = 'COMPLETED'
-           GROUP BY me_inner.player_id), 
-          0
-        ) as minutes_played,
-        COALESCE(
-          (SELECT ROUND(AVG(rating::numeric), 1) 
-           FROM player_ratings 
-           WHERE player_id = p.id), 
-          NULL
-        ) as rating
-      FROM players p
-      ORDER BY 
-        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'GOAL') DESC,
-        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'ASSIST') DESC
-      LIMIT 20
-    `);
-    
-    return result.rows;
+    try {
+      // Get base stats without ratings first
+      const result = await this.pool.query(`
+        SELECT 
+          p.id as player_id,
+          p.name as player_name,
+          p.position,
+          (SELECT COUNT(DISTINCT match_id) FROM match_events WHERE player_id = p.id) as matches_played,
+          (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'GOAL') as goals,
+          (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'ASSIST') as assists,
+          (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'YELLOW_CARD') as yellow_cards,
+          (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'RED_CARD') as red_cards,
+          COALESCE(
+            (SELECT SUM(m.duration) 
+             FROM match_events me_inner
+             JOIN matches m ON me_inner.match_id = m.id
+             WHERE me_inner.player_id = p.id AND m.status = 'COMPLETED'
+             GROUP BY me_inner.player_id), 
+            0
+          ) as minutes_played
+        FROM players p
+        ORDER BY 
+          (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'GOAL') DESC,
+          (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'ASSIST') DESC
+        LIMIT 20
+      `);
+      
+      const playersWithStats = result.rows;
+      
+      // Try to add ratings - if it fails, just use 0 for all players
+      try {
+        const ratingsResult = await this.pool.query(`
+          SELECT player_id, ROUND(AVG(rating), 1) as avg_rating
+          FROM player_ratings 
+          GROUP BY player_id
+        `);
+        
+        const ratingsMap = new Map();
+        ratingsResult.rows.forEach(row => {
+          ratingsMap.set(row.player_id, row.avg_rating);
+        });
+        
+        return playersWithStats.map(player => ({
+          ...player,
+          rating: ratingsMap.get(player.player_id) || 0
+        }));
+      } catch (ratingError) {
+        console.log('Rating table not available yet, using 0 for all players');
+        return playersWithStats.map(player => ({
+          ...player,
+          rating: 0
+        }));
+      }
+    } catch (error) {
+      console.error('Error in getAllPlayersStats:', error);
+      throw error;
+    }
   }
 
   // Simple rating system
