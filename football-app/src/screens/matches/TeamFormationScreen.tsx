@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -235,6 +235,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
   const [isCustomFormation, setIsCustomFormation] = useState(false); // Track if formation has been customized
   const [pitchLayout, setPitchLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const scrollViewRef = useRef<ScrollView>(null);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Initialize with the passed game format if in pre-match mode
@@ -276,7 +277,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
     }
   };
 
-  const assignPlayersToFormation = (teamPlayers: Player[], formation: Formation): Player[] => {
+  const assignPlayersToFormation = useCallback((teamPlayers: Player[], formation: Formation): Player[] => {
     const positionOrder = ['GK', 'DEF', 'MID', 'FWD'];
     const sortedPlayers = [...teamPlayers].sort((a, b) => {
       const aIndex = positionOrder.indexOf(a.position);
@@ -297,9 +298,9 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
         y: pos.y,
       };
     });
-  };
+  }, []);
 
-  const handleGameFormatChange = (gameFormat: GameFormat) => {
+  const handleGameFormatChange = useCallback((gameFormat: GameFormat) => {
     setSelectedGameFormat(gameFormat);
     const availableFormations = FORMATIONS[gameFormat.id as keyof typeof FORMATIONS];
     const newFormation = availableFormations[0];
@@ -309,9 +310,9 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
       newFormation
     );
     setPlayers(updatedPlayers);
-  };
+  }, [players]);
 
-  const handleFormationChange = (formation: Formation) => {
+  const handleFormationChange = useCallback((formation: Formation) => {
     setSelectedFormation(formation);
     const updatedPlayers = assignPlayersToFormation(
       players.filter(p => !p.id.startsWith('placeholder-')),
@@ -319,7 +320,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
     );
     setPlayers(updatedPlayers);
     setIsCustomFormation(false); // Reset custom flag when changing templates
-  };
+  }, [players]);
 
 
   const saveCustomFormation = () => {
@@ -371,7 +372,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
     setIsDragMode(false);
   };
 
-  const getPositionColor = (position: string) => {
+  const getPositionColor = useCallback((position: string) => {
     switch (position) {
       case 'GK': return '#FF5722';
       case 'DEF': return '#2196F3';
@@ -379,9 +380,9 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
       case 'FWD': return '#FF9800';
       default: return '#9E9E9E';
     }
-  };
+  }, []);
 
-  const DraggablePlayer = ({ player, feature, index }: { player: Player; feature: any; index: number }) => {
+  const DraggablePlayer = React.memo(({ player, feature, index }: { player: Player; feature: any; index: number }) => {
     if (!player.x || !player.y) return null;
     
     const [position, setPosition] = useState({ 
@@ -397,7 +398,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
       });
     }, [player.x, player.y]);
     
-    const panResponder = PanResponder.create({
+    const panResponder = useMemo(() => PanResponder.create({
       onStartShouldSetPanResponder: () => isDragMode,
       onMoveShouldSetPanResponder: () => isDragMode,
       
@@ -413,10 +414,12 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
         const newX = position.x + gestureState.dx;
         const newY = position.y + gestureState.dy;
         
-        // Update visual position immediately (keep in defensive half with margin for names)
-        setPosition({
-          x: Math.max(0, Math.min(PITCH_WIDTH - feature.playerRadius * 2, newX)),
-          y: Math.max(0, Math.min(PITCH_HEIGHT * 0.46 - feature.playerRadius * 2, newY)) // Stop before center line with name margin
+        // Throttle position updates for better performance
+        requestAnimationFrame(() => {
+          setPosition({
+            x: Math.max(0, Math.min(PITCH_WIDTH - feature.playerRadius * 2, newX)),
+            y: Math.max(0, Math.min(PITCH_HEIGHT * 0.46 - feature.playerRadius * 2, newY))
+          });
         });
       },
       
@@ -432,14 +435,20 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
         
         console.log('🎯 Released at:', { percentX, percentY });
         
-        // Update player data
-        setPlayers(prevPlayers => 
-          prevPlayers.map(p => 
-            p.id === player.id 
-              ? { ...p, x: percentX, y: percentY }
-              : p
-          )
-        );
+        // Debounce player data updates for better performance
+        if (updateTimeoutRef.current) {
+          clearTimeout(updateTimeoutRef.current);
+        }
+        
+        updateTimeoutRef.current = setTimeout(() => {
+          setPlayers(prevPlayers => 
+            prevPlayers.map(p => 
+              p.id === player.id 
+                ? { ...p, x: percentX, y: percentY }
+                : p
+            )
+          );
+        }, 16); // ~60fps throttling
         
         // Mark formation as customized
         setIsCustomFormation(true);
@@ -452,7 +461,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
         setIsScrollEnabled(true);
         setDraggedPlayerId(null);
       },
-    });
+    }), [isDragMode, position.x, position.y, player.id]);
     
     return (
       <View
@@ -491,15 +500,16 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
               {player.jerseyNumber || index + 1}
             </SvgText>
           </Svg>
-          {/* Invisible larger touch area */}
-          <View style={{
-            position: 'absolute',
-            width: feature.playerRadius * 3,
-            height: feature.playerRadius * 3,
-            left: -feature.playerRadius * 0.5,
-            top: -feature.playerRadius * 0.5,
-            backgroundColor: 'transparent',
-          }} />
+          {/* Optimized touch area */}
+          <View style={[
+            styles.touchArea,
+            {
+              width: feature.playerRadius * 2.5,
+              height: feature.playerRadius * 2.5,
+              left: -feature.playerRadius * 0.25,
+              top: -feature.playerRadius * 0.25,
+            }
+          ]} />
         </View>
         
         {/* Player Name Outside Circle */}
@@ -534,9 +544,9 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
         )}
       </View>
     );
-  };
+  });
 
-  const renderFootballPitch = () => {
+  const footballPitchComponent = useMemo(() => {
     // FIFA standard football pitch proportions (105m x 68m ratio ≈ 1.54:1)
     const feature = {
       centerCircleRadius: PITCH_HEIGHT * 0.13,  // 9.15m radius on 105m length ≈ 8.7%
@@ -701,7 +711,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
           const y = (player.y / 100) * PITCH_HEIGHT;
           
           return (
-            <G key={player.id}>
+            <G key={`${player.id}-${x}-${y}`}>
               <Circle
                 cx={x}
                 cy={y}
@@ -737,7 +747,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
         })}
       </Svg>
     );
-  };
+  }, [selectedGameFormat.id, isDragMode, players]);
 
   if (isLoading) {
     return (
@@ -888,7 +898,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
         {/* Football Pitch */}
         <View style={styles.pitchContainer}>
           <View style={{ position: 'relative' }}>
-            {renderFootballPitch()}
+            {footballPitchComponent}
             
             {/* Draggable Player Overlay */}
             {isDragMode && (
@@ -902,7 +912,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
                   
                   return (
                     <DraggablePlayer
-                      key={player.id}
+                      key={`draggable-${player.id}`}
                       player={player}
                       feature={feature}
                       index={index}
@@ -1280,6 +1290,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '600',
+  },
+  touchArea: {
+    position: 'absolute',
+    backgroundColor: 'transparent',
   },
   
   // Pre-Match Mode Styles

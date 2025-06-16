@@ -820,6 +820,7 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
               </View>
             </View>
             <FlatList
+              key="tournament-standings"
               data={standings}
               renderItem={renderStanding}
               keyExtractor={(item) => item.teamId}
@@ -960,6 +961,7 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
           <View style={styles.modalContent}>
             {teams.length > 0 ? (
               <FlatList
+                key="team-selector"
                 data={teams}
                 renderItem={renderTeamOption}
                 keyExtractor={(item) => item.id}

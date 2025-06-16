@@ -119,9 +119,17 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           }
           
           // Check if user has ratings in this match (for average calculation)
+          console.log('🔍 Debug - Match ratings:', {
+            matchId: match.id,
+            playerRatings: match.playerRatings,
+            userId: user?.id,
+            userRating: match.playerRatings?.[user?.id]
+          });
+          
           if (match.playerRatings && match.playerRatings[user?.id]) {
             totalRatings += match.playerRatings[user.id];
             ratedMatchCount++;
+            console.log('📊 Added rating:', match.playerRatings[user.id], 'Total:', totalRatings, 'Count:', ratedMatchCount);
           }
         });
         
@@ -152,17 +160,23 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         const stats = await apiService.getCurrentUserStats();
         console.log('📊 API Player stats:', stats);
         
-        // Merge API stats with calculated stats, preferring calculated values for matches/goals/assists
+        // Use API stats as primary source, only fall back to calculated values if API is missing data
         setPlayerStats({
           ...stats,
-          matchesPlayed: calculatedMatchesPlayed || stats?.matchesPlayed || 0,
-          goals: calculatedGoals || parseInt(stats?.goals) || 0,
-          assists: calculatedAssists || parseInt(stats?.assists) || 0,
-          averageRating: ratedMatchCount > 0 ? (totalRatings / ratedMatchCount).toFixed(1) : '0.0',
+          matchesPlayed: stats?.matchesPlayed ?? calculatedMatchesPlayed ?? 0,
+          goals: stats?.goals ?? calculatedGoals ?? 0,
+          assists: stats?.assists ?? calculatedAssists ?? 0,
+          averageRating: stats?.averageRating ?? (ratedMatchCount > 0 ? (totalRatings / ratedMatchCount) : 0),
           position: stats?.position || 'MID',
           yellowCards: stats?.yellowCards || 0,
           redCards: stats?.redCards || 0,
           minutesPlayed: stats?.minutesPlayed || 0,
+        });
+        
+        console.log('📊 Final player stats set:', {
+          matchesPlayed: stats?.matchesPlayed ?? calculatedMatchesPlayed ?? 0,
+          goals: stats?.goals ?? calculatedGoals ?? 0,
+          assists: stats?.assists ?? calculatedAssists ?? 0,
         });
       } catch (error) {
         console.error('Error loading stats:', error);
@@ -171,7 +185,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           goals: calculatedGoals,
           assists: calculatedAssists,
           matchesPlayed: calculatedMatchesPlayed,
-          averageRating: ratedMatchCount > 0 ? (totalRatings / ratedMatchCount).toFixed(1) : '0.0',
+          averageRating: ratedMatchCount > 0 ? (totalRatings / ratedMatchCount) : 0,
           position: 'MID',
           yellowCards: 0,
           redCards: 0,
@@ -226,7 +240,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             
             <TouchableOpacity 
               style={styles.notificationButton}
-              onPress={() => navigation.navigate('Profile')}
+              onPress={() => navigation.getParent()?.navigate('Profile')}
             >
               <View style={styles.notificationGradient}>
                 <Ionicons name="notifications" size={24} color="#fff" />
@@ -249,7 +263,10 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
                     <TouchableOpacity
                       key={match.id}
                       style={styles.liveScoreItem}
-                      onPress={() => navigation.navigate('MatchScoring', { matchId: match.id })}
+                      onPress={() => navigation.getParent()?.navigate('Matches', { 
+                        screen: 'MatchScoring', 
+                        params: { matchId: match.id } 
+                      })}
                     >
                       <Text style={styles.liveScoreText}>
                         {match.homeTeam?.name} {match.homeScore} - {match.awayScore} {match.awayTeam?.name}
@@ -281,9 +298,9 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             goals: playerStats?.goals || 0,
             assists: playerStats?.assists || 0,
             matches: playerStats?.matchesPlayed || 0,
-            rating: playerStats?.averageRating ? parseFloat(playerStats.averageRating) : 0,
+            rating: playerStats?.averageRating || 0,
           }}
-          onPress={() => navigation.navigate('Profile')}
+          onPress={() => navigation.getParent()?.navigate('Profile')}
         />
       </Animated.View>
     );
@@ -297,7 +314,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         subtitle: 'Start now',
         icon: 'football',
         gradient: Gradients.live,
-        screen: 'CreateMatch',
+        screen: 'Matches',
+        nested: { screen: 'CreateMatch' },
       },
       {
         id: 'team',
@@ -338,7 +356,11 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
               key={action.id}
               style={styles.quickActionCard}
               onPress={() => {
-                navigation.navigate(action.screen);
+                if (action.nested) {
+                  navigation.getParent()?.navigate(action.screen, action.nested);
+                } else {
+                  navigation.getParent()?.navigate(action.screen);
+                }
               }}
               activeOpacity={0.9}
             >
@@ -382,7 +404,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             <Text style={styles.emptySubtitle}>Start your football journey!</Text>
             <TouchableOpacity
               style={styles.emptyButton}
-              onPress={() => navigation.navigate('CreateMatch')}
+              onPress={() => navigation.getParent()?.navigate('Matches', { screen: 'CreateMatch' })}
             >
               <LinearGradient
                 colors={Gradients.field}
@@ -404,7 +426,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
               <Text style={styles.sectionTitle}>
                 {liveMatches.length > 0 ? '🔴 Live & Recent' : '📊 Recent Matches'}
               </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Matches')}>
+              <TouchableOpacity onPress={() => navigation.getParent()?.navigate('Matches')}>
                 <Text style={styles.seeAllText}>See all</Text>
               </TouchableOpacity>
             </View>
@@ -412,7 +434,10 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
               <MatchCard
                 key={match.id}
                 match={match}
-                onPress={() => navigation.navigate('MatchScoring', { matchId: match.id })}
+                onPress={() => navigation.getParent()?.navigate('Matches', { 
+                  screen: 'MatchScoring', 
+                  params: { matchId: match.id } 
+                })}
               />
             ))}
           </View>
@@ -425,7 +450,10 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
               <MatchCard
                 key={match.id}
                 match={match}
-                onPress={() => navigation.navigate('MatchScoring', { matchId: match.id })}
+                onPress={() => navigation.getParent()?.navigate('Matches', { 
+                  screen: 'MatchScoring', 
+                  params: { matchId: match.id } 
+                })}
               />
             ))}
           </View>
@@ -461,7 +489,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       </ScrollView>
       
       <FloatingActionButton
-        onPress={() => navigation.navigate('CreateMatch')}
+        onPress={() => navigation.getParent()?.navigate('Matches', { screen: 'CreateMatch' })}
         icon="add"
       />
     </View>

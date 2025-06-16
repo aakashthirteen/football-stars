@@ -323,13 +323,10 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
           <TouchableOpacity 
             style={styles.formationButton}
             onPress={() => {
-              // Navigate to Matches stack and then to TeamFormation
-              navigation.getParent()?.navigate('Matches', {
-                screen: 'TeamFormation',
-                params: {
-                  teamId: team.id,
-                  teamName: team.name
-                }
+              // Navigate to TeamFormation within the Teams stack
+              navigation.navigate('TeamFormation', {
+                teamId: team.id,
+                teamName: team.name
               });
             }}
           >

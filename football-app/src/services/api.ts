@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Configuration - Switch between Mock and Production
-const USE_MOCK = true; // 🧪 Using Mock data for bracket testing!
+const USE_MOCK = false; // ✅ Using Railway backend for real data!
 const RAILWAY_URL = 'https://football-stars-production.up.railway.app/api'; // ✅ Your Railway URL
 const LOCAL_URL = 'http://192.168.0.108:3001/api'; // Update with your Mac's IP
 const API_BASE_URL = USE_MOCK ? 'MOCK' : RAILWAY_URL; // 🌐 Using RAILWAY backend!

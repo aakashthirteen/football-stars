@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,13 +10,14 @@ import {
   RefreshControl,
   Animated,
   Dimensions,
+  StatusBar,
 } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
 import { apiService } from '../../services/api';
 import { PlayerStats } from '../../types';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { STADIUM_GRADIENTS, getPositionGradient } from '../../utils/gradients';
+import { Colors, Gradients } from '../../theme/colors';
 
 const { width } = Dimensions.get('window');
 
@@ -32,16 +33,20 @@ export default function LeaderboardScreen({ navigation }: LeaderboardScreenProps
   const [leaderboard, setLeaderboard] = useState<PlayerStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
-  const slideAnim = React.useRef(new Animated.Value(30)).current;
+  
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadLeaderboard();
+    
     // Beautiful entrance animation
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 800,
+        duration: 600,
         useNativeDriver: true,
       }),
       Animated.timing(slideAnim, {
@@ -55,48 +60,51 @@ export default function LeaderboardScreen({ navigation }: LeaderboardScreenProps
   const loadLeaderboard = async () => {
     try {
       setLoading(true);
-      const response = await apiService.getLeaderboard(activeType, 20);
-      setLeaderboard(response?.leaderboard || []);
+      const response = await apiService.getLeaderboard(activeType);
+      
+      if (response?.leaderboard) {
+        // Fix string concatenation bugs by ensuring numeric values
+        const fixedLeaderboard = response.leaderboard.map((player: any) => ({
+          ...player,
+          goals: parseInt(player.goals) || 0,
+          assists: parseInt(player.assists) || 0,
+          matchesPlayed: parseInt(player.matchesPlayed) || 0,
+          minutesPlayed: parseInt(player.minutesPlayed) || 0,
+          yellowCards: parseInt(player.yellowCards) || 0,
+          redCards: parseInt(player.redCards) || 0,
+        }));
+        setLeaderboard(fixedLeaderboard);
+      } else {
+        setLeaderboard([]);
+      }
     } catch (error: any) {
       console.error('Error loading leaderboard:', error);
       setLeaderboard([]);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadLeaderboard();
+    await loadLeaderboard();
+    setRefreshing(false);
   };
 
-  const leaderboardTypes = [
-    { value: 'goals', label: 'Goals', icon: 'football', gradient: ['#FF6B35', '#E55100'] },
-    { value: 'assists', label: 'Assists', icon: 'hand-left', gradient: ['#4ECDC4', '#26A69A'] },
-    { value: 'matches', label: 'Matches', icon: 'trophy', gradient: ['#45B7D1', '#1976D2'] },
-    { value: 'minutes', label: 'Minutes', icon: 'time', gradient: ['#96CEB4', '#4CAF50'] },
-  ];
-
-  const getPositionGradient = (position: number) => {
-    switch (position) {
-      case 1: return ['#FFD700', '#FFA500', '#FF8C00']; // Gold
-      case 2: return ['#C0C0C0', '#A9A9A9', '#808080']; // Silver
-      case 3: return ['#CD7F32', '#B87333', '#A0522D']; // Bronze
-      default: return ['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)'];
-    }
+  const handleTypeChange = (type: LeaderboardType) => {
+    setActiveType(type);
+    
+    // Animate tab indicator
+    const typeIndex = ['goals', 'assists', 'matches', 'minutes'].indexOf(type);
+    Animated.spring(tabIndicatorAnim, {
+      toValue: typeIndex,
+      useNativeDriver: true,
+      tension: 100,
+      friction: 8,
+    }).start();
   };
 
-  const getPositionIcon = (position: number) => {
-    switch (position) {
-      case 1: return '🥇';
-      case 2: return '🥈';
-      case 3: return '🥉';
-      default: return `${position}`;
-    }
-  };
-
-  const getStatValue = (player: PlayerStats) => {
+  const getStatValue = (player: PlayerStats): number => {
     if (!player) return 0;
     switch (activeType) {
       case 'goals': return player.goals || 0;
@@ -109,305 +117,277 @@ export default function LeaderboardScreen({ navigation }: LeaderboardScreenProps
 
   const getPositionColor = (position: string) => {
     switch (position) {
-      case 'GK': return STADIUM_GRADIENTS.GOALKEEPER;
-      case 'DEF': return STADIUM_GRADIENTS.DEFENDER;
-      case 'MID': return STADIUM_GRADIENTS.MIDFIELDER;
-      case 'FWD': return STADIUM_GRADIENTS.FORWARD;
-      default: return STADIUM_GRADIENTS.SCHEDULED_MATCH;
+      case 'GK': return ['#FF6B6B', '#FF8E53'];
+      case 'DEF': return ['#4ECDC4', '#44A08D'];
+      case 'MID': return ['#45B7D1', '#96C93D'];
+      case 'FWD': return ['#F093FB', '#F5576C'];
+      default: return ['#4FC3F7', '#29B6F6'];
     }
   };
 
-  const renderPlayer = ({ item, index }: { item: PlayerStats; index: number }) => {
+  const getMedalIcon = (position: number) => {
+    switch (position) {
+      case 1: return { name: 'trophy', color: '#FFD700' };
+      case 2: return { name: 'medal', color: '#C0C0C0' };
+      case 3: return { name: 'medal', color: '#CD7F32' };
+      default: return { name: 'star', color: '#4FC3F7' };
+    }
+  };
+
+  const PlayerCard = ({ item, index }: { item: PlayerStats; index: number }) => {
     const position = index + 1;
     const isCurrentUser = item?.playerName === user?.name && user?.name;
     const isTopThree = position <= 3;
+    const scaleAnim = useRef(new Animated.Value(1)).current;
+    const medal = getMedalIcon(position);
+
+    const handlePressIn = () => {
+      Animated.spring(scaleAnim, {
+        toValue: 0.95,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 7,
+      }).start();
+    };
+
+    const handlePressOut = () => {
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 7,
+      }).start();
+    };
 
     return (
       <Animated.View
         style={[
-          {
-            opacity: fadeAnim,
-            transform: [
-              {
-                translateY: fadeAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [20, 0],
-                }),
-              },
-            ],
-          },
+          { marginBottom: 12 },
+          { transform: [{ scale: scaleAnim }] }
         ]}
       >
-        <TouchableOpacity activeOpacity={0.8}>
+        <TouchableOpacity
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          activeOpacity={1}
+        >
           <LinearGradient
-            colors={isTopThree ? getPositionGradient(position) : STADIUM_GRADIENTS.CARD_DARK}
+            colors={isTopThree ? 
+              ['rgba(255, 215, 0, 0.15)', 'rgba(255, 215, 0, 0.05)'] : 
+              ['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']
+            }
             style={[
               styles.playerCard,
               isCurrentUser && styles.currentUserCard,
               isTopThree && styles.topPlayerCard,
             ]}
           >
-            {/* Glow effect for top players */}
-            {isTopThree && (
-              <LinearGradient
-                colors={getPositionGradient(position)}
-                style={styles.topPlayerGlow}
-              />
-            )}
+            {/* Glassmorphism backdrop */}
+            <View style={styles.glassBackdrop} />
             
-            <View style={styles.playerRank}>
-              <View style={[
-                styles.rankContainer,
-                isTopThree && styles.topRankContainer
-              ]}>
-                <Text style={[
-                  styles.rankText,
-                  isTopThree && styles.topRankText
-                ]}>
-                  {typeof getPositionIcon(position) === 'string' && getPositionIcon(position).includes('🥇') ? 
-                    getPositionIcon(position) : position}
-                </Text>
-              </View>
+            {/* Position Badge */}
+            <View style={[
+              styles.positionBadge,
+              isTopThree && styles.topPositionBadge
+            ]}>
+              {isTopThree ? (
+                <Ionicons name={medal.name as any} size={24} color={medal.color} />
+              ) : (
+                <Text style={styles.positionText}>#{position}</Text>
+              )}
             </View>
 
+            {/* Player Info */}
             <View style={styles.playerInfo}>
               <View style={styles.playerHeader}>
-                <Text style={[
-                  styles.playerName,
-                  isTopThree && styles.topPlayerName
-                ]} numberOfLines={1}>
-                  {item?.playerName || 'Unknown Player'}
-                </Text>
+                <LinearGradient
+                  colors={getPositionColor(item.position || 'MID')}
+                  style={styles.playerAvatar}
+                >
+                  <Text style={styles.playerInitials}>
+                    {item.playerName?.substring(0, 2).toUpperCase() || 'PL'}
+                  </Text>
+                </LinearGradient>
                 
-                {item?.position && (
-                  <LinearGradient
-                    colors={getPositionColor(item.position)}
-                    style={styles.positionBadge}
-                  >
-                    <Text style={styles.positionText}>{item.position}</Text>
-                  </LinearGradient>
-                )}
+                <View style={styles.playerDetails}>
+                  <Text style={styles.playerName} numberOfLines={1}>
+                    {item.playerName || 'Unknown Player'}
+                  </Text>
+                  <View style={styles.playerMeta}>
+                    <View style={[styles.positionTag, { backgroundColor: `${getPositionColor(item.position || 'MID')[0]}20` }]}>
+                      <Text style={[styles.positionTagText, { color: getPositionColor(item.position || 'MID')[0] }]}>
+                        {item.position || 'MID'}
+                      </Text>
+                    </View>
+                    <Text style={styles.matchesText}>
+                      {item.matchesPlayed || 0} matches
+                    </Text>
+                  </View>
+                </View>
               </View>
-              
-              {item?.teamName && (
-                <Text style={[
-                  styles.playerTeam,
-                  isTopThree && styles.topPlayerTeam
-                ]}>
-                  {item.teamName}
-                </Text>
-              )}
-              
-              {/* Mini stats */}
-              <View style={styles.miniStats}>
-                <View style={styles.miniStat}>
-                  <Text style={styles.miniStatValue}>{item?.goals || 0}</Text>
-                  <Text style={styles.miniStatLabel}>Goals</Text>
+
+              {/* Stats Row */}
+              <View style={styles.statsRow}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{getStatValue(item)}</Text>
+                  <Text style={styles.statLabel}>
+                    {activeType === 'minutes' ? 'mins' : activeType}
+                  </Text>
                 </View>
-                <View style={styles.miniStat}>
-                  <Text style={styles.miniStatValue}>{item?.assists || 0}</Text>
-                  <Text style={styles.miniStatLabel}>Assists</Text>
+                
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{item.goals || 0}</Text>
+                  <Text style={styles.statLabel}>goals</Text>
                 </View>
-                <View style={styles.miniStat}>
-                  <Text style={styles.miniStatValue}>{item?.matchesPlayed || 0}</Text>
-                  <Text style={styles.miniStatLabel}>Matches</Text>
+                
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{item.assists || 0}</Text>
+                  <Text style={styles.statLabel}>assists</Text>
+                </View>
+                
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>
+                    {((item.goals || 0) + (item.assists || 0)) / Math.max(item.matchesPlayed || 1, 1) * 100 / 100}
+                  </Text>
+                  <Text style={styles.statLabel}>avg</Text>
                 </View>
               </View>
             </View>
 
-            <View style={styles.playerStat}>
-              <Text style={[
-                styles.statValue,
-                isTopThree && styles.topStatValue,
-                { color: leaderboardTypes.find(t => t.value === activeType)?.gradient[0] }
-              ]}>
-                {getStatValue(item).toLocaleString()}
-              </Text>
-              <Text style={styles.statLabel}>
-                {leaderboardTypes.find(t => t.value === activeType)?.label}
-              </Text>
-            </View>
+            {/* Current User Indicator */}
+            {isCurrentUser && (
+              <View style={styles.currentUserIndicator}>
+                <Ionicons name="person" size={16} color="#4FC3F7" />
+              </View>
+            )}
           </LinearGradient>
         </TouchableOpacity>
       </Animated.View>
     );
   };
 
-  const renderTypeSelector = () => (
-    <Animated.View 
-      style={[
-        styles.typeSelector,
-        {
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }],
-        },
-      ]}
-    >
-      {leaderboardTypes.map((type) => (
-        <TouchableOpacity
-          key={type.value}
-          onPress={() => setActiveType(type.value as LeaderboardType)}
-          activeOpacity={0.8}
-        >
-          {activeType === type.value ? (
-            <LinearGradient
-              colors={[...type.gradient, type.gradient[1] + '80']}
-              style={styles.typeButton}
-            >
-              <Ionicons name={type.icon as any} size={20} color="#fff" />
-              <Text style={styles.activeTypeLabel}>{type.label}</Text>
-            </LinearGradient>
-          ) : (
-            <View style={[styles.typeButton, { borderColor: type.gradient[0] }]}>
-              <Ionicons name={type.icon as any} size={20} color={type.gradient[0]} />
-              <Text style={[styles.typeLabel, { color: type.gradient[0] }]}>{type.label}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      ))}
-    </Animated.View>
-  );
+  const renderPlayer = ({ item, index }: { item: PlayerStats; index: number }) => {
+    return <PlayerCard item={item} index={index} />;
+  };
+
+  const getTabIcon = (type: LeaderboardType) => {
+    switch (type) {
+      case 'goals': return 'football';
+      case 'assists': return 'hand-left';
+      case 'matches': return 'trophy';
+      case 'minutes': return 'time';
+      default: return 'stats-chart';
+    }
+  };
+
+  const renderTabs = () => {
+    const tabs: LeaderboardType[] = ['goals', 'assists', 'matches', 'minutes'];
+    
+    return (
+      <View style={styles.tabContainer}>
+        {tabs.map((type, index) => (
+          <TouchableOpacity
+            key={type}
+            style={styles.tab}
+            onPress={() => handleTypeChange(type)}
+            activeOpacity={0.7}
+          >
+            <Ionicons 
+              name={getTabIcon(type) as any} 
+              size={16} 
+              color={activeType === type ? '#fff' : 'rgba(255, 255, 255, 0.6)'} 
+            />
+            <Text style={[
+              styles.tabText, 
+              activeType === type && styles.activeTabText
+            ]}>
+              {type.charAt(0).toUpperCase() + type.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+        
+        {/* Animated Tab Indicator */}
+        <Animated.View
+          style={[
+            styles.tabIndicator,
+            {
+              transform: [{
+                translateX: tabIndicatorAnim.interpolate({
+                  inputRange: [0, 1, 2, 3],
+                  outputRange: [0, width / 4, (width / 4) * 2, (width / 4) * 3],
+                }),
+              }],
+            },
+          ]}
+        />
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
-      {/* Stadium Background Pattern */}
-      <View style={styles.backgroundPattern} />
-      
-      {/* Header with Stadium Lighting Effect */}
-      <LinearGradient
-        colors={STADIUM_GRADIENTS.DARK_HEADER}
-        style={styles.header}
+      {/* Modern Header */}
+      <Animated.View
+        style={[
+          styles.header,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
       >
-        <Animated.View 
-          style={[
-            styles.headerContent,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
+        <LinearGradient
+          colors={Gradients.field}
+          style={styles.headerGradient}
         >
-          <View style={styles.headerInfo}>
+          <StatusBar barStyle="light-content" />
+          <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>Leaderboard</Text>
-            <Text style={styles.headerSubtitle}>Top performers this season</Text>
-          </View>
-          
-          <View style={styles.headerIcon}>
-            <LinearGradient
-              colors={STADIUM_GRADIENTS.GOLD_CAPTAIN}
-              style={styles.trophyContainer}
-            >
-              <Ionicons name="trophy" size={24} color="#fff" />
-            </LinearGradient>
-          </View>
-        </Animated.View>
-      </LinearGradient>
-
-      <ScrollView 
-        style={styles.content}
-        refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={onRefresh}
-            tintColor="#4CAF50"
-            colors={['#4CAF50']}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Type Selector */}
-        {renderTypeSelector()}
-
-        {/* Current Selection Info */}
-        <Animated.View 
-          style={[
-            styles.selectionInfo,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={STADIUM_GRADIENTS.CARD_DARK}
-            style={styles.selectionCard}
-          >
-            <Text style={styles.selectionTitle}>
-              🏆 Top Players by {leaderboardTypes.find(t => t.value === activeType)?.label}
+            <Text style={styles.headerSubtitle}>
+              Top {leaderboard.length} players competing
             </Text>
-            <Text style={styles.selectionSubtitle}>
-              See who's leading the competition
-            </Text>
-          </LinearGradient>
-        </Animated.View>
-
-        {/* Leaderboard */}
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <LinearGradient
-              colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
-              style={styles.loadingCard}
-            >
-              <ActivityIndicator size="large" color="#4CAF50" />
-              <Text style={styles.loadingText}>Loading leaderboard...</Text>
-            </LinearGradient>
           </View>
-        ) : leaderboard.length > 0 ? (
-          <Animated.View 
-            style={[
-              styles.leaderboardContainer,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            <FlatList
-              data={leaderboard}
-              renderItem={renderPlayer}
-              keyExtractor={(item, index) => `${item.playerId}-${index}`}
-              scrollEnabled={false}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.leaderboardList}
+        </LinearGradient>
+
+        {/* Modern Tabs */}
+        {renderTabs()}
+      </Animated.View>
+
+      {/* Leaderboard List */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4FC3F7" />
+          <Text style={styles.loadingText}>Loading leaderboard...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={leaderboard}
+          renderItem={renderPlayer}
+          keyExtractor={(item, index) => `${item.playerId || index}`}
+          contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh}
+              tintColor="#4FC3F7"
+              colors={['#4FC3F7']}
             />
-          </Animated.View>
-        ) : (
-          <Animated.View 
-            style={[
-              styles.emptyState,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            <LinearGradient
-              colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
-              style={styles.emptyContainer}
-            >
-              <Ionicons name="trophy-outline" size={80} color="rgba(255, 255, 255, 0.3)" />
-              <Text style={styles.emptyTitle}>No Data Yet</Text>
-              <Text style={styles.emptySubtitle}>
-                Play some matches to see leaderboard stats
-              </Text>
-            </LinearGradient>
-          </Animated.View>
-        )}
-
-        {/* Footer Info */}
-        <Animated.View 
-          style={[
-            styles.footerInfo,
-            {
-              opacity: fadeAnim,
-            },
-          ]}
-        >
-          <Text style={styles.footerText}>
-            🔥 Rankings are updated in real-time based on match results
-          </Text>
-        </Animated.View>
-      </ScrollView>
+          }
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={() => (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyContainer}>
+                <Ionicons name="trophy-outline" size={80} color="rgba(255, 255, 255, 0.3)" />
+                <Text style={styles.emptyText}>No stats yet</Text>
+                <Text style={styles.emptySubtext}>
+                  Player statistics will appear here{'\n'}
+                  after matches are played!
+                </Text>
+              </View>
+            </View>
+          )}
+        />
+      )}
     </View>
   );
 }
@@ -415,295 +395,228 @@ export default function LeaderboardScreen({ navigation }: LeaderboardScreenProps
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0E27',
+    backgroundColor: Colors.background.primary,
   },
-  backgroundPattern: {
+  header: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  headerGradient: {
+    paddingTop: 50,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+  },
+  headerContent: {
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginHorizontal: 20,
+    borderRadius: 12,
+    padding: 4,
+    position: 'relative',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 4,
+    zIndex: 1,
+  },
+  tabText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  activeTabText: {
+    color: '#fff',
+  },
+  tabIndicator: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    width: (width - 48) / 4,
+    height: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 8,
+    zIndex: 0,
+  },
+  list: {
+    padding: 20,
+    paddingBottom: 100,
+  },
+  playerCard: {
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  topPlayerCard: {
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  currentUserCard: {
+    borderColor: 'rgba(79, 195, 247, 0.5)',
+    backgroundColor: 'rgba(79, 195, 247, 0.1)',
+  },
+  glassBackdrop: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    opacity: 0.1,
-    backgroundColor: '#0A0E27',
-  },
-  header: {
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginTop: 4,
-  },
-  headerIcon: {
-    marginLeft: 16,
-  },
-  trophyContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  content: {
-    flex: 1,
-  },
-  typeSelector: {
-    flexDirection: 'row',
-    padding: 20,
-    gap: 8,
-  },
-  typeButton: {
-    flex: 1,
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 16,
-    borderWidth: 2,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    shadowColor: 'rgba(0, 0, 0, 0.3)',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  typeLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginTop: 4,
-  },
-  activeTypeLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#fff',
-    marginTop: 4,
-  },
-  selectionInfo: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  selectionCard: {
-    padding: 20,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  selectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  selectionSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    padding: 40,
-  },
-  loadingCard: {
-    padding: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  leaderboardContainer: {
-    paddingHorizontal: 20,
-  },
-  leaderboardList: {
-    paddingBottom: 20,
-  },
-  playerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    shadowColor: 'rgba(0, 0, 0, 0.3)',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-    overflow: 'hidden',
-  },
-  topPlayerCard: {
-    borderWidth: 2,
-    borderColor: 'rgba(255, 215, 0, 0.5)',
-    shadowColor: 'rgba(255, 215, 0, 0.5)',
-    shadowOpacity: 0.5,
-  },
-  topPlayerGlow: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 3,
-    opacity: 0.8,
-  },
-  currentUserCard: {
-    borderColor: '#4CAF50',
-    borderWidth: 2,
-  },
-  playerRank: {
+  positionBadge: {
     width: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rankContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 16,
   },
-  topRankContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  topPositionBadge: {
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
   },
-  rankText: {
+  positionText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  topRankText: {
-    fontSize: 18,
     color: '#fff',
   },
   playerInfo: {
     flex: 1,
-    marginLeft: 16,
   },
   playerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 12,
+  },
+  playerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  playerInitials: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  playerDetails: {
+    flex: 1,
   },
   playerName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-    marginRight: 8,
-    flex: 1,
-  },
-  topPlayerName: {
-    fontSize: 17,
     fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 4,
   },
-  positionBadge: {
+  playerMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  positionTag: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
   },
-  positionText: {
+  positionTagText: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#fff',
   },
-  playerTeam: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 8,
+  matchesText: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.6)',
   },
-  topPlayerTeam: {
-    color: 'rgba(255, 255, 255, 0.9)',
-  },
-  miniStats: {
+  statsRow: {
     flexDirection: 'row',
-    gap: 12,
+    justifyContent: 'space-between',
   },
-  miniStat: {
+  statItem: {
     alignItems: 'center',
-  },
-  miniStatValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#4CAF50',
-  },
-  miniStatLabel: {
-    fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.5)',
-  },
-  playerStat: {
-    alignItems: 'center',
-    minWidth: 60,
+    flex: 1,
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
-  },
-  topStatValue: {
-    fontSize: 24,
+    color: '#4FC3F7',
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 10,
     color: 'rgba(255, 255, 255, 0.6)',
     marginTop: 2,
   },
+  currentUserIndicator: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(79, 195, 247, 0.3)',
+    borderRadius: 12,
+    padding: 4,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 16,
+  },
   emptyState: {
-    padding: 20,
+    flex: 1,
+    paddingTop: 60,
   },
   emptyContainer: {
     alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
   },
-  emptyTitle: {
-    fontSize: 24,
+  emptyText: {
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
     marginTop: 16,
     marginBottom: 8,
   },
-  emptySubtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.7)',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  footerInfo: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-  },
-  footerText: {
+  emptySubtext: {
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.6)',
     textAlign: 'center',
-    fontStyle: 'italic',
+    lineHeight: 20,
   },
 });

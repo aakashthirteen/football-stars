@@ -13,12 +13,14 @@ interface FloatingActionButtonProps {
   onPress: () => void;
   icon?: string;
   colors?: string[];
+  style?: any;
 }
 
 export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
   onPress,
   icon = 'add',
   colors = Gradients.field,
+  style,
 }) => {
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -68,6 +70,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
     <Animated.View
       style={[
         styles.container,
+        style,
         {
           transform: [
             { scale: scaleAnim },

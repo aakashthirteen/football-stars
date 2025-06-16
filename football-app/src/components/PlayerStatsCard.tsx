@@ -151,19 +151,19 @@ export const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
               icon="football"
               value={stats.goals}
               label="Goals"
-              color={Colors.success}
+              color={Colors.status.success}
             />
             <StatItem
               icon="hand-left"
               value={stats.assists}
               label="Assists"
-              color={Colors.info}
+              color={Colors.status.info}
             />
             <StatItem
               icon="calendar"
               value={stats.matches}
               label="Matches"
-              color={Colors.warning}
+              color={Colors.status.warning}
             />
             <StatItem
               icon="star"

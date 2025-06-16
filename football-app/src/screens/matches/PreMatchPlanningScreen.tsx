@@ -145,7 +145,9 @@ export default function PreMatchPlanningScreen({ navigation, route }: PreMatchPl
             navigation.replace('MatchScoring', { 
               matchId: matchId,
               isNewMatch: true,
-              hasFormations: true 
+              hasFormations: true,
+              homeFormation: homeFormation,
+              awayFormation: awayFormation
             });
           },
         },
