@@ -229,9 +229,9 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
   const [selectedGameFormat, setSelectedGameFormat] = useState<GameFormat>(GAME_FORMATS[0]);
   const [selectedFormation, setSelectedFormation] = useState<Formation>(FORMATIONS['5v5'][0]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isDragMode, setIsDragMode] = useState(false);
+  const [isDragMode, setIsDragMode] = useState(false); // Start with drag mode disabled
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
-  const [draggedPlayerPosition, setDraggedPlayerPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isScrollEnabled, setIsScrollEnabled] = useState(true);
   const [pitchLayout, setPitchLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -380,92 +380,72 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
   const DraggablePlayer = ({ player, feature, index }: { player: Player; feature: any; index: number }) => {
     if (!player.x || !player.y) return null;
     
+    const [position, setPosition] = useState({ 
+      x: (player.x / 100) * PITCH_WIDTH - feature.playerRadius, 
+      y: (player.y / 100) * PITCH_HEIGHT - feature.playerRadius 
+    });
     const isBeingDragged = draggedPlayerId === player.id;
     
-    const panResponder = useRef(
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => isDragMode,
-        onMoveShouldSetPanResponder: () => isDragMode,
-        
-        onPanResponderGrant: () => {
-          console.log('🎯 Drag Start for player:', player.id);
-          setDraggedPlayerId(player.id);
-          setDraggedPlayerPosition({
-            x: (player.x / 100) * PITCH_WIDTH,
-            y: (player.y / 100) * PITCH_HEIGHT,
-          });
-          // Disable scroll when dragging starts
-          if (scrollViewRef.current) {
-            scrollViewRef.current.setNativeProps({ scrollEnabled: false });
-          }
-        },
-        
-        onPanResponderMove: (event, gestureState) => {
-          if (!isDragMode || draggedPlayerId !== player.id) return;
-          
-          const originalX = (player.x / 100) * PITCH_WIDTH;
-          const originalY = (player.y / 100) * PITCH_HEIGHT;
-          
-          const newX = Math.max(
-            feature.playerRadius, 
-            Math.min(
-              PITCH_WIDTH - feature.playerRadius, 
-              originalX + gestureState.dx
-            )
-          );
-          const newY = Math.max(
-            feature.playerRadius, 
-            Math.min(
-              PITCH_HEIGHT / 2 - feature.playerRadius, 
-              originalY + gestureState.dy
-            )
-          );
-          
-          console.log('🎯 Drag Move:', { newX, newY, dx: gestureState.dx, dy: gestureState.dy });
-          setDraggedPlayerPosition({ x: newX, y: newY });
-        },
-        
-        onPanResponderRelease: () => {
-          // Re-enable scroll when dragging ends
-          if (scrollViewRef.current) {
-            scrollViewRef.current.setNativeProps({ scrollEnabled: true });
-          }
-          
-          if (!draggedPlayerPosition) {
-            setDraggedPlayerId(null);
-            return;
-          }
-          
-          console.log('🎯 Release - position:', draggedPlayerPosition);
-          
-          const finalX = Math.max(5, Math.min(95, (draggedPlayerPosition.x / PITCH_WIDTH) * 100));
-          const finalY = Math.max(5, Math.min(50, (draggedPlayerPosition.y / PITCH_HEIGHT) * 100));
-          
-          console.log('🎯 Release - final percentage:', { finalX, finalY });
-          
-          setPlayers(prevPlayers => 
-            prevPlayers.map(p => 
-              p.id === player.id 
-                ? { ...p, x: finalX, y: finalY }
-                : p
-            )
-          );
-          
-          setDraggedPlayerId(null);
-          setDraggedPlayerPosition(null);
-        },
-      })
-    ).current;
+    useEffect(() => {
+      setPosition({
+        x: (player.x / 100) * PITCH_WIDTH - feature.playerRadius,
+        y: (player.y / 100) * PITCH_HEIGHT - feature.playerRadius
+      });
+    }, [player.x, player.y]);
     
-    // Use dragged position if this player is being dragged, otherwise use player position
-    let displayX, displayY;
-    if (isBeingDragged && draggedPlayerPosition) {
-      displayX = draggedPlayerPosition.x;
-      displayY = draggedPlayerPosition.y;
-    } else {
-      displayX = (player.x / 100) * PITCH_WIDTH;
-      displayY = (player.y / 100) * PITCH_HEIGHT;
-    }
+    const panResponder = PanResponder.create({
+      onStartShouldSetPanResponder: () => isDragMode,
+      onMoveShouldSetPanResponder: () => isDragMode,
+      
+      onPanResponderGrant: (evt) => {
+        console.log('🎯 Touch detected on player:', player.name);
+        setDraggedPlayerId(player.id);
+        
+        // Disable scroll
+        setIsScrollEnabled(false);
+      },
+      
+      onPanResponderMove: (evt, gestureState) => {
+        const newX = position.x + gestureState.dx;
+        const newY = position.y + gestureState.dy;
+        
+        // Update visual position immediately
+        setPosition({
+          x: Math.max(0, Math.min(PITCH_WIDTH - feature.playerRadius * 2, newX)),
+          y: Math.max(0, Math.min(PITCH_HEIGHT / 2 - feature.playerRadius * 2, newY))
+        });
+      },
+      
+      onPanResponderRelease: (evt, gestureState) => {
+        // Re-enable scroll
+        setIsScrollEnabled(true);
+        
+        const finalX = position.x + gestureState.dx + feature.playerRadius;
+        const finalY = position.y + gestureState.dy + feature.playerRadius;
+        
+        const percentX = Math.max(5, Math.min(95, (finalX / PITCH_WIDTH) * 100));
+        const percentY = Math.max(5, Math.min(50, (finalY / PITCH_HEIGHT) * 100));
+        
+        console.log('🎯 Released at:', { percentX, percentY });
+        
+        // Update player data
+        setPlayers(prevPlayers => 
+          prevPlayers.map(p => 
+            p.id === player.id 
+              ? { ...p, x: percentX, y: percentY }
+              : p
+          )
+        );
+        
+        setDraggedPlayerId(null);
+      },
+      
+      onPanResponderTerminate: () => {
+        // Handle gesture interruption
+        setIsScrollEnabled(true);
+        setDraggedPlayerId(null);
+      },
+    });
     
     return (
       <View
@@ -473,35 +453,46 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
         style={[
           {
             position: 'absolute',
-            left: displayX - feature.playerRadius,
-            top: displayY - feature.playerRadius,
+            left: position.x,
+            top: position.y,
             width: feature.playerRadius * 2,
             height: feature.playerRadius * 2,
             zIndex: isBeingDragged ? 1000 : 1,
           },
         ]}
       >
-        <Svg width={feature.playerRadius * 2} height={feature.playerRadius * 2}>
-          <Circle
-            cx={feature.playerRadius}
-            cy={feature.playerRadius}
-            r={feature.playerRadius}
-            fill={getPositionColor(player.position)}
-            stroke={isBeingDragged ? '#FFD700' : '#FFFFFF'}
-            strokeWidth={isBeingDragged ? 4 : 2}
-            opacity={isBeingDragged ? 0.8 : 1}
-          />
-          <SvgText
-            x={feature.playerRadius}
-            y={feature.playerRadius + 4}
-            textAnchor="middle"
-            fontSize="11"
-            fill="#FFFFFF"
-            fontWeight="bold"
-          >
-            {player.jerseyNumber || index + 1}
-          </SvgText>
-        </Svg>
+        <View style={{ width: feature.playerRadius * 2, height: feature.playerRadius * 2 }}>
+          <Svg width={feature.playerRadius * 2} height={feature.playerRadius * 2} style={{ position: 'absolute' }}>
+            <Circle
+              cx={feature.playerRadius}
+              cy={feature.playerRadius}
+              r={feature.playerRadius}
+              fill={getPositionColor(player.position)}
+              stroke={isBeingDragged ? '#FFD700' : '#FFFFFF'}
+              strokeWidth={isBeingDragged ? 4 : 2}
+              opacity={isBeingDragged ? 0.8 : 1}
+            />
+            <SvgText
+              x={feature.playerRadius}
+              y={feature.playerRadius + 4}
+              textAnchor="middle"
+              fontSize="11"
+              fill="#FFFFFF"
+              fontWeight="bold"
+            >
+              {player.jerseyNumber || index + 1}
+            </SvgText>
+          </Svg>
+          {/* Invisible larger touch area */}
+          <View style={{
+            position: 'absolute',
+            width: feature.playerRadius * 3,
+            height: feature.playerRadius * 3,
+            left: -feature.playerRadius * 0.5,
+            top: -feature.playerRadius * 0.5,
+            backgroundColor: 'transparent',
+          }} />
+        </View>
         
         {/* Player name tooltip when dragging */}
         {isBeingDragged && (
@@ -737,7 +728,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
         ref={scrollViewRef}
         style={styles.content} 
         showsVerticalScrollIndicator={false}
-        scrollEnabled={draggedPlayerId === null}
+        scrollEnabled={isScrollEnabled}
       >
         {/* Game Format Selector */}
         <View style={styles.gameFormatSelector}>
@@ -805,7 +796,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
               }}
             >
               <Text style={[styles.dragToggleText, isDragMode && styles.dragToggleTextActive]}>
-                {isDragMode ? '🔒 Lock Players' : '✋ Drag Players'}
+                {isDragMode ? '🔒 Lock Formation' : '✋ Drag Players'}
               </Text>
             </TouchableOpacity>
             
@@ -830,13 +821,13 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
           
           {isDragMode && (
             <Text style={styles.dragInstructions}>
-              🎯 Touch and drag any player within your defensive half. Scroll freezes only when dragging a player.
+              🎯 DRAG MODE ACTIVE - Touch and hold any player circle to drag them around the pitch!
             </Text>
           )}
           
           {!isDragMode && (
             <Text style={styles.formationInstructions}>
-              ⚽ Formation shows your team's setup in your defensive half, just like Google Football
+              ⚽ Formation locked. Tap "Enable Drag Mode" to customize player positions.
             </Text>
           )}
         </View>
@@ -1110,21 +1101,26 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   dragToggleButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#1976D2',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   dragToggleButtonActive: {
     backgroundColor: '#FFD700',
-    borderColor: '#FFD700',
+    borderColor: '#FFC107',
   },
   dragToggleText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   dragToggleTextActive: {
     color: '#121212',
@@ -1152,10 +1148,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dragInstructions: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginTop: 8,
-    fontStyle: 'italic',
+    fontSize: 14,
+    color: '#FFD700',
+    marginTop: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    padding: 8,
+    borderRadius: 8,
   },
   formationInstructions: {
     fontSize: 11,
