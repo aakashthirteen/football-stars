@@ -77,61 +77,24 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     try {
       setLoadingStats(true);
       
-      // Load matches first to calculate stats properly
-      let calculatedMatchesPlayed = 0;
-      let calculatedGoals = 0;
-      let calculatedAssists = 0;
-      let totalRatings = 0;
-      let ratedMatchCount = 0;
+      console.log('🔍 Debug - Current user:', JSON.stringify(user, null, 2));
       
       try {
         const matchesResponse = await apiService.getMatches();
         console.log('🏟️ Matches loaded:', matchesResponse);
+        console.log('🔍 Debug - Full matches response:', JSON.stringify(matchesResponse, null, 2));
         const matches = matchesResponse.matches || [];
         
-        // Count matches where the current user played (completed matches)
-        const userPlayedMatches = matches.filter((match: any) => {
-          if (match.status !== 'COMPLETED') return false;
-          
-          // Check if user was in either team
-          const wasInHomeTeam = match.homeTeam?.players?.some((p: any) => 
-            p.id === user?.id || p.userId === user?.id || p.user?.id === user?.id
-          );
-          const wasInAwayTeam = match.awayTeam?.players?.some((p: any) => 
-            p.id === user?.id || p.userId === user?.id || p.user?.id === user?.id
-          );
-          
-          return wasInHomeTeam || wasInAwayTeam;
-        });
+        // Check if we have any matches at all
+        console.log('🔍 Total matches in system:', matches.length);
+        if (matches.length > 0) {
+          console.log('🔍 First match sample:', JSON.stringify(matches[0], null, 2));
+        }
         
-        calculatedMatchesPlayed = userPlayedMatches.length;
-        console.log('📊 User played in matches:', calculatedMatchesPlayed);
-        
-        // Calculate goals and assists from match events
-        userPlayedMatches.forEach((match: any) => {
-          if (match.events) {
-            match.events.forEach((event: any) => {
-              if (event.playerId === user?.id || event.player?.id === user?.id) {
-                if (event.type === 'GOAL') calculatedGoals++;
-                if (event.type === 'ASSIST') calculatedAssists++;
-              }
-            });
-          }
-          
-          // Check if user has ratings in this match (for average calculation)
-          console.log('🔍 Debug - Match ratings:', {
-            matchId: match.id,
-            playerRatings: match.playerRatings,
-            userId: user?.id,
-            userRating: match.playerRatings?.[user?.id]
-          });
-          
-          if (match.playerRatings && match.playerRatings[user?.id]) {
-            totalRatings += match.playerRatings[user.id];
-            ratedMatchCount++;
-            console.log('📊 Added rating:', match.playerRatings[user.id], 'Total:', totalRatings, 'Count:', ratedMatchCount);
-          }
-        });
+        // THE ISSUE: Backend might not include players array in match teams
+        // Let's not try to calculate from matches - rely on API stats instead
+        console.log('🔍 Completed matches in system:', matches.filter(m => m.status === 'COMPLETED').length);
+        console.log('🔍 Live matches in system:', matches.filter(m => m.status === 'LIVE').length);
         
         setAllMatches(matches);
         
@@ -155,37 +118,43 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         setAllMatches([]);
       }
       
-      // Load player stats from API and merge with calculated stats
+      // Load player stats from API - this is the source of truth
       try {
         const stats = await apiService.getCurrentUserStats();
-        console.log('📊 API Player stats:', stats);
+        console.log('📊 API Player stats:', JSON.stringify(stats, null, 2));
         
-        // Use API stats as primary source, only fall back to calculated values if API is missing data
+        // Check if stats exists and has data
+        if (!stats) {
+          console.warn('⚠️ No stats returned from API');
+          throw new Error('No stats data');
+        }
+        
+        // Use API stats directly - no calculations needed
         setPlayerStats({
-          ...stats,
-          matchesPlayed: stats?.matchesPlayed ?? calculatedMatchesPlayed ?? 0,
-          goals: stats?.goals ?? calculatedGoals ?? 0,
-          assists: stats?.assists ?? calculatedAssists ?? 0,
-          averageRating: stats?.averageRating ?? (ratedMatchCount > 0 ? (totalRatings / ratedMatchCount) : 0),
-          position: stats?.position || 'MID',
-          yellowCards: stats?.yellowCards || 0,
-          redCards: stats?.redCards || 0,
-          minutesPlayed: stats?.minutesPlayed || 0,
+          matchesPlayed: stats.matchesPlayed || 0,
+          goals: stats.goals || 0,
+          assists: stats.assists || 0,
+          averageRating: stats.averageRating || 0,
+          position: stats.position || 'MID',
+          yellowCards: stats.yellowCards || 0,
+          redCards: stats.redCards || 0,
+          minutesPlayed: stats.minutesPlayed || 0,
         });
         
         console.log('📊 Final player stats set:', {
-          matchesPlayed: stats?.matchesPlayed ?? calculatedMatchesPlayed ?? 0,
-          goals: stats?.goals ?? calculatedGoals ?? 0,
-          assists: stats?.assists ?? calculatedAssists ?? 0,
+          matchesPlayed: stats?.matchesPlayed || 0,
+          goals: stats?.goals || 0,
+          assists: stats?.assists || 0,
+          averageRating: stats?.averageRating || 0,
         });
       } catch (error) {
         console.error('Error loading stats:', error);
-        // Set stats based on calculations only
+        // Set default stats if API fails
         setPlayerStats({
-          goals: calculatedGoals,
-          assists: calculatedAssists,
-          matchesPlayed: calculatedMatchesPlayed,
-          averageRating: ratedMatchCount > 0 ? (totalRatings / ratedMatchCount) : 0,
+          goals: 0,
+          assists: 0,
+          matchesPlayed: 0,
+          averageRating: 0,
           position: 'MID',
           yellowCards: 0,
           redCards: 0,
