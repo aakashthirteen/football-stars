@@ -45,7 +45,40 @@ export default function PlayerRatingScreen({ navigation, route }: PlayerRatingSc
 
   useEffect(() => {
     loadTeamPlayers();
+    loadExistingRatings();
   }, []);
+
+  const loadExistingRatings = async () => {
+    try {
+      // This is called after players are loaded
+    } catch (error) {
+      console.error('Error loading existing ratings:', error);
+    }
+  };
+
+  const loadRatingsForPlayers = async (playerList: Player[]) => {
+    try {
+      const existingRatings: { [playerId: string]: number } = {};
+      
+      // Load existing ratings for each player
+      for (const player of playerList) {
+        try {
+          const response = await apiService.getPlayerRating(player.id, matchId);
+          if (response.rating) {
+            existingRatings[player.id] = response.rating;
+          }
+        } catch (error) {
+          // Player might not have a rating yet, that's OK
+          console.log(`No existing rating for player ${player.name}`);
+        }
+      }
+      
+      setRatings(existingRatings);
+      console.log('✅ Loaded existing ratings:', existingRatings);
+    } catch (error) {
+      console.error('Error loading ratings for players:', error);
+    }
+  };
 
   const loadTeamPlayers = async () => {
     try {
@@ -133,6 +166,9 @@ export default function PlayerRatingScreen({ navigation, route }: PlayerRatingSc
         
         console.log('✅ Processed user team players:', processedPlayers);
         setPlayers(processedPlayers);
+        
+        // Load existing ratings for these players
+        await loadRatingsForPlayers(processedPlayers);
       } else {
         console.log('⚠️ No teams found for user');
       }
@@ -147,10 +183,12 @@ export default function PlayerRatingScreen({ navigation, route }: PlayerRatingSc
       const newRatings = { ...ratings, [playerId]: rating };
       setRatings(newRatings);
       
-      // Save to AsyncStorage
-      await AsyncStorage.setItem(`ratings_${matchId}_${teamId}`, JSON.stringify(newRatings));
+      // Save to backend immediately
+      await apiService.addPlayerRating(playerId, matchId, rating);
+      console.log(`✅ Saved rating ${rating} for player ${playerId}`);
     } catch (error) {
       console.error('Error saving rating:', error);
+      Alert.alert('Error', 'Failed to save rating. Please try again.');
     }
   };
 
@@ -158,37 +196,14 @@ export default function PlayerRatingScreen({ navigation, route }: PlayerRatingSc
     try {
       setIsSaving(true);
       
-      // Save to AsyncStorage (frontend-only approach)
-      await AsyncStorage.setItem(`ratings_${matchId}_${teamId || 'default'}`, JSON.stringify(ratings));
-      
-      // Also save a summary for easy access
-      const ratingsSummary = {
-        matchId,
-        teamId,
-        teamName: team?.name || teamName,
-        timestamp: new Date().toISOString(),
-        ratingsCount: Object.keys(ratings).length,
-        averageRating: Object.values(ratings).reduce((a, b) => a + b, 0) / Object.keys(ratings).length || 0,
-        players: players.filter(p => ratings[p.id]).map(p => ({
-          id: p.id,
-          name: p.name,
-          position: p.position,
-          rating: ratings[p.id]
-        }))
-      };
-      
-      await AsyncStorage.setItem(`ratings_summary_${matchId}_${teamId || 'default'}`, JSON.stringify(ratingsSummary));
-      
-      console.log('✅ Ratings saved successfully:', ratingsSummary);
-      
-      // Navigate to Match Summary Screen
-      navigation.navigate('MatchSummary', {
-        matchId,
-        teamId,
-        teamName: team?.name || teamName,
-        ratings,
-        ratingsSummary
-      });
+      // All ratings are already saved to backend individually
+      // Just show success message
+      const ratedPlayers = Object.keys(ratings).length;
+      Alert.alert(
+        'Ratings Saved!',
+        `Successfully rated ${ratedPlayers} players for this match.`,
+        [{ text: 'Done', onPress: () => navigation.goBack() }]
+      );
     } catch (error) {
       console.error('❌ Error saving ratings:', error);
       Alert.alert('Error', 'Failed to save ratings');

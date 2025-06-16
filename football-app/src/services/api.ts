@@ -1164,6 +1164,17 @@ class ApiService {
     return this.request(`/stats/player/${playerId}`);
   }
 
+  async addPlayerRating(playerId: string, matchId: string, rating: number) {
+    return this.request(`/stats/player/${playerId}/match/${matchId}/rating`, {
+      method: 'POST',
+      body: JSON.stringify({ rating }),
+    });
+  }
+
+  async getPlayerRating(playerId: string, matchId: string) {
+    return this.request(`/stats/player/${playerId}/match/${matchId}/rating`);
+  }
+
   async getAllPlayersStats() {
     return this.request('/stats/players');
   }
