@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -26,6 +26,30 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onPress, style }) =
   const isLive = match.status === 'LIVE';
   const isCompleted = match.status === 'COMPLETED';
   const isScheduled = match.status === 'SCHEDULED';
+  
+  // Calculate current minute for live matches (same workaround as MatchScoringScreen)
+  const calculateLiveMinute = () => {
+    if (!isLive) return 0;
+    
+    // Use created_at timestamp as proxy for start time
+    const matchStartTime = new Date(match.createdAt || match.created_at || match.match_date);
+    const now = new Date();
+    const elapsed = Math.floor((now.getTime() - matchStartTime.getTime()) / (1000 * 60));
+    return Math.max(1, Math.min(elapsed + 1, 120)); // Always at least 1' when live
+  };
+  
+  const [liveMinute, setLiveMinute] = useState(calculateLiveMinute());
+
+  useEffect(() => {
+    if (isLive) {
+      // Update minute every 10 seconds
+      const interval = setInterval(() => {
+        setLiveMinute(calculateLiveMinute());
+      }, 10000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [isLive, match.created_at]);
 
   useEffect(() => {
     if (isLive) {
@@ -184,7 +208,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onPress, style }) =
             <View style={styles.footer}>
               <View style={styles.statusPill}>
                 <Text style={styles.statusText}>
-                  {isCompleted ? 'Full Time' : isLive ? `${match.minute || match.current_minute || 0}'` : 'Upcoming'}
+                  {isCompleted ? 'Full Time' : isLive ? `${liveMinute}'` : 'Upcoming'}
                 </Text>
               </View>
               
