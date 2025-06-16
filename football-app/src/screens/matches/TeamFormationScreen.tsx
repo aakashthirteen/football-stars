@@ -64,8 +64,8 @@ interface GameFormat {
 }
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-const PITCH_WIDTH = screenWidth - 40;
-const PITCH_HEIGHT = (PITCH_WIDTH * 1.4); // Rotated pitch ratio (portrait)
+const PITCH_WIDTH = screenWidth - 20; // Increase width by using less margin
+const PITCH_HEIGHT = (PITCH_WIDTH * 1.6); // Increase height ratio for more space
 
 const GAME_FORMATS: GameFormat[] = [
   { id: '5v5', name: '5 vs 5', playerCount: 5, pitchType: 'small' },
@@ -82,10 +82,10 @@ const FORMATIONS: Record<string, Formation[]> = {
       playerCount: 5,
       positions: [
         { x: 50, y: 10, position: 'GK' },        // GK stays in goal area
-        { x: 30, y: 25, position: 'DEF' },       // Left defender
-        { x: 70, y: 25, position: 'DEF' },       // Right defender
-        { x: 50, y: 35, position: 'MID' },       // Central midfielder
-        { x: 50, y: 42, position: 'FWD' },       // Forward (pulled back from center line)
+        { x: 30, y: 22, position: 'DEF' },       // Left defender
+        { x: 70, y: 22, position: 'DEF' },       // Right defender
+        { x: 50, y: 31, position: 'MID' },       // Central midfielder
+        { x: 50, y: 40, position: 'FWD' },       // Forward (equal spacing)
       ],
     },
     {
@@ -95,10 +95,10 @@ const FORMATIONS: Record<string, Formation[]> = {
       playerCount: 5,
       positions: [
         { x: 50, y: 10, position: 'GK' },        // GK in goal
-        { x: 50, y: 25, position: 'DEF' },       // Central defender
-        { x: 30, y: 35, position: 'MID' },       // Left midfielder
-        { x: 70, y: 35, position: 'MID' },       // Right midfielder
-        { x: 50, y: 42, position: 'FWD' },       // Forward (pulled back from center line)
+        { x: 50, y: 22, position: 'DEF' },       // Central defender
+        { x: 30, y: 31, position: 'MID' },       // Left midfielder
+        { x: 70, y: 31, position: 'MID' },       // Right midfielder
+        { x: 50, y: 40, position: 'FWD' },       // Forward (equal spacing)
       ],
     },
     {
@@ -108,10 +108,10 @@ const FORMATIONS: Record<string, Formation[]> = {
       playerCount: 5,
       positions: [
         { x: 50, y: 10, position: 'GK' },        // GK in goal
-        { x: 50, y: 25, position: 'DEF' },       // Central defender
-        { x: 50, y: 35, position: 'MID' },       // Central midfielder
-        { x: 30, y: 42, position: 'FWD' },       // Left forward (pulled back from center line)
-        { x: 70, y: 42, position: 'FWD' },       // Right forward (pulled back from center line)
+        { x: 50, y: 22, position: 'DEF' },       // Central defender
+        { x: 50, y: 31, position: 'MID' },       // Central midfielder
+        { x: 30, y: 40, position: 'FWD' },       // Left forward (equal spacing)
+        { x: 70, y: 40, position: 'FWD' },       // Right forward (equal spacing)
       ],
     },
   ],
@@ -123,12 +123,12 @@ const FORMATIONS: Record<string, Formation[]> = {
       playerCount: 7,
       positions: [
         { x: 50, y: 10, position: 'GK' },        // GK in goal
-        { x: 20, y: 25, position: 'DEF' },       // Left defender
-        { x: 50, y: 25, position: 'DEF' },       // Central defender
-        { x: 80, y: 25, position: 'DEF' },       // Right defender
-        { x: 30, y: 35, position: 'MID' },       // Left midfielder
-        { x: 70, y: 35, position: 'MID' },       // Right midfielder
-        { x: 50, y: 42, position: 'FWD' },       // Forward (pulled back from center line)
+        { x: 15, y: 22, position: 'DEF' },       // Left defender
+        { x: 50, y: 22, position: 'DEF' },       // Central defender
+        { x: 85, y: 22, position: 'DEF' },       // Right defender
+        { x: 25, y: 31, position: 'MID' },       // Left midfielder
+        { x: 75, y: 31, position: 'MID' },       // Right midfielder
+        { x: 50, y: 40, position: 'FWD' },       // Forward (equal spacing)
       ],
     },
     {
@@ -138,12 +138,12 @@ const FORMATIONS: Record<string, Formation[]> = {
       playerCount: 7,
       positions: [
         { x: 50, y: 10, position: 'GK' },        // GK in goal
-        { x: 35, y: 25, position: 'DEF' },       // Left defender
-        { x: 65, y: 25, position: 'DEF' },       // Right defender
-        { x: 20, y: 35, position: 'MID' },       // Left midfielder
-        { x: 50, y: 35, position: 'MID' },       // Central midfielder
-        { x: 80, y: 35, position: 'MID' },       // Right midfielder
-        { x: 50, y: 42, position: 'FWD' },       // Forward (pulled back from center line)
+        { x: 35, y: 22, position: 'DEF' },       // Left defender
+        { x: 65, y: 22, position: 'DEF' },       // Right defender
+        { x: 15, y: 31, position: 'MID' },       // Left midfielder
+        { x: 50, y: 31, position: 'MID' },       // Central midfielder
+        { x: 85, y: 31, position: 'MID' },       // Right midfielder
+        { x: 50, y: 40, position: 'FWD' },       // Forward (equal spacing)
       ],
     },
     {
@@ -153,12 +153,12 @@ const FORMATIONS: Record<string, Formation[]> = {
       playerCount: 7,
       positions: [
         { x: 50, y: 10, position: 'GK' },        // GK in goal
-        { x: 15, y: 25, position: 'DEF' },       // Left defender
-        { x: 38, y: 25, position: 'DEF' },       // Left center-back
-        { x: 62, y: 25, position: 'DEF' },       // Right center-back
-        { x: 85, y: 25, position: 'DEF' },       // Right defender
-        { x: 50, y: 35, position: 'MID' },       // Defensive midfielder
-        { x: 50, y: 42, position: 'FWD' },       // Forward (pulled back from center line)
+        { x: 10, y: 22, position: 'DEF' },       // Left defender
+        { x: 35, y: 22, position: 'DEF' },       // Left center-back
+        { x: 65, y: 22, position: 'DEF' },       // Right center-back
+        { x: 90, y: 22, position: 'DEF' },       // Right defender
+        { x: 50, y: 31, position: 'MID' },       // Defensive midfielder
+        { x: 50, y: 40, position: 'FWD' },       // Forward (equal spacing)
       ],
     },
   ],
@@ -170,16 +170,16 @@ const FORMATIONS: Record<string, Formation[]> = {
       playerCount: 11,
       positions: [
         { x: 50, y: 8, position: 'GK' },         // GK in goal
-        { x: 10, y: 20, position: 'DEF' },       // Left-back
-        { x: 35, y: 20, position: 'DEF' },       // Left center-back
-        { x: 65, y: 20, position: 'DEF' },       // Right center-back
-        { x: 90, y: 20, position: 'DEF' },       // Right-back
-        { x: 15, y: 32, position: 'MID' },       // Left midfielder
-        { x: 35, y: 32, position: 'MID' },       // Left central midfielder
-        { x: 65, y: 32, position: 'MID' },       // Right central midfielder
-        { x: 85, y: 32, position: 'MID' },       // Right midfielder
-        { x: 35, y: 40, position: 'FWD' },       // Left forward (pulled back from center line)
-        { x: 65, y: 40, position: 'FWD' },       // Right forward (pulled back from center line)
+        { x: 5, y: 18, position: 'DEF' },        // Left-back
+        { x: 32, y: 18, position: 'DEF' },       // Left center-back
+        { x: 68, y: 18, position: 'DEF' },       // Right center-back
+        { x: 95, y: 18, position: 'DEF' },       // Right-back
+        { x: 12, y: 29, position: 'MID' },       // Left midfielder
+        { x: 32, y: 29, position: 'MID' },       // Left central midfielder
+        { x: 68, y: 29, position: 'MID' },       // Right central midfielder
+        { x: 88, y: 29, position: 'MID' },       // Right midfielder
+        { x: 35, y: 40, position: 'FWD' },       // Left forward (equal spacing)
+        { x: 65, y: 40, position: 'FWD' },       // Right forward (equal spacing)
       ],
     },
     {
@@ -189,16 +189,16 @@ const FORMATIONS: Record<string, Formation[]> = {
       playerCount: 11,
       positions: [
         { x: 50, y: 8, position: 'GK' },         // GK in goal
-        { x: 10, y: 20, position: 'DEF' },       // Left-back
-        { x: 35, y: 20, position: 'DEF' },       // Left center-back
-        { x: 65, y: 20, position: 'DEF' },       // Right center-back
-        { x: 90, y: 20, position: 'DEF' },       // Right-back
-        { x: 20, y: 32, position: 'MID' },       // Left midfielder
-        { x: 50, y: 32, position: 'MID' },       // Central midfielder
-        { x: 80, y: 32, position: 'MID' },       // Right midfielder
-        { x: 20, y: 40, position: 'FWD' },       // Left winger (pulled back from center line)
-        { x: 50, y: 40, position: 'FWD' },       // Striker (pulled back from center line)
-        { x: 80, y: 40, position: 'FWD' },       // Right winger (pulled back from center line)
+        { x: 5, y: 18, position: 'DEF' },        // Left-back
+        { x: 32, y: 18, position: 'DEF' },       // Left center-back
+        { x: 68, y: 18, position: 'DEF' },       // Right center-back
+        { x: 95, y: 18, position: 'DEF' },       // Right-back
+        { x: 15, y: 29, position: 'MID' },       // Left midfielder
+        { x: 50, y: 29, position: 'MID' },       // Central midfielder
+        { x: 85, y: 29, position: 'MID' },       // Right midfielder
+        { x: 15, y: 40, position: 'FWD' },       // Left winger (equal spacing)
+        { x: 50, y: 40, position: 'FWD' },       // Striker (equal spacing)
+        { x: 85, y: 40, position: 'FWD' },       // Right winger (equal spacing)
       ],
     },
     {
@@ -208,16 +208,16 @@ const FORMATIONS: Record<string, Formation[]> = {
       playerCount: 11,
       positions: [
         { x: 50, y: 8, position: 'GK' },         // GK in goal
-        { x: 25, y: 20, position: 'DEF' },       // Left center-back
-        { x: 50, y: 20, position: 'DEF' },       // Central center-back
-        { x: 75, y: 20, position: 'DEF' },       // Right center-back
-        { x: 10, y: 32, position: 'MID' },       // Left wing-back
-        { x: 30, y: 32, position: 'MID' },       // Left midfielder
-        { x: 50, y: 32, position: 'MID' },       // Central midfielder
-        { x: 70, y: 32, position: 'MID' },       // Right midfielder
-        { x: 90, y: 32, position: 'MID' },       // Right wing-back
-        { x: 35, y: 40, position: 'FWD' },       // Left forward (pulled back from center line)
-        { x: 65, y: 40, position: 'FWD' },       // Right forward (pulled back from center line)
+        { x: 20, y: 18, position: 'DEF' },       // Left center-back
+        { x: 50, y: 18, position: 'DEF' },       // Central center-back
+        { x: 80, y: 18, position: 'DEF' },       // Right center-back
+        { x: 5, y: 29, position: 'MID' },        // Left wing-back
+        { x: 25, y: 29, position: 'MID' },       // Left midfielder
+        { x: 50, y: 29, position: 'MID' },       // Central midfielder
+        { x: 75, y: 29, position: 'MID' },       // Right midfielder
+        { x: 95, y: 29, position: 'MID' },       // Right wing-back
+        { x: 35, y: 40, position: 'FWD' },       // Left forward (equal spacing)
+        { x: 65, y: 40, position: 'FWD' },       // Right forward (equal spacing)
       ],
     },
   ],
@@ -545,7 +545,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
       goalAreaWidth: PITCH_WIDTH * 0.294,       // 20m width on 68m ≈ 29.4%
       goalAreaHeight: PITCH_HEIGHT * 0.057,     // 6m length on 105m ≈ 5.7%
       goalWidth: PITCH_WIDTH * 0.108,           // 7.32m goal width on 68m ≈ 10.8%
-      playerRadius: selectedGameFormat.id === '5v5' ? 14 : selectedGameFormat.id === '7v7' ? 15 : 16,
+      playerRadius: selectedGameFormat.id === '5v5' ? 12 : selectedGameFormat.id === '7v7' ? 13 : 14,
     };
     
     return (
