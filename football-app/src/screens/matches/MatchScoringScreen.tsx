@@ -342,13 +342,14 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const startMatch = async () => {
     try {
       const startTime = new Date();
-      await apiService.startMatch(matchId);
+      const response = await apiService.startMatch(matchId);
+      
+      // Set local state immediately for instant feedback
       setIsLive(true);
       setCurrentMinute(1); // Start at 1' not 0'
       setLiveStartTime(startTime);
       
-      // Reload match details to get updated data from backend
-      await loadMatchDetails();
+      // Don't reload - it would reset our timer. Backend will have the data next time user navigates.
       
       // Enhanced start commentary
       const kickoffTemplates = COMMENTARY_TEMPLATES.KICKOFF;
