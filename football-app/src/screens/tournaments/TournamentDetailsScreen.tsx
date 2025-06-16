@@ -115,9 +115,15 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
     loadTournamentDetails();
     loadStandings();
     loadUserTeams();
-    loadTournamentMatches();
     loadTournamentStats();
   }, []);
+
+  // Load matches after tournament data is available
+  useEffect(() => {
+    if (tournament) {
+      loadTournamentMatches();
+    }
+  }, [tournament]);
 
   useEffect(() => {
     console.log('🎯 USEEFFECT: tournament:', tournament?.name, 'type:', tournament?.tournamentType);
@@ -172,93 +178,17 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
 
   const loadTournamentMatches = async () => {
     try {
-      // Enhanced mock data to demonstrate full tournament bracket
-      const mockMatches: TournamentMatch[] = [
-        // Round 1 - Quarter Finals
-        {
-          id: '1',
-          homeTeamId: 'team1',
-          awayTeamId: 'team2', 
-          homeTeamName: 'Team Alpha',
-          awayTeamName: 'Team Beta',
-          homeScore: 2,
-          awayScore: 1,
-          status: 'COMPLETED',
-          round: 1,
-          winnerId: 'team1'
-        },
-        {
-          id: '2',
-          homeTeamId: 'team3',
-          awayTeamId: 'team4',
-          homeTeamName: 'Team Gamma', 
-          awayTeamName: 'Team Delta',
-          homeScore: 0,
-          awayScore: 3,
-          status: 'COMPLETED',
-          round: 1,
-          winnerId: 'team4'
-        },
-        {
-          id: '3',
-          homeTeamId: 'team5',
-          awayTeamId: 'team6',
-          homeTeamName: 'Team Epsilon',
-          awayTeamName: 'Team Zeta',
-          homeScore: 1,
-          awayScore: 1,
-          status: 'COMPLETED',
-          round: 1,
-          winnerId: 'team5' // Winner on penalties
-        },
-        {
-          id: '4',
-          homeTeamId: 'team7',
-          awayTeamId: 'team8',
-          homeTeamName: 'Team Eta',
-          awayTeamName: 'Team Theta',
-          homeScore: 4,
-          awayScore: 2,
-          status: 'COMPLETED',
-          round: 1,
-          winnerId: 'team7'
-        },
-        // Round 2 - Semi Finals
-        {
-          id: '5',
-          homeTeamId: 'team1',
-          awayTeamId: 'team4',
-          homeTeamName: 'Team Alpha',
-          awayTeamName: 'Team Delta',
-          homeScore: 3,
-          awayScore: 1,
-          status: 'COMPLETED',
-          round: 2,
-          winnerId: 'team1'
-        },
-        {
-          id: '6',
-          homeTeamId: 'team5',
-          awayTeamId: 'team7',
-          homeTeamName: 'Team Epsilon',
-          awayTeamName: 'Team Eta',
-          status: 'ACTIVE',
-          round: 2
-        },
-        // Round 3 - Final
-        {
-          id: '7',
-          homeTeamId: 'team1',
-          awayTeamId: 'winner_6',
-          homeTeamName: 'Team Alpha',
-          awayTeamName: 'TBD',
-          status: 'PENDING',
-          round: 3
-        }
-      ];
-      setMatches(mockMatches);
+      // Use matches from the tournament data if available
+      if (tournament && tournament.matches && tournament.matches.length > 0) {
+        console.log('🏟️ MATCHES: Using tournament matches from API:', tournament.matches.length);
+        setMatches(tournament.matches);
+      } else {
+        console.log('🏟️ MATCHES: No matches found in tournament data');
+        setMatches([]);
+      }
     } catch (error: any) {
       console.error('Error loading tournament matches:', error);
+      setMatches([]);
     }
   };
 

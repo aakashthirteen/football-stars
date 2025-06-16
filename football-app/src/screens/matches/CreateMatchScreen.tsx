@@ -81,7 +81,18 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
       
       Alert.alert('Success', 'Match created successfully!', [
         {
-          text: 'View Match',
+          text: 'Set Formation',
+          onPress: () => {
+            navigation.navigate('PreMatchPlanning', { 
+              matchId: response.match.id,
+              homeTeam: homeTeam,
+              awayTeam: awayTeam,
+              isNewMatch: true 
+            });
+          },
+        },
+        {
+          text: 'Start Match',
           onPress: () => {
             navigation.replace('MatchScoring', { 
               matchId: response.match.id,

@@ -7,11 +7,12 @@ import MatchOverviewScreen from '../screens/matches/MatchOverviewScreen';
 import PlayerRatingScreen from '../screens/matches/PlayerRatingScreen';
 import MatchSummaryScreen from '../screens/matches/MatchSummaryScreen';
 import TeamFormationScreen from '../screens/matches/TeamFormationScreen';
+import PreMatchPlanningScreen from '../screens/matches/PreMatchPlanningScreen';
 
 export type MatchesStackParamList = {
   MatchesList: undefined;
   CreateMatch: undefined;
-  MatchScoring: { matchId: string; isNewMatch?: boolean };
+  MatchScoring: { matchId: string; isNewMatch?: boolean; hasFormations?: boolean };
   MatchOverview: { matchId: string };
   PlayerRating: { matchId: string; teamId: string; teamName: string };
   MatchSummary: { 
@@ -25,6 +26,16 @@ export type MatchesStackParamList = {
     teamId: string; 
     teamName: string; 
     matchId?: string; 
+    isPreMatch?: boolean;
+    isHomeTeam?: boolean;
+    gameFormat?: '5v5' | '7v7' | '11v11';
+    onFormationSaved?: (formationData: any) => void;
+  };
+  PreMatchPlanning: {
+    matchId: string;
+    homeTeam: any;
+    awayTeam: any;
+    isNewMatch?: boolean;
   };
 };
 
@@ -39,6 +50,7 @@ export default function MatchesStack() {
     >
       <Stack.Screen name="MatchesList" component={MatchesScreen} />
       <Stack.Screen name="CreateMatch" component={CreateMatchScreen} />
+      <Stack.Screen name="PreMatchPlanning" component={PreMatchPlanningScreen} />
       <Stack.Screen name="MatchScoring" component={MatchScoringScreen} />
       <Stack.Screen name="MatchOverview" component={MatchOverviewScreen} />
       <Stack.Screen name="PlayerRating" component={PlayerRatingScreen} />

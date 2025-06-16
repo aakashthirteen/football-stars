@@ -784,35 +784,77 @@ class ApiService {
     }
 
     if (endpoint.startsWith('/tournaments/') && endpoint.includes('/standings')) {
+      const tournamentId = endpoint.split('/')[2];
+      
+      // Return appropriate standings based on tournament
+      if (tournamentId === '1') {
+        // Summer League standings
+        return {
+          standings: [
+            {
+              position: 1,
+              teamId: 'team1',
+              teamName: 'Thunder Bolts',
+              matches: 3,
+              wins: 3,
+              draws: 0,
+              losses: 0,
+              goalsFor: 8,
+              goalsAgainst: 2,
+              goalDifference: 6,
+              points: 9
+            },
+            {
+              position: 2,
+              teamId: 'team2',
+              teamName: 'Lightning Strikers',
+              matches: 3,
+              wins: 2,
+              draws: 1,
+              losses: 0,
+              goalsFor: 6,
+              goalsAgainst: 3,
+              goalDifference: 3,
+              points: 7
+            },
+            {
+              position: 3,
+              teamId: 'team3',
+              teamName: 'Fire Dragons',
+              matches: 2,
+              wins: 1,
+              draws: 1,
+              losses: 0,
+              goalsFor: 4,
+              goalsAgainst: 2,
+              goalDifference: 2,
+              points: 4
+            },
+            {
+              position: 4,
+              teamId: 'team4',
+              teamName: 'Ice Wolves',
+              matches: 2,
+              wins: 1,
+              draws: 0,
+              losses: 1,
+              goalsFor: 3,
+              goalsAgainst: 4,
+              goalDifference: -1,
+              points: 3
+            }
+          ]
+        };
+      } else if (tournamentId === '2') {
+        // Champions Cup - knockout format doesn't have traditional standings
+        return {
+          standings: []
+        };
+      }
+      
+      // Default empty standings
       return {
-        standings: [
-          {
-            position: 1,
-            teamId: '1',
-            teamName: 'Local Rangers',
-            matches: 3,
-            wins: 3,
-            draws: 0,
-            losses: 0,
-            goalsFor: 8,
-            goalsAgainst: 2,
-            goalDifference: 6,
-            points: 9
-          },
-          {
-            position: 2,
-            teamId: '2',
-            teamName: 'City United',
-            matches: 3,
-            wins: 2,
-            draws: 1,
-            losses: 0,
-            goalsFor: 6,
-            goalsAgainst: 3,
-            goalDifference: 3,
-            points: 7
-          }
-        ]
+        standings: []
       };
     }
 
@@ -825,7 +867,7 @@ class ApiService {
     if (endpoint.startsWith('/tournaments/') && !endpoint.includes('/standings') && !endpoint.includes('/register')) {
       const tournamentId = endpoint.split('/')[2];
       
-      // Mock tournaments data - must match the tournaments list above
+      // Mock tournaments data with complete team and match information
       const mockTournaments = [
         {
           id: '1',
@@ -840,8 +882,40 @@ class ApiService {
           prizePool: 3000,
           status: 'UPCOMING',
           createdBy: 'user-1',
-          teams: [],
-          matches: []
+          teams: [
+            { id: 'team1', name: 'Thunder Bolts', players: [] },
+            { id: 'team2', name: 'Lightning Strikers', players: [] },
+            { id: 'team3', name: 'Fire Dragons', players: [] },
+            { id: 'team4', name: 'Ice Wolves', players: [] },
+            { id: 'team5', name: 'Storm Eagles', players: [] },
+            { id: 'team6', name: 'Steel Panthers', players: [] }
+          ],
+          matches: [
+            {
+              id: '1',
+              homeTeamId: 'team1',
+              awayTeamId: 'team2',
+              homeTeamName: 'Thunder Bolts',
+              awayTeamName: 'Lightning Strikers',
+              homeScore: 2,
+              awayScore: 1,
+              status: 'COMPLETED',
+              round: 1,
+              scheduledTime: '2024-06-05T14:00:00.000Z'
+            },
+            {
+              id: '2',
+              homeTeamId: 'team3',
+              awayTeamId: 'team4',
+              homeTeamName: 'Fire Dragons',
+              awayTeamName: 'Ice Wolves',
+              homeScore: 0,
+              awayScore: 3,
+              status: 'COMPLETED',
+              round: 1,
+              scheduledTime: '2024-06-06T16:00:00.000Z'
+            }
+          ]
         },
         {
           id: '2',
@@ -851,13 +925,111 @@ class ApiService {
           startDate: '2024-05-15T00:00:00.000Z',
           endDate: '2024-06-15T23:59:59.999Z',
           maxTeams: 16,
-          registeredTeams: 12,
+          registeredTeams: 8,
           entryFee: 1000,
           prizePool: 10000,
           status: 'ACTIVE',
           createdBy: 'user-1',
-          teams: [],
-          matches: []
+          teams: [
+            { id: 'team1', name: 'Team Alpha', players: [] },
+            { id: 'team2', name: 'Team Beta', players: [] },
+            { id: 'team3', name: 'Team Gamma', players: [] },
+            { id: 'team4', name: 'Team Delta', players: [] },
+            { id: 'team5', name: 'Team Epsilon', players: [] },
+            { id: 'team6', name: 'Team Zeta', players: [] },
+            { id: 'team7', name: 'Team Eta', players: [] },
+            { id: 'team8', name: 'Team Theta', players: [] }
+          ],
+          matches: [
+            // Round 1 - Quarter Finals
+            {
+              id: '1',
+              homeTeamId: 'team1',
+              awayTeamId: 'team2', 
+              homeTeamName: 'Team Alpha',
+              awayTeamName: 'Team Beta',
+              homeScore: 2,
+              awayScore: 1,
+              status: 'COMPLETED',
+              round: 1,
+              scheduledTime: '2024-05-18T14:00:00.000Z',
+              winnerId: 'team1'
+            },
+            {
+              id: '2',
+              homeTeamId: 'team3',
+              awayTeamId: 'team4',
+              homeTeamName: 'Team Gamma', 
+              awayTeamName: 'Team Delta',
+              homeScore: 0,
+              awayScore: 3,
+              status: 'COMPLETED',
+              round: 1,
+              scheduledTime: '2024-05-18T16:00:00.000Z',
+              winnerId: 'team4'
+            },
+            {
+              id: '3',
+              homeTeamId: 'team5',
+              awayTeamId: 'team6',
+              homeTeamName: 'Team Epsilon',
+              awayTeamName: 'Team Zeta',
+              homeScore: 1,
+              awayScore: 1,
+              status: 'COMPLETED',
+              round: 1,
+              scheduledTime: '2024-05-19T14:00:00.000Z',
+              winnerId: 'team5' // Winner on penalties
+            },
+            {
+              id: '4',
+              homeTeamId: 'team7',
+              awayTeamId: 'team8',
+              homeTeamName: 'Team Eta',
+              awayTeamName: 'Team Theta',
+              homeScore: 4,
+              awayScore: 2,
+              status: 'COMPLETED',
+              round: 1,
+              scheduledTime: '2024-05-19T16:00:00.000Z',
+              winnerId: 'team7'
+            },
+            // Round 2 - Semi Finals
+            {
+              id: '5',
+              homeTeamId: 'team1',
+              awayTeamId: 'team4',
+              homeTeamName: 'Team Alpha',
+              awayTeamName: 'Team Delta',
+              homeScore: 3,
+              awayScore: 1,
+              status: 'COMPLETED',
+              round: 2,
+              scheduledTime: '2024-05-22T15:00:00.000Z',
+              winnerId: 'team1'
+            },
+            {
+              id: '6',
+              homeTeamId: 'team5',
+              awayTeamId: 'team7',
+              homeTeamName: 'Team Epsilon',
+              awayTeamName: 'Team Eta',
+              status: 'ACTIVE',
+              round: 2,
+              scheduledTime: '2024-05-22T17:00:00.000Z'
+            },
+            // Round 3 - Final
+            {
+              id: '7',
+              homeTeamId: 'team1',
+              awayTeamId: 'winner_6',
+              homeTeamName: 'Team Alpha',
+              awayTeamName: 'TBD',
+              status: 'PENDING',
+              round: 3,
+              scheduledTime: '2024-05-25T16:00:00.000Z'
+            }
+          ]
         }
       ];
       

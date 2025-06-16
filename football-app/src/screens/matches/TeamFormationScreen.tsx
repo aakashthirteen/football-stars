@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   ScrollView,
   Alert,
   Dimensions,
+  PanResponder,
+  Animated,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
@@ -79,11 +81,11 @@ const FORMATIONS: Record<string, Formation[]> = {
       gameFormat: '5v5',
       playerCount: 5,
       positions: [
-        { x: 50, y: 10, position: 'GK' },
-        { x: 30, y: 35, position: 'DEF' },
-        { x: 70, y: 35, position: 'DEF' },
-        { x: 50, y: 60, position: 'MID' },
-        { x: 50, y: 85, position: 'FWD' },
+        { x: 50, y: 10, position: 'GK' },        // GK stays in goal area
+        { x: 30, y: 25, position: 'DEF' },       // Left defender
+        { x: 70, y: 25, position: 'DEF' },       // Right defender
+        { x: 50, y: 35, position: 'MID' },       // Central midfielder
+        { x: 50, y: 45, position: 'FWD' },       // Forward (at halfway line)
       ],
     },
     {
@@ -92,11 +94,11 @@ const FORMATIONS: Record<string, Formation[]> = {
       gameFormat: '5v5',
       playerCount: 5,
       positions: [
-        { x: 50, y: 10, position: 'GK' },
-        { x: 50, y: 35, position: 'DEF' },
-        { x: 30, y: 60, position: 'MID' },
-        { x: 70, y: 60, position: 'MID' },
-        { x: 50, y: 85, position: 'FWD' },
+        { x: 50, y: 10, position: 'GK' },        // GK in goal
+        { x: 50, y: 25, position: 'DEF' },       // Central defender
+        { x: 30, y: 35, position: 'MID' },       // Left midfielder
+        { x: 70, y: 35, position: 'MID' },       // Right midfielder
+        { x: 50, y: 45, position: 'FWD' },       // Forward at halfway
       ],
     },
     {
@@ -105,11 +107,11 @@ const FORMATIONS: Record<string, Formation[]> = {
       gameFormat: '5v5',
       playerCount: 5,
       positions: [
-        { x: 50, y: 10, position: 'GK' },
-        { x: 25, y: 45, position: 'DEF' },
-        { x: 50, y: 45, position: 'DEF' },
-        { x: 75, y: 45, position: 'DEF' },
-        { x: 50, y: 75, position: 'MID' },
+        { x: 50, y: 10, position: 'GK' },        // GK in goal
+        { x: 25, y: 25, position: 'DEF' },       // Left defender
+        { x: 50, y: 25, position: 'DEF' },       // Central defender
+        { x: 75, y: 25, position: 'DEF' },       // Right defender
+        { x: 50, y: 40, position: 'MID' },       // Defensive midfielder
       ],
     },
   ],
@@ -120,13 +122,13 @@ const FORMATIONS: Record<string, Formation[]> = {
       gameFormat: '7v7',
       playerCount: 7,
       positions: [
-        { x: 50, y: 10, position: 'GK' },
-        { x: 25, y: 30, position: 'DEF' },
-        { x: 50, y: 30, position: 'DEF' },
-        { x: 75, y: 30, position: 'DEF' },
-        { x: 35, y: 55, position: 'MID' },
-        { x: 65, y: 55, position: 'MID' },
-        { x: 50, y: 80, position: 'FWD' },
+        { x: 50, y: 10, position: 'GK' },        // GK in goal
+        { x: 25, y: 25, position: 'DEF' },       // Left defender
+        { x: 50, y: 25, position: 'DEF' },       // Central defender
+        { x: 75, y: 25, position: 'DEF' },       // Right defender
+        { x: 35, y: 35, position: 'MID' },       // Left midfielder
+        { x: 65, y: 35, position: 'MID' },       // Right midfielder
+        { x: 50, y: 45, position: 'FWD' },       // Forward at halfway
       ],
     },
     {
@@ -135,13 +137,13 @@ const FORMATIONS: Record<string, Formation[]> = {
       gameFormat: '7v7',
       playerCount: 7,
       positions: [
-        { x: 50, y: 10, position: 'GK' },
-        { x: 35, y: 30, position: 'DEF' },
-        { x: 65, y: 30, position: 'DEF' },
-        { x: 25, y: 55, position: 'MID' },
-        { x: 50, y: 55, position: 'MID' },
-        { x: 75, y: 55, position: 'MID' },
-        { x: 50, y: 80, position: 'FWD' },
+        { x: 50, y: 10, position: 'GK' },        // GK in goal
+        { x: 35, y: 25, position: 'DEF' },       // Left defender
+        { x: 65, y: 25, position: 'DEF' },       // Right defender
+        { x: 25, y: 35, position: 'MID' },       // Left midfielder
+        { x: 50, y: 35, position: 'MID' },       // Central midfielder
+        { x: 75, y: 35, position: 'MID' },       // Right midfielder
+        { x: 50, y: 45, position: 'FWD' },       // Forward at halfway
       ],
     },
     {
@@ -150,13 +152,13 @@ const FORMATIONS: Record<string, Formation[]> = {
       gameFormat: '7v7',
       playerCount: 7,
       positions: [
-        { x: 50, y: 10, position: 'GK' },
-        { x: 20, y: 35, position: 'DEF' },
-        { x: 40, y: 35, position: 'DEF' },
-        { x: 60, y: 35, position: 'DEF' },
-        { x: 80, y: 35, position: 'DEF' },
-        { x: 50, y: 60, position: 'MID' },
-        { x: 50, y: 85, position: 'FWD' },
+        { x: 50, y: 10, position: 'GK' },        // GK in goal
+        { x: 20, y: 25, position: 'DEF' },       // Left defender
+        { x: 40, y: 25, position: 'DEF' },       // Left center-back
+        { x: 60, y: 25, position: 'DEF' },       // Right center-back
+        { x: 80, y: 25, position: 'DEF' },       // Right defender
+        { x: 50, y: 35, position: 'MID' },       // Defensive midfielder
+        { x: 50, y: 45, position: 'FWD' },       // Forward at halfway
       ],
     },
   ],
@@ -167,17 +169,17 @@ const FORMATIONS: Record<string, Formation[]> = {
       gameFormat: '11v11',
       playerCount: 11,
       positions: [
-        { x: 50, y: 8, position: 'GK' },
-        { x: 20, y: 25, position: 'DEF' },
-        { x: 40, y: 25, position: 'DEF' },
-        { x: 60, y: 25, position: 'DEF' },
-        { x: 80, y: 25, position: 'DEF' },
-        { x: 20, y: 50, position: 'MID' },
-        { x: 40, y: 50, position: 'MID' },
-        { x: 60, y: 50, position: 'MID' },
-        { x: 80, y: 50, position: 'MID' },
-        { x: 35, y: 75, position: 'FWD' },
-        { x: 65, y: 75, position: 'FWD' },
+        { x: 50, y: 8, position: 'GK' },         // GK in goal
+        { x: 15, y: 20, position: 'DEF' },       // Left-back
+        { x: 40, y: 20, position: 'DEF' },       // Left center-back
+        { x: 60, y: 20, position: 'DEF' },       // Right center-back
+        { x: 85, y: 20, position: 'DEF' },       // Right-back
+        { x: 20, y: 32, position: 'MID' },       // Left midfielder
+        { x: 40, y: 32, position: 'MID' },       // Left central midfielder
+        { x: 60, y: 32, position: 'MID' },       // Right central midfielder
+        { x: 80, y: 32, position: 'MID' },       // Right midfielder
+        { x: 40, y: 44, position: 'FWD' },       // Left forward
+        { x: 60, y: 44, position: 'FWD' },       // Right forward
       ],
     },
     {
@@ -186,17 +188,17 @@ const FORMATIONS: Record<string, Formation[]> = {
       gameFormat: '11v11',
       playerCount: 11,
       positions: [
-        { x: 50, y: 8, position: 'GK' },
-        { x: 20, y: 25, position: 'DEF' },
-        { x: 40, y: 25, position: 'DEF' },
-        { x: 60, y: 25, position: 'DEF' },
-        { x: 80, y: 25, position: 'DEF' },
-        { x: 30, y: 50, position: 'MID' },
-        { x: 50, y: 50, position: 'MID' },
-        { x: 70, y: 50, position: 'MID' },
-        { x: 25, y: 75, position: 'FWD' },
-        { x: 50, y: 75, position: 'FWD' },
-        { x: 75, y: 75, position: 'FWD' },
+        { x: 50, y: 8, position: 'GK' },         // GK in goal
+        { x: 15, y: 20, position: 'DEF' },       // Left-back
+        { x: 40, y: 20, position: 'DEF' },       // Left center-back
+        { x: 60, y: 20, position: 'DEF' },       // Right center-back
+        { x: 85, y: 20, position: 'DEF' },       // Right-back
+        { x: 25, y: 32, position: 'MID' },       // Left midfielder
+        { x: 50, y: 32, position: 'MID' },       // Central midfielder
+        { x: 75, y: 32, position: 'MID' },       // Right midfielder
+        { x: 25, y: 44, position: 'FWD' },       // Left winger
+        { x: 50, y: 44, position: 'FWD' },       // Striker
+        { x: 75, y: 44, position: 'FWD' },       // Right winger
       ],
     },
     {
@@ -205,32 +207,44 @@ const FORMATIONS: Record<string, Formation[]> = {
       gameFormat: '11v11',
       playerCount: 11,
       positions: [
-        { x: 50, y: 8, position: 'GK' },
-        { x: 30, y: 25, position: 'DEF' },
-        { x: 50, y: 25, position: 'DEF' },
-        { x: 70, y: 25, position: 'DEF' },
-        { x: 15, y: 50, position: 'MID' },
-        { x: 35, y: 50, position: 'MID' },
-        { x: 50, y: 50, position: 'MID' },
-        { x: 65, y: 50, position: 'MID' },
-        { x: 85, y: 50, position: 'MID' },
-        { x: 35, y: 75, position: 'FWD' },
-        { x: 65, y: 75, position: 'FWD' },
+        { x: 50, y: 8, position: 'GK' },         // GK in goal
+        { x: 30, y: 20, position: 'DEF' },       // Left center-back
+        { x: 50, y: 20, position: 'DEF' },       // Central center-back
+        { x: 70, y: 20, position: 'DEF' },       // Right center-back
+        { x: 15, y: 32, position: 'MID' },       // Left wing-back
+        { x: 35, y: 32, position: 'MID' },       // Left midfielder
+        { x: 50, y: 32, position: 'MID' },       // Central midfielder
+        { x: 65, y: 32, position: 'MID' },       // Right midfielder
+        { x: 85, y: 32, position: 'MID' },       // Right wing-back
+        { x: 40, y: 44, position: 'FWD' },       // Left forward
+        { x: 60, y: 44, position: 'FWD' },       // Right forward
       ],
     },
   ],
 };
 
 export default function TeamFormationScreen({ navigation, route }: Props) {
-  const { teamId, teamName, matchId } = route.params;
+  const { teamId, teamName, matchId, isPreMatch, isHomeTeam, gameFormat, onFormationSaved } = route.params;
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedGameFormat, setSelectedGameFormat] = useState<GameFormat>(GAME_FORMATS[0]);
   const [selectedFormation, setSelectedFormation] = useState<Formation>(FORMATIONS['5v5'][0]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDragMode, setIsDragMode] = useState(false);
+  const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
+  const [draggedPlayerPosition, setDraggedPlayerPosition] = useState<{ x: number; y: number } | null>(null);
+  const [pitchLayout, setPitchLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
+    // Initialize with the passed game format if in pre-match mode
+    if (isPreMatch && gameFormat) {
+      const format = GAME_FORMATS.find(f => f.id === gameFormat) || GAME_FORMATS[0];
+      setSelectedGameFormat(format);
+      const availableFormations = FORMATIONS[gameFormat as keyof typeof FORMATIONS];
+      setSelectedFormation(availableFormations[0]);
+    }
     loadTeamPlayers();
-  }, [teamId]);
+  }, [teamId, isPreMatch, gameFormat]);
 
   const loadTeamPlayers = async () => {
     try {
@@ -304,6 +318,55 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
     setPlayers(updatedPlayers);
   };
 
+
+  const saveCustomFormation = () => {
+    Alert.alert(
+      'Save Formation',
+      'Would you like to save this custom formation?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Save', 
+          onPress: () => {
+            Alert.alert('Success', 'Custom formation saved!');
+            // Here you would typically save to backend or local storage
+          }
+        }
+      ]
+    );
+  };
+
+  const saveFormationForMatch = () => {
+    const formationData = {
+      formationName: selectedFormation.name,
+      gameFormat: selectedGameFormat.id,
+      players: players.filter(p => !p.id.startsWith('placeholder-')).map(p => ({
+        id: p.id,
+        name: p.name,
+        position: p.position,
+        x: p.x || 0,
+        y: p.y || 0,
+        jerseyNumber: p.jerseyNumber,
+      })),
+    };
+
+    if (isPreMatch && onFormationSaved) {
+      onFormationSaved(formationData);
+      navigation.goBack();
+    } else {
+      Alert.alert('Success', 'Formation saved for match!');
+    }
+  };
+
+  const resetToFormation = () => {
+    const updatedPlayers = assignPlayersToFormation(
+      players.filter(p => !p.id.startsWith('placeholder-')),
+      selectedFormation
+    );
+    setPlayers(updatedPlayers);
+    setIsDragMode(false);
+  };
+
   const getPositionColor = (position: string) => {
     switch (position) {
       case 'GK': return '#FF5722';
@@ -312,6 +375,142 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
       case 'FWD': return '#FF9800';
       default: return '#9E9E9E';
     }
+  };
+
+  const DraggablePlayer = ({ player, feature, index }: { player: Player; feature: any; index: number }) => {
+    if (!player.x || !player.y) return null;
+    
+    const isBeingDragged = draggedPlayerId === player.id;
+    
+    const panResponder = useRef(
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => isDragMode,
+        onMoveShouldSetPanResponder: () => isDragMode,
+        
+        onPanResponderGrant: () => {
+          console.log('🎯 Drag Start for player:', player.id);
+          setDraggedPlayerId(player.id);
+          setDraggedPlayerPosition({
+            x: (player.x / 100) * PITCH_WIDTH,
+            y: (player.y / 100) * PITCH_HEIGHT,
+          });
+          // Disable scroll when dragging starts
+          if (scrollViewRef.current) {
+            scrollViewRef.current.setNativeProps({ scrollEnabled: false });
+          }
+        },
+        
+        onPanResponderMove: (event, gestureState) => {
+          if (!isDragMode || draggedPlayerId !== player.id) return;
+          
+          const originalX = (player.x / 100) * PITCH_WIDTH;
+          const originalY = (player.y / 100) * PITCH_HEIGHT;
+          
+          const newX = Math.max(
+            feature.playerRadius, 
+            Math.min(
+              PITCH_WIDTH - feature.playerRadius, 
+              originalX + gestureState.dx
+            )
+          );
+          const newY = Math.max(
+            feature.playerRadius, 
+            Math.min(
+              PITCH_HEIGHT / 2 - feature.playerRadius, 
+              originalY + gestureState.dy
+            )
+          );
+          
+          console.log('🎯 Drag Move:', { newX, newY, dx: gestureState.dx, dy: gestureState.dy });
+          setDraggedPlayerPosition({ x: newX, y: newY });
+        },
+        
+        onPanResponderRelease: () => {
+          // Re-enable scroll when dragging ends
+          if (scrollViewRef.current) {
+            scrollViewRef.current.setNativeProps({ scrollEnabled: true });
+          }
+          
+          if (!draggedPlayerPosition) {
+            setDraggedPlayerId(null);
+            return;
+          }
+          
+          console.log('🎯 Release - position:', draggedPlayerPosition);
+          
+          const finalX = Math.max(5, Math.min(95, (draggedPlayerPosition.x / PITCH_WIDTH) * 100));
+          const finalY = Math.max(5, Math.min(50, (draggedPlayerPosition.y / PITCH_HEIGHT) * 100));
+          
+          console.log('🎯 Release - final percentage:', { finalX, finalY });
+          
+          setPlayers(prevPlayers => 
+            prevPlayers.map(p => 
+              p.id === player.id 
+                ? { ...p, x: finalX, y: finalY }
+                : p
+            )
+          );
+          
+          setDraggedPlayerId(null);
+          setDraggedPlayerPosition(null);
+        },
+      })
+    ).current;
+    
+    // Use dragged position if this player is being dragged, otherwise use player position
+    let displayX, displayY;
+    if (isBeingDragged && draggedPlayerPosition) {
+      displayX = draggedPlayerPosition.x;
+      displayY = draggedPlayerPosition.y;
+    } else {
+      displayX = (player.x / 100) * PITCH_WIDTH;
+      displayY = (player.y / 100) * PITCH_HEIGHT;
+    }
+    
+    return (
+      <View
+        {...panResponder.panHandlers}
+        style={[
+          {
+            position: 'absolute',
+            left: displayX - feature.playerRadius,
+            top: displayY - feature.playerRadius,
+            width: feature.playerRadius * 2,
+            height: feature.playerRadius * 2,
+            zIndex: isBeingDragged ? 1000 : 1,
+          },
+        ]}
+      >
+        <Svg width={feature.playerRadius * 2} height={feature.playerRadius * 2}>
+          <Circle
+            cx={feature.playerRadius}
+            cy={feature.playerRadius}
+            r={feature.playerRadius}
+            fill={getPositionColor(player.position)}
+            stroke={isBeingDragged ? '#FFD700' : '#FFFFFF'}
+            strokeWidth={isBeingDragged ? 4 : 2}
+            opacity={isBeingDragged ? 0.8 : 1}
+          />
+          <SvgText
+            x={feature.playerRadius}
+            y={feature.playerRadius + 4}
+            textAnchor="middle"
+            fontSize="11"
+            fill="#FFFFFF"
+            fontWeight="bold"
+          >
+            {player.jerseyNumber || index + 1}
+          </SvgText>
+        </Svg>
+        
+        {/* Player name tooltip when dragging */}
+        {isBeingDragged && (
+          <View style={styles.playerTooltip}>
+            <Text style={styles.playerTooltipText}>{player.name}</Text>
+          </View>
+        )}
+      </View>
+    );
   };
 
   const renderFootballPitch = () => {
@@ -388,6 +587,31 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
           stroke="#FFFFFF"
           strokeWidth="2"
         />
+
+        {/* Formation area highlight (defensive half) */}
+        <Rect
+          x="0"
+          y="0"
+          width={PITCH_WIDTH}
+          height={PITCH_HEIGHT / 2}
+          fill="rgba(255, 255, 255, 0.03)"
+          stroke="rgba(255, 255, 255, 0.3)"
+          strokeWidth="1"
+          strokeDasharray="5,5"
+          rx="8"
+        />
+        
+        {/* Formation area label */}
+        <SvgText
+          x={PITCH_WIDTH / 2}
+          y={PITCH_HEIGHT / 2 - 10}
+          textAnchor="middle"
+          fontSize="10"
+          fill="rgba(255, 255, 255, 0.5)"
+          fontStyle="italic"
+        >
+          Formation Area (Your Half)
+        </SvgText>
         
         {/* Top penalty area */}
         <Rect
@@ -453,8 +677,8 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
           strokeWidth="3"
         />
 
-        {/* Render players */}
-        {players.map((player, index) => {
+        {/* Render players - static in non-drag mode */}
+        {!isDragMode && players.map((player, index) => {
           if (!player.x || !player.y) return null;
           
           const x = (player.x / 100) * PITCH_WIDTH;
@@ -509,7 +733,12 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
         <Text style={styles.teamName}>{teamName}</Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        scrollEnabled={draggedPlayerId === null}
+      >
         {/* Game Format Selector */}
         <View style={styles.gameFormatSelector}>
           <Text style={styles.sectionTitle}>Game Format</Text>
@@ -564,10 +793,81 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
           </ScrollView>
         </View>
 
+        {/* Drag Mode Controls */}
+        <View style={styles.dragControls}>
+          <Text style={styles.sectionTitle}>Formation: {selectedFormation.name}</Text>
+          <View style={styles.dragButtonsRow}>
+            <TouchableOpacity
+              style={[styles.dragToggleButton, isDragMode && styles.dragToggleButtonActive]}
+              onPress={() => {
+                setIsDragMode(!isDragMode);
+                setDraggedPlayerId(null);
+              }}
+            >
+              <Text style={[styles.dragToggleText, isDragMode && styles.dragToggleTextActive]}>
+                {isDragMode ? '🔒 Lock Players' : '✋ Drag Players'}
+              </Text>
+            </TouchableOpacity>
+            
+            {isDragMode && (
+              <>
+                <TouchableOpacity
+                  style={styles.resetButton}
+                  onPress={resetToFormation}
+                >
+                  <Text style={styles.resetButtonText}>↺ Reset</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={styles.saveCustomButton}
+                  onPress={saveCustomFormation}
+                >
+                  <Text style={styles.saveCustomButtonText}>💾 Save</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+          
+          {isDragMode && (
+            <Text style={styles.dragInstructions}>
+              🎯 Touch and drag any player within your defensive half. Scroll freezes only when dragging a player.
+            </Text>
+          )}
+          
+          {!isDragMode && (
+            <Text style={styles.formationInstructions}>
+              ⚽ Formation shows your team's setup in your defensive half, just like Google Football
+            </Text>
+          )}
+        </View>
+
         {/* Football Pitch */}
         <View style={styles.pitchContainer}>
-          <Text style={styles.sectionTitle}>Formation: {selectedFormation.name}</Text>
-          {renderFootballPitch()}
+          <View style={{ position: 'relative' }}>
+            {renderFootballPitch()}
+            
+            {/* Draggable Player Overlay */}
+            {isDragMode && (
+              <View style={styles.playerOverlay}>
+                {players.map((player, index) => {
+                  const feature = {
+                    small: { playerRadius: 14 },
+                    medium: { playerRadius: 15 },
+                    full: { playerRadius: 16 },
+                  }[selectedGameFormat.pitchType];
+                  
+                  return (
+                    <DraggablePlayer
+                      key={player.id}
+                      player={player}
+                      feature={feature}
+                      index={index}
+                    />
+                  );
+                })}
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Player List */}
@@ -586,12 +886,33 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
 
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.saveButton}>
-            <Text style={styles.saveButtonText}>Save Formation</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.proceedButton}>
-            <Text style={styles.proceedButtonText}>Proceed to Match</Text>
-          </TouchableOpacity>
+          {isPreMatch ? (
+            <>
+              <TouchableOpacity 
+                style={styles.saveForMatchButton}
+                onPress={saveFormationForMatch}
+              >
+                <Text style={styles.saveForMatchButtonText}>
+                  ✅ Confirm Formation for {isHomeTeam ? 'Home' : 'Away'} Team
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.cancelButton}
+                onPress={() => navigation.goBack()}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity style={styles.saveButton}>
+                <Text style={styles.saveButtonText}>Save Formation</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.proceedButton}>
+                <Text style={styles.proceedButtonText}>Proceed to Match</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -776,5 +1097,121 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#121212',
     fontWeight: 'bold',
+  },
+  
+  // Drag Mode Styles
+  dragControls: {
+    marginBottom: 20,
+  },
+  dragButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    gap: 10,
+  },
+  dragToggleButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  dragToggleButtonActive: {
+    backgroundColor: '#FFD700',
+    borderColor: '#FFD700',
+  },
+  dragToggleText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dragToggleTextActive: {
+    color: '#121212',
+  },
+  resetButton: {
+    backgroundColor: '#FF5722',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  resetButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  saveCustomButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  saveCustomButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dragInstructions: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  formationInstructions: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 8,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  playerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: PITCH_WIDTH,
+    height: PITCH_HEIGHT,
+  },
+  playerTooltip: {
+    position: 'absolute',
+    top: -30,
+    left: -30,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  playerTooltipText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  
+  // Pre-Match Mode Styles
+  saveForMatchButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  saveForMatchButtonText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  cancelButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '600',
   },
 });
