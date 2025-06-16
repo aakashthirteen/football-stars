@@ -484,34 +484,64 @@ CONFIDENCE LEVEL: MEDIUM-HIGH - Major stats issue resolved, core UX bugs need fi
 - `postgresDatabase.ts` - Removed player_ratings table queries
 - Backend routing - Removed rating API endpoints
 
-### **🚨 IMMEDIATE CRITICAL FIXES NEEDED (UPDATED PRIORITIES):**
+### **🚨 CRITICAL PRIORITY - 500 SERVER ERROR - JUNE 16, 2025**
 
-1. **✅ STATS DISPLAY** - FIXED via rollback, now shows goals/assists correctly
+**❌ HIGHEST PRIORITY: 500 Internal Server Error when loading player stats**
+- **ERROR LOG**: `API Response: {"status": 500, "statusText": "", "text": "{\"error\":\"Internal server error\"}"}`
+- **IMPACT**: App completely broken - cannot load any player stats
+- **LOCATION**: Backend `/api/stats/players` endpoint
+- **LIKELY CAUSE**: Rating system SQL query failing due to missing `player_ratings` table on Railway deployment
+- **COMMITTED FIX**: Made rating queries defensive with try-catch (commit 54c001a)
+- **STATUS**: 🚨 **URGENT - NEEDS DEPLOYMENT TO RAILWAY**
+
+**IMMEDIATE ACTION REQUIRED NEXT SESSION:**
+1. **Deploy defensive rating fix to Railway** - Check if Railway picked up commit 54c001a
+2. **Verify Railway database has player_ratings table** - May need manual SQL execution
+3. **Test stats loading after deployment** - Confirm 500 error is resolved
+4. **Monitor Railway logs** - Check for any remaining SQL errors
+
+### **🚨 SECONDARY CRITICAL FIXES:**
+
 2. **Live Timer Bug** - Timer not incrementing (check MatchScoringScreen.tsx around line 200-230)
 3. **Home Navigation Bug** - Matches not accessible from home screen (check HomeScreen.tsx + MatchCard.tsx)
 4. **Tournament Key Props** - VirtualizedList warning (add unique keys in TournamentDetailsScreen.tsx)
 
 ### **🔧 DEBUGGING PRIORITIES (IN ORDER):**
-1. **LIVE MATCH TIMER** - Core live match functionality broken
-2. **HOME SCREEN NAVIGATION** - Users can't access matches (UX impact)
-3. **TOURNAMENT LIST KEYS** - Console warning, easy fix
-4. **⭐ FUTURE: Advanced Rating System** - Redesign when core issues are fixed
+1. **🚨 500 SERVER ERROR** - App completely broken, cannot load stats (HIGHEST PRIORITY)
+2. **LIVE MATCH TIMER** - Core live match functionality broken
+3. **HOME SCREEN NAVIGATION** - Users can't access matches (UX impact)
+4. **TOURNAMENT LIST KEYS** - Console warning, easy fix
+5. **⭐ FUTURE: Advanced Rating System** - Redesign when core issues are fixed
 
 ### **💡 WHAT TO FOCUS ON NEXT SESSION:**
-- **Test that goals/assists display correctly** - Should be working now
+- **🚨 PRIORITY 1: Fix 500 server error** - Deploy defensive rating fix to Railway and verify deployment
+- **Check Railway deployment status** - Ensure commit 54c001a was deployed
+- **Verify database table creation** - Check if player_ratings table exists on production
+- **Test stats loading** - Confirm 500 error is resolved after deployment
 - **Debug live match timer** - Check interval and state updates
 - **Fix navigation flow** - Ensure matches are accessible from home
 - **Clean up warnings** - Tournament key props
-- **Consider rating system redesign** - Only after core functionality is stable
 
 ### **🗂️ KEY FILES FOR DEBUGGING:**
-- `MatchScoringScreen.tsx` (timer logic - highest priority)
+- **🚨 PRIORITY 1**: `/src/models/postgresDatabase.ts` (defensive rating queries - commit 54c001a)
+- **🚨 PRIORITY 1**: Railway deployment logs and database status
+- `MatchScoringScreen.tsx` (timer logic - secondary priority)  
 - `HomeScreen.tsx` & `MatchCard.tsx` (navigation)
 - `TournamentDetailsScreen.tsx` (key props)
-- `PlayerStatsCard.tsx` (verify stats display after rollback)
+- `PlayerStatsCard.tsx` (verify stats display after 500 error is fixed)
 
-### **📋 ROLLBACK DETAILS FOR CONTEXT:**
-- **Commit Rolled Back From**: `664c763` (TypeScript error fixes for ratings)
-- **Rolled Back To**: `a78f106` (Working stats with formula-based ratings)  
-- **Reason**: Complex database rating system was causing empty displays and environment mismatches
-- **Result**: Goals, assists, and match count should now display correctly with simple rating formula
+### **📋 RECENT CHANGES AND FIXES:**
+
+**CURRENT SESSION - JUNE 16, 2025:**
+- **✅ COMPLETED**: Built rating system from scratch with simple formula: `sum(ratings) / count(matches with ratings)`
+- **✅ COMPLETED**: Connected PlayerRatingScreen to backend with immediate saves
+- **✅ COMPLETED**: Added defensive SQL queries to prevent 500 errors (commit 54c001a)
+- **❌ CRITICAL ISSUE**: 500 Internal Server Error still occurring - needs Railway deployment verification
+
+**DEFENSIVE FIXES IMPLEMENTED (commit 54c001a):**
+- Made `getPlayerStats()` defensive - separates rating query with try-catch
+- Made `getAllPlayersStats()` defensive - splits base stats and ratings with error handling  
+- Returns 0 rating if `player_ratings` table doesn't exist instead of crashing
+- Should prevent 500 errors during deployment when database is in intermediate state
+
+**STATUS**: Defensive fix committed but needs Railway deployment to take effect
