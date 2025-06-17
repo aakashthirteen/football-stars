@@ -1,23 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
+  ScrollView,
   TouchableOpacity,
-  FlatList,
   RefreshControl,
   Alert,
-  Animated,
-  StatusBar,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { apiService } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
-import { MatchCard } from '../../components/MatchCard';
 import { FloatingActionButton } from '../../components/FloatingActionButton';
-import { Colors, Gradients } from '../../theme/colors';
+
+// Professional Components
+import {
+  ProfessionalHeader,
+  ProfessionalButton,
+  ProfessionalMatchCard,
+  DesignSystem,
+} from '../../components/professional';
+
+const { colors, typography, spacing, borderRadius, shadows, gradients } = DesignSystem;
 
 interface MatchesScreenProps {
   navigation: any;
@@ -44,34 +50,12 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [myTeams, setMyTeams] = useState<string[]>([]);
-  
-  // Animations
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
 
   useFocusEffect(
     React.useCallback(() => {
-      animateEntrance();
       loadData();
     }, [])
   );
-
-  const animateEntrance = () => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
 
   const loadData = async () => {
     await loadMatches();
@@ -95,10 +79,9 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
       const response = await apiService.getMatches();
       const matchesArray = response.matches || [];
       
-      // Sort matches by date (newest first) and map field names
       const normalizedMatches = matchesArray.map((match: any) => ({
         ...match,
-        matchDate: match.match_date || match.matchDate, // Map snake_case to camelCase
+        matchDate: match.match_date || match.matchDate,
         homeTeam: match.homeTeam || { name: match.home_team_name, id: match.home_team_id },
         awayTeam: match.awayTeam || { name: match.away_team_name, id: match.away_team_id }
       }));
@@ -141,47 +124,35 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
     }
   };
 
-  const switchTab = (tab: TabType) => {
-    setActiveTab(tab);
-    
-    // Animate tab indicator
-    const toValue = tab === 'all' ? 0 : tab === 'my' ? 1 : 2;
-    Animated.spring(tabIndicatorAnim, {
-      toValue,
-      friction: 8,
-      tension: 40,
-      useNativeDriver: true,
-    }).start();
+  const handleMatchPress = (match: Match) => {
+    if (match.status === 'COMPLETED') {
+      navigation.navigate('MatchOverview', { matchId: match.id });
+    } else {
+      navigation.navigate('MatchScoring', { matchId: match.id });
+    }
   };
 
-  const renderHeader = () => (
-    <Animated.View
-      style={[
-        styles.header,
-        {
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }],
-        },
-      ]}
-    >
-      <LinearGradient
-        colors={Gradients.field}
-        style={styles.headerGradient}
-      >
-        <StatusBar barStyle="light-content" />
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Matches</Text>
-          <Text style={styles.headerSubtitle}>
-            {matches.length} {matches.length === 1 ? 'match' : 'matches'} available
-          </Text>
-        </View>
-      </LinearGradient>
+  const getTabCounts = () => {
+    const allCount = matches.length;
+    const myCount = matches.filter((match) => {
+      const isCreator = match.createdBy === user?.id;
+      const isInHomeTeam = match.homeTeam?.id && myTeams.includes(match.homeTeam.id);
+      const isInAwayTeam = match.awayTeam?.id && myTeams.includes(match.awayTeam.id);
+      return isCreator || isInHomeTeam || isInAwayTeam;
+    }).length;
+    const liveCount = matches.filter(m => m.status === 'LIVE').length;
 
-      {/* Tabs */}
+    return { allCount, myCount, liveCount };
+  };
+
+  const renderTabSelector = () => {
+    const { allCount, myCount, liveCount } = getTabCounts();
+    
+    return (
       <View style={styles.tabContainer}>
         <TouchableOpacity
-          style={[styles.tab]}
-          onPress={() => switchTab('all')}
+          style={[styles.tab, activeTab === 'all' && styles.activeTab]}
+          onPress={() => setActiveTab('all')}
           activeOpacity={0.7}
         >
           <Text style={[styles.tabText, activeTab === 'all' && styles.activeTabText]}>
@@ -190,8 +161,8 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[styles.tab]}
-          onPress={() => switchTab('my')}
+          style={[styles.tab, activeTab === 'my' && styles.activeTab]}
+          onPress={() => setActiveTab('my')}
           activeOpacity={0.7}
         >
           <Text style={[styles.tabText, activeTab === 'my' && styles.activeTabText]}>
@@ -200,142 +171,162 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[styles.tab]}
-          onPress={() => switchTab('live')}
+          style={[styles.tab, activeTab === 'live' && styles.activeTab]}
+          onPress={() => setActiveTab('live')}
           activeOpacity={0.7}
         >
-          <View style={styles.liveTabContent}>
-            <Text style={[styles.tabText, activeTab === 'live' && styles.activeTabText]}>
-              Live
-            </Text>
-            {matches.filter(m => m.status === 'LIVE').length > 0 && (
-              <View style={styles.liveBadge}>
-                <Text style={styles.liveBadgeText}>
-                  {matches.filter(m => m.status === 'LIVE').length}
-                </Text>
-              </View>
-            )}
-          </View>
+          {liveCount > 0 && <View style={styles.liveDot} />}
+          <Text style={[styles.tabText, activeTab === 'live' && styles.activeTabText, styles.liveText]}>
+            Live
+          </Text>
         </TouchableOpacity>
-        
-        {/* Animated Indicator */}
-        <Animated.View
-          style={[
-            styles.tabIndicator,
-            {
-              transform: [{
-                translateX: tabIndicatorAnim.interpolate({
-                  inputRange: [0, 1, 2],
-                  outputRange: [0, 360 / 3, (360 / 3) * 2],
-                }),
-              }],
-            },
-          ]}
-        />
       </View>
-    </Animated.View>
-  );
-
-  const handleMatchPress = (match: Match) => {
-    if (match.status === 'COMPLETED') {
-      navigation.navigate('MatchOverview', { matchId: match.id });
-    } else {
-      // For LIVE and SCHEDULED matches, go to MatchScoring
-      navigation.navigate('MatchScoring', { matchId: match.id });
-    }
+    );
   };
 
-  const renderMatch = ({ item, index }: { item: Match; index: number }) => (
-    <MatchCard
-      match={item}
-      onPress={() => handleMatchPress(item)}
-      style={{ marginTop: index === 0 ? 16 : 0 }}
-    />
-  );
-
   const renderEmptyState = () => {
-    const getEmptyMessage = () => {
+    const getEmptyConfig = () => {
       switch (activeTab) {
         case 'live':
           return {
             icon: 'radio',
             title: 'No Live Matches',
             subtitle: 'Check back when matches are in progress',
+            showButton: false,
           };
         case 'my':
           return {
             icon: 'calendar-outline',
             title: 'No Matches Yet',
             subtitle: 'Create or join a match to see it here',
+            showButton: true,
           };
         default:
           return {
             icon: 'football-outline',
             title: 'No Matches Available',
             subtitle: 'Be the first to create a match!',
+            showButton: true,
           };
       }
     };
 
-    const { icon, title, subtitle } = getEmptyMessage();
+    const { icon, title, subtitle, showButton } = getEmptyConfig();
 
     return (
       <View style={styles.emptyState}>
-        <LinearGradient
-          colors={Gradients.card}
-          style={styles.emptyCard}
-        >
-          <Ionicons name={icon as any} size={64} color={Colors.text.secondary} />
-          <Text style={styles.emptyTitle}>{title}</Text>
-          <Text style={styles.emptySubtitle}>{subtitle}</Text>
-          {activeTab !== 'live' && (
-            <TouchableOpacity
-              style={styles.emptyButton}
-              onPress={() => navigation.navigate('CreateMatch')}
-            >
-              <LinearGradient
-                colors={Gradients.field}
-                style={styles.emptyButtonGradient}
-              >
-                <Text style={styles.emptyButtonText}>Create Match</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
-        </LinearGradient>
+        <View style={[styles.emptyIcon, { backgroundColor: colors.primary.main }]}>
+          <Ionicons name={icon as any} size={48} color="#FFFFFF" />
+        </View>
+        <Text style={styles.emptyTitle}>{title}</Text>
+        <Text style={styles.emptySubtitle}>{subtitle}</Text>
+        {showButton && (
+          <ProfessionalButton
+            title="Create Match"
+            icon="add"
+            onPress={() => navigation.navigate('CreateMatch')}
+            style={styles.emptyButton}
+          />
+        )}
       </View>
     );
   };
 
-  const filteredMatches = getFilteredMatches();
+  const renderMatches = () => {
+    const filteredMatches = getFilteredMatches();
+
+    if (filteredMatches.length === 0) {
+      return renderEmptyState();
+    }
+
+    return (
+      <View style={styles.matchesList}>
+        {filteredMatches.map((match) => (
+          <View key={match.id} style={styles.matchCardWrapper}>
+            <ProfessionalMatchCard
+              match={{
+                id: match.id,
+                competition: 'League Match',
+                homeTeam: {
+                  name: match.homeTeam?.name || 'Home Team',
+                  badge: undefined,
+                  score: match.homeScore || 0,
+                },
+                awayTeam: {
+                  name: match.awayTeam?.name || 'Away Team',
+                  badge: undefined,
+                  score: match.awayScore || 0,
+                },
+                date: new Date(match.matchDate),
+                time: new Date(match.matchDate).toLocaleTimeString('en-US', { 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                }),
+                venue: match.venue,
+                status: match.status as 'LIVE' | 'UPCOMING' | 'COMPLETED',
+                minute: match.status === 'LIVE' ? 45 : undefined,
+              }}
+              onPress={() => handleMatchPress(match)}
+            />
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <ProfessionalHeader
+          title="Matches"
+          subtitle="View all matches"
+        />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading matches...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {renderHeader()}
-      
-      <FlatList
-        data={filteredMatches}
-        renderItem={renderMatch}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={[
-          styles.list,
-          filteredMatches.length === 0 && styles.emptyContainer,
-        ]}
+      <ScrollView 
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
+          <RefreshControl 
+            refreshing={refreshing} 
             onRefresh={onRefresh}
-            tintColor={Colors.primary.main}
-            colors={[Colors.primary.main]}
+            tintColor={colors.primary.main}
+            colors={[colors.primary.main]}
           />
         }
-        ListEmptyComponent={renderEmptyState}
-        showsVerticalScrollIndicator={false}
-      />
+      >
+        {/* Professional Header */}
+        <ProfessionalHeader
+          title="Matches"
+          subtitle="View and manage matches"
+          showNotifications
+          onNotifications={() => navigation.getParent()?.navigate('Profile')}
+        />
+        
+        {/* Tab Selector */}
+        <View style={styles.tabSection}>
+          {renderTabSelector()}
+        </View>
+
+        {/* Matches List */}
+        <View style={styles.matchesSection}>
+          {renderMatches()}
+        </View>
+        
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
       
       <FloatingActionButton
         onPress={() => navigation.navigate('CreateMatch')}
         icon="add"
-        colors={Gradients.field}
+        colors={gradients.primary}
       />
     </View>
   );
@@ -344,125 +335,133 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: colors.background.primary,
   },
-  header: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+  content: {
+    flex: 1,
   },
-  headerGradient: {
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-  },
-  headerContent: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: Colors.text.primary,
-    marginBottom: 4,
-  },
-  headerSubtitle: {
+  loadingText: {
     fontSize: 16,
-    color: 'rgba(255,255,255,0.8)',
+    color: colors.text.secondary,
+  },
+
+  // Tab Section - La Liga style
+  tabSection: {
+    paddingHorizontal: spacing.screenPadding,
+    marginTop: spacing.xl,
+    marginBottom: spacing.lg,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: Colors.background.card,
-    marginTop: 20,
-    marginHorizontal: 20,
-    borderRadius: 16,
-    padding: 4,
-    position: 'relative',
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xs,
+    ...shadows.sm,
   },
   tab: {
     flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.text.secondary,
-  },
-  activeTabText: {
-    color: Colors.text.primary,
-  },
-  liveTabContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    gap: spacing.xs,
   },
-  liveBadge: {
-    backgroundColor: Colors.live.main,
-    paddingHorizontal: 6,
+  activeTab: {
+    backgroundColor: colors.primary.main,
+  },
+  tabText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  activeTabText: {
+    color: '#FFFFFF',
+  },
+  liveText: {
+    color: colors.status.live,
+  },
+  tabBadge: {
+    backgroundColor: colors.surface.secondary,
+    paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: 10,
-    minWidth: 20,
+    minWidth: 24,
     alignItems: 'center',
   },
-  liveBadgeText: {
-    color: Colors.text.primary,
-    fontSize: 10,
-    fontWeight: 'bold',
+  activeTabBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
-  tabIndicator: {
-    position: 'absolute',
-    bottom: 4,
-    left: 4,
-    width: '31%',
-    height: 40,
-    backgroundColor: Colors.primary.main,
-    borderRadius: 12,
+  liveTabBadge: {
+    backgroundColor: colors.status.live + '20',
   },
-  list: {
-    paddingBottom: 100,
+  tabCount: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text.secondary,
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 20,
+  activeTabCount: {
+    color: '#FFFFFF',
   },
+  liveTabCount: {
+    color: colors.status.live,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.status.live,
+  },
+
+  // Matches Section
+  matchesSection: {
+    paddingHorizontal: spacing.screenPadding,
+  },
+  matchesList: {
+    gap: spacing.md,
+  },
+  matchCardWrapper: {
+    // Professional match card handles its own styling
+  },
+
+  // Empty State
   emptyState: {
     alignItems: 'center',
+    paddingVertical: spacing.xxxl * 1.5,
+    paddingHorizontal: spacing.xl,
   },
-  emptyCard: {
-    borderRadius: 20,
-    padding: 40,
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
-    width: '100%',
+    justifyContent: 'center',
+    marginBottom: spacing.xl,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.text.primary,
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
   },
   emptySubtitle: {
     fontSize: 16,
-    color: Colors.text.secondary,
-    marginBottom: 24,
+    color: colors.text.secondary,
     textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: spacing.xl,
   },
   emptyButton: {
-    borderRadius: 25,
-    overflow: 'hidden',
+    marginTop: spacing.sm,
   },
-  emptyButtonGradient: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  emptyButtonText: {
-    color: Colors.text.primary,
-    fontSize: 16,
-    fontWeight: 'bold',
+
+  bottomSpacing: {
+    height: 120,
   },
 });

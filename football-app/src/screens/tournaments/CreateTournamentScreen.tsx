@@ -8,10 +8,23 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
 import { apiService } from '../../services/api';
+
+// Professional Components
+import {
+  ProfessionalButton,
+  ProfessionalHeader,
+} from '../../components/professional';
+
+// Import DesignSystem
+import DesignSystem from '../../theme/designSystem';
+
+const { colors, typography, spacing, borderRadius, shadows } = DesignSystem;
 
 interface CreateTournamentScreenProps {
   navigation: any;
@@ -111,7 +124,7 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
 
   const renderTypeSelector = () => (
     <View style={styles.formGroup}>
-      <Text style={styles.label}>Tournament Type</Text>
+      <Text style={styles.label}>Tournament Type *</Text>
       <View style={styles.typeGrid}>
         {tournamentTypes.map((type) => (
           <TouchableOpacity
@@ -121,8 +134,16 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
               tournamentType === type.value && styles.typeCardSelected
             ]}
             onPress={() => setTournamentType(type.value as any)}
+            activeOpacity={0.8}
           >
-            <Text style={styles.typeIcon}>{type.icon}</Text>
+            <View style={styles.typeHeader}>
+              <Text style={styles.typeIcon}>{type.icon}</Text>
+              {tournamentType === type.value && (
+                <View style={styles.selectedBadge}>
+                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                </View>
+              )}
+            </View>
             <Text style={[
               styles.typeLabel,
               tournamentType === type.value && styles.typeLabelSelected
@@ -143,166 +164,218 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
+      <StatusBar barStyle="light-content" />
+      
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="automatic"
+      >
+        {/* Professional Header */}
+        <ProfessionalHeader
+          title="Create Tournament"
+          subtitle="Set up your football competition"
+          showBack
+          onBack={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>← Cancel</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Tournament</Text>
-        <TouchableOpacity 
-          style={styles.createButton}
-          onPress={handleCreate}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.createButtonText}>Create</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+          <ProfessionalButton
+            title={loading ? "Creating..." : "Create"}
+            icon={loading ? undefined : "add-circle"}
+            variant="primary"
+            onPress={handleCreate}
+            disabled={loading}
+          >
+            {loading && <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: spacing.xs }} />}
+          </ProfessionalButton>
+        </ProfessionalHeader>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Basic Information */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Basic Information</Text>
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Tournament Name</Text>
-            <TextInput
-              style={styles.input}
-              value={name}
-              onChangeText={setName}
-              placeholder="Enter tournament name"
-              placeholderTextColor="#999"
-            />
-          </View>
-
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Description (Optional)</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Describe your tournament..."
-              placeholderTextColor="#999"
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-          </View>
-        </View>
-
-        {/* Tournament Format */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tournament Format</Text>
-          {renderTypeSelector()}
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Maximum Teams</Text>
-            <TextInput
-              style={styles.input}
-              value={maxTeams}
-              onChangeText={setMaxTeams}
-              placeholder="8"
-              placeholderTextColor="#999"
-              keyboardType="numeric"
-            />
-          </View>
-        </View>
-
-        {/* Schedule */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Schedule</Text>
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Start Date</Text>
-            <TouchableOpacity 
-              style={styles.dateButton}
-              onPress={() => setShowStartDatePicker(true)}
-            >
-              <Text style={styles.dateText}>{formatDate(startDate)}</Text>
-              <Text style={styles.dateIcon}>📅</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>End Date</Text>
-            <TouchableOpacity 
-              style={styles.dateButton}
-              onPress={() => setShowEndDatePicker(true)}
-            >
-              <Text style={styles.dateText}>{formatDate(endDate)}</Text>
-              <Text style={styles.dateIcon}>📅</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Prize Details */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Prize Details (Optional)</Text>
-          
-          <View style={styles.row}>
-            <View style={styles.halfWidth}>
-              <Text style={styles.label}>Entry Fee (₹)</Text>
-              <TextInput
-                style={styles.input}
-                value={entryFee}
-                onChangeText={setEntryFee}
-                placeholder="0"
-                placeholderTextColor="#999"
-                keyboardType="numeric"
-              />
+        <View style={styles.content}>
+          {/* Basic Information */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIcon}>
+                <Ionicons name="information-circle" size={20} color={colors.primary.main} />
+              </View>
+              <Text style={styles.sectionTitle}>Basic Information</Text>
             </View>
             
-            <View style={styles.halfWidth}>
-              <Text style={styles.label}>Prize Pool (₹)</Text>
-              <TextInput
-                style={styles.input}
-                value={prizePool}
-                onChangeText={setPrizePool}
-                placeholder="0"
-                placeholderTextColor="#999"
-                keyboardType="numeric"
-              />
-            </View>
-          </View>
-        </View>
+            <View style={styles.formCard}>
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Tournament Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Enter tournament name"
+                  placeholderTextColor={colors.text.tertiary}
+                />
+              </View>
 
-        {/* Tournament Preview */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Preview</Text>
-          <View style={styles.previewCard}>
-            <View style={styles.previewHeader}>
-              <Text style={styles.previewIcon}>
-                {tournamentTypes.find(t => t.value === tournamentType)?.icon}
-              </Text>
-              <View style={styles.previewInfo}>
-                <Text style={styles.previewName}>
-                  {name || 'Tournament Name'}
-                </Text>
-                <Text style={styles.previewType}>
-                  {tournamentTypes.find(t => t.value === tournamentType)?.label}
-                </Text>
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Description (Optional)</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder="Describe your tournament..."
+                  placeholderTextColor={colors.text.tertiary}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
               </View>
             </View>
+          </View>
+
+          {/* Tournament Format */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIcon}>
+                <Ionicons name="trophy" size={20} color={colors.accent.gold} />
+              </View>
+              <Text style={styles.sectionTitle}>Tournament Format</Text>
+            </View>
             
-            <View style={styles.previewDetails}>
-              <Text style={styles.previewDetail}>
-                📅 {formatDate(startDate)} - {formatDate(endDate)}
-              </Text>
-              <Text style={styles.previewDetail}>
-                👥 Max {maxTeams} teams
-              </Text>
-              {prizePool && (
-                <Text style={styles.previewDetail}>
-                  💰 ₹{parseFloat(prizePool).toLocaleString()} prize pool
-                </Text>
-              )}
+            <View style={styles.formCard}>
+              {renderTypeSelector()}
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Maximum Teams *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={maxTeams}
+                  onChangeText={setMaxTeams}
+                  placeholder="8"
+                  placeholderTextColor={colors.text.tertiary}
+                  keyboardType="numeric"
+                />
+              </View>
             </View>
           </View>
+
+          {/* Schedule */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIcon}>
+                <Ionicons name="calendar" size={20} color={colors.accent.blue} />
+              </View>
+              <Text style={styles.sectionTitle}>Schedule</Text>
+            </View>
+            
+            <View style={styles.formCard}>
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Start Date *</Text>
+                <TouchableOpacity 
+                  style={styles.dateButton}
+                  onPress={() => setShowStartDatePicker(true)}
+                >
+                  <Text style={styles.dateText}>{formatDate(startDate)}</Text>
+                  <Ionicons name="calendar-outline" size={20} color={colors.text.secondary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>End Date *</Text>
+                <TouchableOpacity 
+                  style={styles.dateButton}
+                  onPress={() => setShowEndDatePicker(true)}
+                >
+                  <Text style={styles.dateText}>{formatDate(endDate)}</Text>
+                  <Ionicons name="calendar-outline" size={20} color={colors.text.secondary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          {/* Prize Details */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIcon}>
+                <Ionicons name="diamond" size={20} color={colors.accent.coral} />
+              </View>
+              <Text style={styles.sectionTitle}>Prize Details (Optional)</Text>
+            </View>
+            
+            <View style={styles.formCard}>
+              <View style={styles.row}>
+                <View style={styles.halfWidth}>
+                  <Text style={styles.label}>Entry Fee (₹)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={entryFee}
+                    onChangeText={setEntryFee}
+                    placeholder="0"
+                    placeholderTextColor={colors.text.tertiary}
+                    keyboardType="numeric"
+                  />
+                </View>
+                
+                <View style={styles.halfWidth}>
+                  <Text style={styles.label}>Prize Pool (₹)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={prizePool}
+                    onChangeText={setPrizePool}
+                    placeholder="0"
+                    placeholderTextColor={colors.text.tertiary}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* Tournament Preview */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIcon}>
+                <Ionicons name="eye" size={20} color={colors.accent.purple} />
+              </View>
+              <Text style={styles.sectionTitle}>Preview</Text>
+            </View>
+            
+            <View style={styles.previewCard}>
+              <View style={styles.previewHeader}>
+                <View style={styles.previewBadge}>
+                  <Text style={styles.previewIcon}>
+                    {tournamentTypes.find(t => t.value === tournamentType)?.icon}
+                  </Text>
+                </View>
+                <View style={styles.previewInfo}>
+                  <Text style={styles.previewName}>
+                    {name || 'Tournament Name'}
+                  </Text>
+                  <Text style={styles.previewType}>
+                    {tournamentTypes.find(t => t.value === tournamentType)?.label}
+                  </Text>
+                </View>
+              </View>
+              
+              <View style={styles.previewDetails}>
+                <View style={styles.previewDetailRow}>
+                  <Ionicons name="calendar-outline" size={16} color={colors.accent.blue} />
+                  <Text style={styles.previewDetail}>
+                    {formatDate(startDate)} - {formatDate(endDate)}
+                  </Text>
+                </View>
+                <View style={styles.previewDetailRow}>
+                  <Ionicons name="people-outline" size={16} color={colors.primary.main} />
+                  <Text style={styles.previewDetail}>
+                    Max {maxTeams} teams
+                  </Text>
+                </View>
+                {prizePool && (
+                  <View style={styles.previewDetailRow}>
+                    <Ionicons name="diamond-outline" size={16} color={colors.accent.gold} />
+                    <Text style={styles.previewDetail}>
+                      ₹{parseFloat(prizePool).toLocaleString()} prize pool
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.bottomSpacing} />
         </View>
       </ScrollView>
 
@@ -341,177 +414,198 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 60,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  backButton: {
-    padding: 8,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: '#2E7D32',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  createButton: {
-    backgroundColor: '#2E7D32',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-    minWidth: 60,
-    alignItems: 'center',
-  },
-  createButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
+    backgroundColor: colors.background.primary,
   },
   content: {
     flex: 1,
   },
+  // Professional Section Styling
   section: {
-    backgroundColor: '#fff',
-    marginTop: 12,
-    padding: 20,
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: spacing.xl,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  sectionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surface.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 20,
+    fontSize: typography.fontSize.title3,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+  },
+  // Professional Form Card
+  formCard: {
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    ...shadows.sm,
   },
   formGroup: {
-    marginBottom: 20,
+    marginBottom: spacing.lg,
   },
   label: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-    marginBottom: 8,
+    fontSize: typography.fontSize.regular,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#333',
-    backgroundColor: '#fff',
+    borderColor: colors.surface.border,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: typography.fontSize.regular,
+    color: colors.text.primary,
+    backgroundColor: colors.surface.primary,
+    ...shadows.xs,
   },
   textArea: {
     height: 80,
-    paddingTop: 12,
+    paddingTop: spacing.sm,
+    textAlignVertical: 'top',
   },
   row: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.md,
   },
   halfWidth: {
     flex: 1,
   },
+  // Professional Tournament Type Cards
   typeGrid: {
-    gap: 12,
+    gap: spacing.sm,
   },
   typeCard: {
-    padding: 16,
+    padding: spacing.lg,
     borderWidth: 2,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    backgroundColor: '#fff',
+    borderColor: colors.surface.border,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.surface.primary,
+    ...shadows.sm,
   },
   typeCardSelected: {
-    borderColor: '#2E7D32',
-    backgroundColor: '#f8fff8',
+    borderColor: colors.primary.main,
+    backgroundColor: colors.primary.main + '10',
+  },
+  typeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
   },
   typeIcon: {
     fontSize: 24,
-    marginBottom: 8,
+  },
+  selectedBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.primary.main,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   typeLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
+    fontSize: typography.fontSize.large,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.xxs,
   },
   typeLabelSelected: {
-    color: '#2E7D32',
+    color: colors.primary.main,
   },
   typeDescription: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
+    fontSize: typography.fontSize.small,
+    color: colors.text.secondary,
+    lineHeight: 18,
   },
   typeDescriptionSelected: {
-    color: '#2E7D32',
+    color: colors.primary.dark,
   },
+  // Professional Date Button
   dateButton: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
+    borderColor: colors.surface.border,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surface.primary,
+    ...shadows.xs,
   },
   dateText: {
-    fontSize: 16,
-    color: '#333',
+    fontSize: typography.fontSize.regular,
+    color: colors.text.primary,
+    fontWeight: typography.fontWeight.medium,
   },
-  dateIcon: {
-    fontSize: 16,
-  },
+  // Professional Preview Card
   previewCard: {
-    backgroundColor: '#f8f9fa',
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: colors.surface.primary,
+    padding: spacing.lg,
+    borderRadius: borderRadius.xl,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: colors.surface.border,
+    ...shadows.md,
   },
   previewHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.lg,
+  },
+  previewBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.surface.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
   },
   previewIcon: {
-    fontSize: 32,
-    marginRight: 12,
+    fontSize: 24,
   },
   previewInfo: {
     flex: 1,
   },
   previewName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 2,
+    fontSize: typography.fontSize.large,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.xxs,
   },
   previewType: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: typography.fontSize.small,
+    color: colors.text.secondary,
     textTransform: 'uppercase',
-    fontWeight: '500',
+    fontWeight: typography.fontWeight.semibold,
+    letterSpacing: 0.5,
   },
   previewDetails: {
-    gap: 6,
+    gap: spacing.sm,
+  },
+  previewDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   previewDetail: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: typography.fontSize.regular,
+    color: colors.text.secondary,
+    fontWeight: typography.fontWeight.medium,
+  },
+  bottomSpacing: {
+    height: 40,
   },
 });

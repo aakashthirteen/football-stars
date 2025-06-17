@@ -5,18 +5,24 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  FlatList,
   ActivityIndicator,
   RefreshControl,
-  Animated,
-  Dimensions,
+  StatusBar,
 } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
 import { apiService } from '../../services/api';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { FloatingActionButton } from '../../components/FloatingActionButton';
 
-const { width } = Dimensions.get('window');
+// Professional Components
+import {
+  ProfessionalButton,
+  ProfessionalHeader,
+  DesignSystem,
+} from '../../components/professional';
+
+const { colors, typography, spacing, borderRadius, shadows } = DesignSystem;
 
 interface Tournament {
   id: string;
@@ -42,24 +48,10 @@ export default function TournamentsScreen({ navigation }: TournamentsScreenProps
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
-  const slideAnim = React.useRef(new Animated.Value(30)).current;
+  const [selectedTab, setSelectedTab] = useState<'active' | 'upcoming' | 'completed'>('active');
 
   useEffect(() => {
     loadTournaments();
-    // Beautiful entrance animation
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-    ]).start();
   }, []);
 
   const loadTournaments = async () => {
@@ -80,30 +72,25 @@ export default function TournamentsScreen({ navigation }: TournamentsScreenProps
     loadTournaments();
   };
 
-  const getStatusGradient = (status: string) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 'UPCOMING': return ['#2196F3', '#1976D2', '#0D47A1'];
-      case 'ACTIVE': return ['#4CAF50', '#2E7D32', '#1B5E20'];
-      case 'COMPLETED': return ['#9E9E9E', '#616161', '#424242'];
-      default: return ['#666', '#444', '#333'];
+      case 'UPCOMING': return '#4A9FFF';
+      case 'ACTIVE': return '#FF6B6B';
+      case 'COMPLETED': return '#14B8A6';
+      default: return colors.text.secondary;
     }
   };
 
-  const getTypeGradient = (type: string) => {
+  const getTypeConfig = (type: string) => {
     switch (type) {
-      case 'LEAGUE': return ['#FF6B35', '#E55100', '#BF360C'];
-      case 'KNOCKOUT': return ['#E91E63', '#C2185B', '#AD1457'];
-      case 'GROUP_STAGE': return ['#9C27B0', '#7B1FA2', '#6A1B9A'];
-      default: return ['#607D8B', '#455A64', '#37474F'];
-    }
-  };
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'LEAGUE': return 'trophy';
-      case 'KNOCKOUT': return 'flash';
-      case 'GROUP_STAGE': return 'grid';
-      default: return 'flag';
+      case 'LEAGUE': 
+        return { icon: 'trophy' };
+      case 'KNOCKOUT': 
+        return { icon: 'flash' };
+      case 'GROUP_STAGE': 
+        return { icon: 'people' };
+      default: 
+        return { icon: 'flag' };
     }
   };
 
@@ -116,329 +103,227 @@ export default function TournamentsScreen({ navigation }: TournamentsScreenProps
     });
   };
 
-  const renderTournament = ({ item, index }: { item: Tournament; index: number }) => {
-    const progressPercentage = (item.registeredTeams / item.maxTeams) * 100;
+  const renderTournamentCard = (tournament: Tournament) => {
+    const progressPercentage = (tournament.registeredTeams / tournament.maxTeams) * 100;
+    const typeConfig = getTypeConfig(tournament.tournamentType);
 
     return (
-      <Animated.View
-        style={[
-          {
-            opacity: fadeAnim,
-            transform: [
-              {
-                translateY: fadeAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [30, 0],
-                }),
-              },
-            ],
-          },
-        ]}
+      <TouchableOpacity 
+        key={tournament.id}
+        onPress={() => navigation.navigate('TournamentDetails', { tournamentId: tournament.id })}
+        activeOpacity={0.8}
+        style={styles.tournamentCard}
       >
-        <TouchableOpacity 
-          onPress={() => navigation.navigate('TournamentDetails', { tournamentId: item.id })}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']}
-            style={styles.tournamentCard}
-          >
-            {/* Status glow effect */}
-            <LinearGradient
-              colors={getStatusGradient(item.status)}
-              style={styles.statusGlow}
-            />
+        <View style={styles.tournamentContent}>
+          {/* Icon and Basic Info */}
+          <View style={styles.tournamentHeader}>
+            <View style={[styles.tournamentIcon, { backgroundColor: colors.primary.main }]}>
+              <Ionicons name={typeConfig.icon as any} size={28} color="#FFFFFF" />
+            </View>
             
-            <View style={styles.tournamentHeader}>
-              <View style={styles.tournamentTitle}>
-                <LinearGradient
-                  colors={getTypeGradient(item.tournamentType)}
-                  style={styles.tournamentIconContainer}
-                >
-                  <Ionicons name={getTypeIcon(item.tournamentType) as any} size={24} color="#fff" />
-                </LinearGradient>
-                
-                <View style={styles.titleContainer}>
-                  <Text style={styles.tournamentName} numberOfLines={1}>{item.name}</Text>
-                  <Text style={styles.tournamentType}>{item.tournamentType.replace('_', ' ')}</Text>
-                </View>
-              </View>
-              
-              <LinearGradient
-                colors={getStatusGradient(item.status)}
-                style={styles.statusBadge}
-              >
-                <Text style={styles.statusText}>{item.status}</Text>
-              </LinearGradient>
-            </View>
-
-            {item.description && (
-              <Text style={styles.tournamentDescription} numberOfLines={2}>
-                {item.description}
-              </Text>
-            )}
-
             <View style={styles.tournamentInfo}>
-              <View style={styles.infoGrid}>
-                <View style={styles.infoItem}>
-                  <Ionicons name="people" size={16} color="#4CAF50" />
-                  <Text style={styles.infoLabel}>Teams</Text>
-                  <Text style={styles.infoValue}>{item.registeredTeams}/{item.maxTeams}</Text>
+              <Text style={styles.tournamentName} numberOfLines={1}>
+                {tournament.name}
+              </Text>
+              <View style={styles.metaRow}>
+                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(tournament.status) }]}>
+                  <Text style={styles.statusText}>{tournament.status}</Text>
                 </View>
-                
-                <View style={styles.infoItem}>
-                  <Ionicons name="calendar" size={16} color="#2196F3" />
-                  <Text style={styles.infoLabel}>Duration</Text>
-                  <Text style={styles.infoValue}>{formatDate(item.startDate)}</Text>
-                </View>
-
-                {item.prizePool && (
-                  <View style={styles.infoItem}>
-                    <Ionicons name="trophy" size={16} color="#FFD700" />
-                    <Text style={styles.infoLabel}>Prize</Text>
-                    <Text style={styles.prizeText}>₹{item.prizePool.toLocaleString()}</Text>
-                  </View>
-                )}
+                <Text style={styles.tournamentType}>
+                  {tournament.tournamentType.replace('_', ' ')}
+                </Text>
               </View>
             </View>
+          </View>
 
-            {/* Progress Bar */}
-            <View style={styles.progressSection}>
-              <View style={styles.progressInfo}>
-                <Text style={styles.progressLabel}>Registration Progress</Text>
-                <Text style={styles.progressPercent}>{Math.round(progressPercentage)}%</Text>
-              </View>
-              <View style={styles.progressBarContainer}>
-                <LinearGradient
-                  colors={getStatusGradient(item.status)}
-                  style={[styles.progressBar, { width: `${progressPercentage}%` }]}
-                />
-              </View>
+          {/* Stats Row */}
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Ionicons name="people-outline" size={16} color={colors.text.secondary} />
+              <Text style={styles.statText}>
+                {tournament.registeredTeams}/{tournament.maxTeams}
+              </Text>
             </View>
-          </LinearGradient>
-        </TouchableOpacity>
-      </Animated.View>
+            
+            <View style={styles.statItem}>
+              <Ionicons name="calendar-outline" size={16} color={colors.text.secondary} />
+              <Text style={styles.statText}>
+                {formatDate(tournament.startDate)}
+              </Text>
+            </View>
+            
+            {tournament.prizePool && (
+              <View style={styles.statItem}>
+                <Ionicons name="cash-outline" size={16} color={colors.accent.gold} />
+                <Text style={[styles.statText, { color: colors.accent.gold }]}>
+                  ₹{tournament.prizePool.toLocaleString()}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Progress Bar */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <View 
+                style={[
+                  styles.progressFill, 
+                  { 
+                    width: `${progressPercentage}%`,
+                    backgroundColor: getStatusColor(tournament.status)
+                  }
+                ]} 
+              />
+            </View>
+            <Text style={styles.progressText}>{Math.round(progressPercentage)}%</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
     );
   };
 
-  const activeTournaments = tournaments.filter(t => t.status === 'ACTIVE');
-  const upcomingTournaments = tournaments.filter(t => t.status === 'UPCOMING');
-  const completedTournaments = tournaments.filter(t => t.status === 'COMPLETED');
+  const renderTabSelector = () => {
+    const activeTournaments = tournaments.filter(t => t.status === 'ACTIVE');
+    const upcomingTournaments = tournaments.filter(t => t.status === 'UPCOMING');
+    const completedTournaments = tournaments.filter(t => t.status === 'COMPLETED');
+
+    return (
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tab, selectedTab === 'active' && styles.activeTab]}
+          onPress={() => setSelectedTab('active')}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.tabText, selectedTab === 'active' && styles.activeTabText]}>
+            Active
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.tab, selectedTab === 'upcoming' && styles.activeTab]}
+          onPress={() => setSelectedTab('upcoming')}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.tabText, selectedTab === 'upcoming' && styles.activeTabText]}>
+            Upcoming
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.tab, selectedTab === 'completed' && styles.activeTab]}
+          onPress={() => setSelectedTab('completed')}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.tabText, selectedTab === 'completed' && styles.activeTabText]}>
+            Completed
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  const filteredTournaments = tournaments.filter(t => {
+    if (selectedTab === 'active') return t.status === 'ACTIVE';
+    if (selectedTab === 'upcoming') return t.status === 'UPCOMING';
+    return t.status === 'COMPLETED';
+  });
+
+  const renderEmptyState = () => {
+    const emptyConfig = {
+      active: {
+        icon: 'flash-outline',
+        title: 'No Active Tournaments',
+        subtitle: 'Check upcoming tournaments or create a new one',
+      },
+      upcoming: {
+        icon: 'calendar-outline',
+        title: 'No Upcoming Tournaments',
+        subtitle: 'Create a tournament to get started',
+      },
+      completed: {
+        icon: 'trophy-outline',
+        title: 'No Completed Tournaments',
+        subtitle: 'Tournaments you\'ve participated in will appear here',
+      },
+    }[selectedTab];
+
+    return (
+      <View style={styles.emptyState}>
+        <View style={[styles.emptyIcon, { backgroundColor: colors.primary.main }]}>
+          <Ionicons name={emptyConfig.icon as any} size={48} color="#FFFFFF" />
+        </View>
+        <Text style={styles.emptyTitle}>{emptyConfig.title}</Text>
+        <Text style={styles.emptySubtitle}>{emptyConfig.subtitle}</Text>
+        {selectedTab !== 'completed' && (
+          <ProfessionalButton
+            title="Create Tournament"
+            icon="add-circle"
+            onPress={() => navigation.navigate('CreateTournament')}
+            style={styles.createButton}
+          />
+        )}
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
-      {/* Stadium Background Pattern */}
-      <View style={styles.backgroundPattern} />
+      <StatusBar barStyle="light-content" />
       
-      {/* Header with Stadium Lighting Effect */}
-      <LinearGradient
-        colors={['#0A0E27', '#1A1F3A', '#2D3748']}
-        style={styles.header}
-      >
-        <Animated.View 
-          style={[
-            styles.headerContent,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
-          <View>
-            <Text style={styles.headerTitle}>Tournaments</Text>
-            <Text style={styles.headerSubtitle}>Compete for glory and prizes</Text>
-          </View>
-          
-          <TouchableOpacity 
-            onPress={() => navigation.navigate('CreateTournament')}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={['#4CAF50', '#2E7D32']}
-              style={styles.createButton}
-            >
-              <Ionicons name="add" size={20} color="#fff" />
-              <Text style={styles.createButtonText}>Create</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </Animated.View>
-      </LinearGradient>
-
       <ScrollView 
         style={styles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={onRefresh}
-            tintColor="#4CAF50"
-            colors={['#4CAF50']}
+            tintColor={colors.primary.main}
+            colors={[colors.primary.main]}
           />
         }
-        showsVerticalScrollIndicator={false}
       >
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <LinearGradient
-              colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
-              style={styles.loadingCard}
-            >
-              <ActivityIndicator size="large" color="#4CAF50" />
+        {/* Professional Header */}
+        <ProfessionalHeader
+          title="Tournaments"
+          subtitle="Compete and win prizes"
+          showNotifications
+          onNotifications={() => navigation.getParent()?.navigate('Profile')}
+        />
+
+        {/* Tab Selector */}
+        <View style={styles.tabSection}>
+          {renderTabSelector()}
+        </View>
+
+        {/* Content */}
+        <View style={styles.contentSection}>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={colors.primary.main} />
               <Text style={styles.loadingText}>Loading tournaments...</Text>
-            </LinearGradient>
-          </View>
-        ) : (
-          <>
-            {/* Quick Stats */}
-            <Animated.View 
-              style={[
-                styles.statsContainer,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }],
-                },
-              ]}
-            >
-              <LinearGradient
-                colors={['#4CAF50', '#2E7D32']}
-                style={styles.statCard}
-              >
-                <Ionicons name="flash" size={24} color="#fff" />
-                <Text style={styles.statNumber}>{activeTournaments.length}</Text>
-                <Text style={styles.statLabel}>Active</Text>
-              </LinearGradient>
-              
-              <LinearGradient
-                colors={['#2196F3', '#1976D2']}
-                style={styles.statCard}
-              >
-                <Ionicons name="calendar" size={24} color="#fff" />
-                <Text style={styles.statNumber}>{upcomingTournaments.length}</Text>
-                <Text style={styles.statLabel}>Upcoming</Text>
-              </LinearGradient>
-              
-              <LinearGradient
-                colors={['#9E9E9E', '#616161']}
-                style={styles.statCard}
-              >
-                <Ionicons name="trophy" size={24} color="#fff" />
-                <Text style={styles.statNumber}>{completedTournaments.length}</Text>
-                <Text style={styles.statLabel}>Completed</Text>
-              </LinearGradient>
-            </Animated.View>
-
-            {/* Active Tournaments */}
-            {activeTournaments.length > 0 && (
-              <Animated.View 
-                style={[
-                  styles.section,
-                  {
-                    opacity: fadeAnim,
-                    transform: [{ translateY: slideAnim }],
-                  },
-                ]}
-              >
-                <View style={styles.sectionHeader}>
-                  <Ionicons name="flash" size={20} color="#4CAF50" />
-                  <Text style={styles.sectionTitle}>Live Tournaments</Text>
+            </View>
+          ) : (
+            <>
+              {filteredTournaments.length > 0 ? (
+                <View style={styles.tournamentsList}>
+                  {filteredTournaments.map(renderTournamentCard)}
                 </View>
-                <FlatList
-                  data={activeTournaments}
-                  renderItem={renderTournament}
-                  keyExtractor={(item) => item.id}
-                  scrollEnabled={false}
-                  showsVerticalScrollIndicator={false}
-                />
-              </Animated.View>
-            )}
+              ) : (
+                renderEmptyState()
+              )}
+            </>
+          )}
+        </View>
 
-            {/* Upcoming Tournaments */}
-            {upcomingTournaments.length > 0 && (
-              <Animated.View 
-                style={[
-                  styles.section,
-                  {
-                    opacity: fadeAnim,
-                    transform: [{ translateY: slideAnim }],
-                  },
-                ]}
-              >
-                <View style={styles.sectionHeader}>
-                  <Ionicons name="calendar" size={20} color="#2196F3" />
-                  <Text style={styles.sectionTitle}>Upcoming Tournaments</Text>
-                </View>
-                <FlatList
-                  data={upcomingTournaments}
-                  renderItem={renderTournament}
-                  keyExtractor={(item) => item.id}
-                  scrollEnabled={false}
-                  showsVerticalScrollIndicator={false}
-                />
-              </Animated.View>
-            )}
-
-            {/* Completed Tournaments */}
-            {completedTournaments.length > 0 && (
-              <Animated.View 
-                style={[
-                  styles.section,
-                  {
-                    opacity: fadeAnim,
-                    transform: [{ translateY: slideAnim }],
-                  },
-                ]}
-              >
-                <View style={styles.sectionHeader}>
-                  <Ionicons name="trophy" size={20} color="#9E9E9E" />
-                  <Text style={styles.sectionTitle}>Completed Tournaments</Text>
-                </View>
-                <FlatList
-                  data={completedTournaments}
-                  renderItem={renderTournament}
-                  keyExtractor={(item) => item.id}
-                  scrollEnabled={false}
-                  showsVerticalScrollIndicator={false}
-                />
-              </Animated.View>
-            )}
-
-            {/* Empty State */}
-            {tournaments.length === 0 && (
-              <Animated.View 
-                style={[
-                  styles.emptyState,
-                  {
-                    opacity: fadeAnim,
-                    transform: [{ translateY: slideAnim }],
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
-                  style={styles.emptyContainer}
-                >
-                  <Ionicons name="trophy-outline" size={80} color="rgba(255, 255, 255, 0.3)" />
-                  <Text style={styles.emptyTitle}>No Tournaments Yet</Text>
-                  <Text style={styles.emptySubtitle}>
-                    Create your first tournament to organize competitions
-                  </Text>
-                  <TouchableOpacity 
-                    onPress={() => navigation.navigate('CreateTournament')}
-                    activeOpacity={0.8}
-                  >
-                    <LinearGradient
-                      colors={['#4CAF50', '#2E7D32']}
-                      style={styles.primaryButton}
-                    >
-                      <Ionicons name="add-circle" size={24} color="#fff" />
-                      <Text style={styles.primaryButtonText}>Create Tournament</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </LinearGradient>
-              </Animated.View>
-            )}
-          </>
-        )}
+        <View style={styles.bottomSpacing} />
       </ScrollView>
+      
+      {/* Floating Action Button */}
+      <FloatingActionButton
+        onPress={() => navigation.navigate('CreateTournament')}
+        icon="add"
+        style={styles.fab}
+      />
     </View>
   );
 }
@@ -446,296 +331,214 @@ export default function TournamentsScreen({ navigation }: TournamentsScreenProps
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0E27',
-  },
-  backgroundPattern: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    opacity: 0.1,
-    backgroundColor: '#0A0E27',
-  },
-  header: {
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginTop: 4,
-  },
-  createButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 25,
-    gap: 8,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  createButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    backgroundColor: colors.background.primary,
   },
   content: {
     flex: 1,
   },
   loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
-  },
-  loadingCard: {
-    padding: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: spacing.xxxl * 2,
   },
   loadingText: {
-    marginTop: 16,
+    marginTop: spacing.md,
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: colors.text.secondary,
   },
-  statsContainer: {
+
+  // Tab Section - La Liga style
+  tabSection: {
+    paddingHorizontal: spacing.screenPadding,
+    marginTop: spacing.xl,
+    marginBottom: spacing.lg,
+  },
+  tabContainer: {
     flexDirection: 'row',
-    padding: 20,
-    gap: 12,
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xs,
+    ...shadows.sm,
   },
-  statCard: {
+  tab: {
     flex: 1,
-    padding: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-    shadowColor: 'rgba(0, 0, 0, 0.3)',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textTransform: 'uppercase',
-    fontWeight: '500',
-  },
-  section: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
-  },
-  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    gap: 8,
+    justifyContent: 'center',
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    gap: spacing.xs,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
+  activeTab: {
+    backgroundColor: colors.primary.main,
   },
+  tabText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  activeTabText: {
+    color: '#FFFFFF',
+  },
+  tabBadge: {
+    backgroundColor: colors.surface.secondary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  activeTabBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  tabCount: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text.secondary,
+  },
+  activeTabCount: {
+    color: '#FFFFFF',
+  },
+
+  // Content Section
+  contentSection: {
+    paddingHorizontal: spacing.screenPadding,
+  },
+  tournamentsList: {
+    gap: spacing.md,
+  },
+
+  // Tournament Card - Modern design
   tournamentCard: {
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    shadowColor: 'rgba(0, 0, 0, 0.3)',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.lg,
     overflow: 'hidden',
+    ...shadows.sm,
   },
-  statusGlow: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 3,
-    opacity: 0.8,
+  tournamentContent: {
+    padding: spacing.lg,
   },
   tournamentHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  tournamentTitle: {
-    flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    marginBottom: spacing.md,
   },
-  tournamentIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  tournamentIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    marginRight: spacing.md,
   },
-  titleContainer: {
+  tournamentInfo: {
     flex: 1,
   },
   tournamentName: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
   },
-  tournamentType: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-    textTransform: 'capitalize',
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 8,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.badge,
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
   },
-  tournamentDescription: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 16,
-    lineHeight: 20,
+  tournamentType: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    textTransform: 'uppercase',
+    fontWeight: '500',
   },
-  tournamentInfo: {
-    marginBottom: 16,
-  },
-  infoGrid: {
+  statsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  infoItem: {
     alignItems: 'center',
-    flex: 1,
+    gap: spacing.lg,
+    marginBottom: spacing.md,
   },
-  infoLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.6)',
-    marginTop: 4,
-    marginBottom: 2,
-  },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  prizeText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#FFD700',
-  },
-  progressSection: {
-    marginTop: 8,
-  },
-  progressInfo: {
+  statItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: spacing.xs,
   },
-  progressLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.6)',
+  statText: {
+    fontSize: 14,
+    color: colors.text.secondary,
+    fontWeight: '500',
   },
-  progressPercent: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#4CAF50',
-  },
-  progressBarContainer: {
-    height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 3,
-    overflow: 'hidden',
+  progressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   progressBar: {
+    flex: 1,
+    height: 4,
+    backgroundColor: colors.surface.secondary,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: 2,
   },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text.secondary,
+    minWidth: 35,
+    textAlign: 'right',
+  },
+
+  // Empty State
   emptyState: {
-    padding: 20,
-  },
-  emptyContainer: {
     alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: spacing.xxxl * 1.5,
+    paddingHorizontal: spacing.xl,
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xl,
   },
   emptyTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
     textAlign: 'center',
-    marginTop: 16,
-    marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: 24,
-    marginBottom: 32,
+    marginBottom: spacing.xl,
   },
-  primaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 30,
-    gap: 8,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+  createButton: {
+    marginTop: spacing.sm,
   },
-  primaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
+
+  bottomSpacing: {
+    height: 120,
+  },
+  fab: {
+    bottom: 100,
   },
 });

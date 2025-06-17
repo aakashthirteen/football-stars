@@ -4,10 +4,13 @@ import {
   Animated,
   StyleSheet,
   View,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Gradients } from '../theme/colors';
+import DesignSystem from '../theme/designSystem';
+
+const { colors, shadows, borderRadius, spacing } = DesignSystem;
 
 interface FloatingActionButtonProps {
   onPress: () => void;
@@ -19,27 +22,45 @@ interface FloatingActionButtonProps {
 export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
   onPress,
   icon = 'add',
-  colors = Gradients.field,
+  colors: buttonColors = [colors.primary.main, colors.primary.dark],
   style,
 }) => {
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Entrance animation
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      tension: 40,
-      friction: 5,
-      useNativeDriver: true,
-      delay: 500,
-    }).start();
+    Animated.sequence([
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 5,
+        useNativeDriver: true,
+        delay: 300,
+      }),
+      // Subtle glow pulse
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(glowAnim, {
+            toValue: 0,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+        ])
+      ),
+    ]).start();
   }, []);
 
   const handlePressIn = () => {
     Animated.parallel([
       Animated.spring(scaleAnim, {
-        toValue: 0.9,
+        toValue: 0.85,
         useNativeDriver: true,
       }),
       Animated.timing(rotateAnim, {
@@ -72,18 +93,38 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
         styles.container,
         style,
         {
-          transform: [
-            { scale: scaleAnim },
-            {
-              rotate: rotateAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: ['0deg', '90deg'],
-              }),
-            },
-          ],
+          transform: [{ scale: scaleAnim }],
         },
       ]}
     >
+      {/* Glow effect */}
+      <Animated.View
+        style={[
+          styles.glowContainer,
+          {
+            opacity: glowAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, 0.3],
+            }),
+            transform: [
+              {
+                scale: glowAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 1.3],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={[...buttonColors, 'transparent']}
+          style={styles.glow}
+          start={{ x: 0.5, y: 0.5 }}
+          end={{ x: 0, y: 0 }}
+        />
+      </Animated.View>
+
       <TouchableOpacity
         activeOpacity={0.9}
         onPress={onPress}
@@ -92,14 +133,25 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
         style={styles.touchable}
       >
         <LinearGradient
-          colors={colors}
+          colors={buttonColors}
           style={styles.button}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <View style={styles.iconContainer}>
-            <Ionicons name={icon as any} size={28} color="#fff" />
-          </View>
+          <Animated.View
+            style={{
+              transform: [
+                {
+                  rotate: rotateAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0deg', '135deg'],
+                  }),
+                },
+              ],
+            }}
+          >
+            <Ionicons name={icon as any} size={24} color="#FFFFFF" />
+          </Animated.View>
         </LinearGradient>
       </TouchableOpacity>
     </Animated.View>
@@ -109,28 +161,34 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 24,
-    right: 24,
-    shadowColor: Colors.primary.main,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
+    bottom: Platform.OS === 'ios' ? 90 : 80,
+    right: spacing.lg,
+    width: 48,
+    height: 48,
+  },
+  glowContainer: {
+    position: 'absolute',
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glow: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   touchable: {
-    borderRadius: 28,
+    borderRadius: 24,
+    ...shadows.float,
   },
   button: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  iconContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
 });

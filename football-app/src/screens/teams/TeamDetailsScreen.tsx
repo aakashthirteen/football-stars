@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,27 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  StatusBar,
+  Dimensions,
+  Animated,
+  Image,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { apiService } from '../../services/api';
 import { TeamPlayerStats } from '../../types';
+
+// Professional Components
+import {
+  ProfessionalHeader,
+  ProfessionalPlayerCard,
+  ProfessionalTeamBadge,
+  ProfessionalButton,
+  DesignSystem,
+} from '../../components/professional';
+
+const { colors, typography, spacing, borderRadius, shadows, gradients } = DesignSystem;
+const { width, height } = Dimensions.get('window');
 
 interface TeamDetailsScreenProps {
   navigation: any;
@@ -30,29 +48,63 @@ interface Team {
   description?: string;
   players: Player[];
   createdBy: string;
+  primaryColor?: string;
+  secondaryColor?: string;
 }
+
+const POSITION_COLORS = {
+  GK: '#FF8C42',
+  DEF: '#4A9FFF',
+  MID: '#00D757',
+  FWD: '#FF6B6B',
+};
 
 export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScreenProps) {
   const { teamId } = route.params;
   const [team, setTeam] = useState<Team | null>(null);
   const [teamStats, setTeamStats] = useState<TeamPlayerStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [usingDemoStats, setUsingDemoStats] = useState(false);
+  const [selectedTab, setSelectedTab] = useState<'overview' | 'squad' | 'stats'>('overview');
+  
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const headerScale = useRef(new Animated.Value(0.95)).current;
 
   useEffect(() => {
     loadTeamDetails();
+    animateEntrance();
   }, []);
+
+  const animateEntrance = () => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.spring(headerScale, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
 
   const loadTeamDetails = async () => {
     try {
       setIsLoading(true);
-      console.log('📊 Loading team details for teamId:', teamId);
       
       const response = await apiService.getTeamById(teamId);
-      console.log('✅ Team response:', response);
       
       if (response.team && response.team.players) {
-        
         const transformedPlayers = response.team.players.map((tp: any) => ({
           id: tp.player_id || tp.playerId || tp.player?.id,
           name: tp.player?.name || tp.player_name || tp.name || 'Unknown Player',
@@ -66,13 +118,12 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
           players: transformedPlayers
         });
         
-        // Load real team stats from backend
         await loadTeamStats();
       } else {
         setTeam(response.team);
       }
     } catch (error: any) {
-      console.error('❌ Error loading team details:', error);
+      console.error('Error loading team details:', error);
       Alert.alert('Error', 'Failed to load team details');
       navigation.goBack();
     } finally {
@@ -82,179 +133,327 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
 
   const loadTeamStats = async () => {
     try {
-      console.log('📊 Loading REAL team stats for teamId:', teamId);
-      
       const response = await apiService.getTeamPlayersStats(teamId);
-      console.log('📊 Raw backend stats response structure:', {
-        hasResponse: !!response,
-        hasPlayers: !!(response?.players),
-        isPlayersArray: Array.isArray(response?.players),
-        playersLength: response?.players?.length || 0,
-        fullResponse: JSON.stringify(response, null, 2)
-      });
       
       if (response && response.players && Array.isArray(response.players)) {
-        console.log('✅ Backend returned', response.players.length, 'player stats');
-        
-        // Check if any players have actual match data
-        const playersWithStats = response.players.filter((p: any) => 
-          (p.goals > 0) || (p.assists > 0) || (p.matches_played > 0) || (p.matchesPlayed > 0)
-        );
-        
-        console.log('📊 Players with non-zero stats:', playersWithStats.length);
-        console.log('📊 Sample player data:', response.players[0]);
-        
-        
         setTeamStats(response.players);
-        setUsingDemoStats(false);
       } else {
-        console.log('⚠️ No valid stats data from backend - response structure invalid');
         setTeamStats([]);
-        setUsingDemoStats(false);
       }
     } catch (error: any) {
-      console.error('❌ Error loading REAL team stats:', error);
-      console.log('📋 API Error details:', {
-        message: error.message,
-        status: error.status,
-        response: error.response?.data,
-        stack: error.stack
-      });
-      // Show empty stats instead of dummy data
+      console.error('Error loading team stats:', error);
       setTeamStats([]);
-      setUsingDemoStats(false);
-    }
-  };
-
-  const getPositionColor = (position: string) => {
-    switch (position) {
-      case 'GK': return '#FF5722';
-      case 'DEF': return '#2196F3';
-      case 'MID': return '#4CAF50';
-      case 'FWD': return '#FF9800';
-      default: return '#9E9E9E';
-    }
-  };
-
-  const getRoleIcon = (role: string) => {
-    switch (role) {
-      case 'CAPTAIN': return '👑';
-      case 'VICE_CAPTAIN': return '⭐';
-      default: return '';
     }
   };
 
   const getPlayerStats = (playerId: string) => {
-    return teamStats.find(stats => stats.playerId === playerId || stats.player_id === playerId);
+    const stats = teamStats.find(s => s.playerId === playerId || s.player_id === playerId);
+    if (!stats) return undefined;
+    
+    return {
+      goals: parseInt(stats.goals) || 0,
+      assists: parseInt(stats.assists) || 0,
+      matches: parseInt(stats.matchesPlayed || stats.matches_played) || 0,
+      rating: parseFloat(stats.averageRating || stats.average_rating) || 0,
+      cards: (parseInt(stats.yellowCards || stats.yellow_cards) || 0) + 
+             (parseInt(stats.redCards || stats.red_cards) || 0),
+    };
   };
 
-  // Calculate team totals from REAL backend data only
   const calculateTeamTotals = () => {
-    const baseTotals = {
+    const totals = {
       totalPlayers: team?.players.length || 0,
       totalGoals: 0,
       totalAssists: 0,
-      totalMatches: 0
+      totalMatches: 0,
+      avgRating: 0,
     };
 
-    if (teamStats.length === 0) {
-      console.log('📊 No stats available, showing base totals');
-      return baseTotals;
+    if (teamStats.length > 0) {
+      totals.totalGoals = teamStats.reduce((sum, player) => sum + (parseInt(player.goals) || 0), 0);
+      totals.totalAssists = teamStats.reduce((sum, player) => sum + (parseInt(player.assists) || 0), 0);
+      totals.totalMatches = Math.max(...teamStats.map(player => 
+        parseInt(player.matchesPlayed || player.matches_played) || 0), 0);
+      
+      const totalRating = teamStats.reduce((sum, player) => 
+        sum + (parseFloat(player.averageRating || player.average_rating) || 0), 0);
+      totals.avgRating = teamStats.length > 0 ? totalRating / teamStats.length : 0;
     }
 
-
-    // Only calculate if we have real backend data - convert strings to numbers
-    const totalGoals = teamStats.reduce((sum, player) => {
-      const goals = parseInt(player.goals) || 0;
-      return sum + goals;
-    }, 0);
-    
-    const totalAssists = teamStats.reduce((sum, player) => {
-      const assists = parseInt(player.assists) || 0;
-      return sum + assists;
-    }, 0);
-    
-    const totalMatches = teamStats.length > 0 ? Math.max(...teamStats.map(player => 
-      parseInt(player.matchesPlayed || player.matches_played) || 0), 0) : 0;
-
-    console.log('📊 Calculated totals from REAL data:', {
-      totalPlayers: baseTotals.totalPlayers,
-      totalGoals,
-      totalAssists,
-      totalMatches
-    });
-
-    return {
-      totalPlayers: baseTotals.totalPlayers,
-      totalGoals,
-      totalAssists,
-      totalMatches
-    };
+    return totals;
   };
 
-  const renderPlayerCard = (player: Player) => {
-    const playerStats = getPlayerStats(player.id);
-    
-    
+  const renderOverviewTab = () => {
+    const totals = calculateTeamTotals();
+    const topScorer = teamStats.reduce((top, player) => 
+      (parseInt(player.goals) || 0) > (parseInt(top?.goals) || 0) ? player : top, null);
+    const topAssister = teamStats.reduce((top, player) => 
+      (parseInt(player.assists) || 0) > (parseInt(top?.assists) || 0) ? player : top, null);
+
     return (
-      <View key={player.id} style={styles.playerCard}>
-        <View style={styles.playerHeader}>
-          <View style={styles.playerInfo}>
-            <View style={styles.playerNameRow}>
-              <Text style={styles.playerName}>{player.name}</Text>
-              {getRoleIcon(player.role) ? (
-                <Text style={styles.roleIcon}>{getRoleIcon(player.role)}</Text>
-              ) : null}
-            </View>
-            <View style={styles.playerDetails}>
-              <View style={[styles.positionTag, { backgroundColor: getPositionColor(player.position) }]}>
-                <Text style={styles.positionText}>{player.position}</Text>
-              </View>
-              {player.jerseyNumber && (
-                <Text style={styles.jerseyNumber}>#{player.jerseyNumber}</Text>
-              )}
-            </View>
-          </View>
+      <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+        {/* Team Stats Grid */}
+        <View style={styles.statsGrid}>
+          <Animated.View style={[styles.statGridItem, { opacity: fadeAnim }]}>
+            <LinearGradient
+              colors={[colors.primary.main + '20', colors.primary.dark + '10']}
+              style={styles.statGridGradient}
+            >
+              <Ionicons name="football" size={24} color={colors.primary.main} />
+              <Text style={styles.statGridValue}>{totals.totalGoals}</Text>
+              <Text style={styles.statGridLabel}>Total Goals</Text>
+            </LinearGradient>
+          </Animated.View>
+
+          <Animated.View style={[styles.statGridItem, { opacity: fadeAnim }]}>
+            <LinearGradient
+              colors={[colors.accent.blue + '20', colors.accent.blue + '10']}
+              style={styles.statGridGradient}
+            >
+              <Ionicons name="trending-up" size={24} color={colors.accent.blue} />
+              <Text style={styles.statGridValue}>{totals.totalAssists}</Text>
+              <Text style={styles.statGridLabel}>Total Assists</Text>
+            </LinearGradient>
+          </Animated.View>
+
+          <Animated.View style={[styles.statGridItem, { opacity: fadeAnim }]}>
+            <LinearGradient
+              colors={[colors.accent.purple + '20', colors.accent.purple + '10']}
+              style={styles.statGridGradient}
+            >
+              <Ionicons name="calendar" size={24} color={colors.accent.purple} />
+              <Text style={styles.statGridValue}>{totals.totalMatches}</Text>
+              <Text style={styles.statGridLabel}>Matches Played</Text>
+            </LinearGradient>
+          </Animated.View>
+
+          <Animated.View style={[styles.statGridItem, { opacity: fadeAnim }]}>
+            <LinearGradient
+              colors={[colors.accent.gold + '20', colors.accent.gold + '10']}
+              style={styles.statGridGradient}
+            >
+              <Ionicons name="star" size={24} color={colors.accent.gold} />
+              <Text style={styles.statGridValue}>{totals.avgRating.toFixed(1)}</Text>
+              <Text style={styles.statGridLabel}>Avg Rating</Text>
+            </LinearGradient>
+          </Animated.View>
         </View>
-        
-        {playerStats ? (
-          <View style={styles.playerStatsGrid}>
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>{parseInt(playerStats.goals) || 0}</Text>
-              <Text style={styles.statLabel} numberOfLines={1}>Goals</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>{parseInt(playerStats.assists) || 0}</Text>
-              <Text style={styles.statLabel} numberOfLines={1}>Assists</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>
-                {parseInt(playerStats.matchesPlayed || playerStats.matches_played) || 0}
-              </Text>
-              <Text style={styles.statLabel} numberOfLines={1}>Matches</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>
-                {(parseInt(playerStats.yellowCards || playerStats.yellow_cards) || 0) + 
-                 (parseInt(playerStats.redCards || playerStats.red_cards) || 0)}
-              </Text>
-              <Text style={styles.statLabel} numberOfLines={1}>Cards</Text>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.noStatsAvailable}>
-            <Text style={styles.noStatsText}>No match data available</Text>
-            <Text style={styles.noStatsSubtext}>Stats will appear after playing matches</Text>
-          </View>
-        )}
-      </View>
+
+        {/* Top Performers */}
+        <View style={styles.topPerformers}>
+          <Text style={styles.sectionTitle}>Top Performers</Text>
+          
+          {topScorer && (
+            <TouchableOpacity style={styles.performerCard}>
+              <LinearGradient
+                colors={[colors.accent.gold + '20', colors.accent.gold + '10']}
+                style={styles.performerGradient}
+              >
+                <View style={styles.performerIcon}>
+                  <Ionicons name="football" size={20} color={colors.accent.gold} />
+                </View>
+                <View style={styles.performerInfo}>
+                  <Text style={styles.performerName}>{topScorer.playerName || topScorer.player_name}</Text>
+                  <Text style={styles.performerRole}>Top Scorer</Text>
+                </View>
+                <Text style={styles.performerStat}>{topScorer.goals} goals</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
+          {topAssister && (
+            <TouchableOpacity style={styles.performerCard}>
+              <LinearGradient
+                colors={[colors.accent.purple + '20', colors.accent.purple + '10']}
+                style={styles.performerGradient}
+              >
+                <View style={styles.performerIcon}>
+                  <Ionicons name="trending-up" size={20} color={colors.accent.purple} />
+                </View>
+                <View style={styles.performerInfo}>
+                  <Text style={styles.performerName}>{topAssister.playerName || topAssister.player_name}</Text>
+                  <Text style={styles.performerRole}>Top Assists</Text>
+                </View>
+                <Text style={styles.performerStat}>{topAssister.assists} assists</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.quickActions}>
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => navigation.navigate('TeamFormation', {
+              teamId: team?.id,
+              teamName: team?.name
+            })}
+          >
+            <LinearGradient
+              colors={gradients.primary}
+              style={styles.actionGradient}
+            >
+              <Ionicons name="football-outline" size={32} color="#FFFFFF" />
+              <Text style={styles.actionTitle}>Formation</Text>
+              <Text style={styles.actionSubtitle}>Set up tactics</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => Alert.alert('Coming Soon', 'Training feature will be available soon!')}
+          >
+            <LinearGradient
+              colors={[colors.accent.blue, colors.accent.purple]}
+              style={styles.actionGradient}
+            >
+              <Ionicons name="fitness-outline" size={32} color="#FFFFFF" />
+              <Text style={styles.actionTitle}>Training</Text>
+              <Text style={styles.actionSubtitle}>Coming soon</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     );
+  };
+
+  const renderSquadTab = () => {
+    const positions = ['GK', 'DEF', 'MID', 'FWD'];
+    const playersByPosition = positions.reduce((acc, pos) => {
+      acc[pos] = team?.players.filter(p => p.position === pos) || [];
+      return acc;
+    }, {} as Record<string, Player[]>);
+
+    return (
+      <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+        {/* Position Filter */}
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.positionFilter}
+        >
+          {positions.map(position => (
+            <TouchableOpacity
+              key={position}
+              style={[
+                styles.positionChip,
+                { backgroundColor: POSITION_COLORS[position as keyof typeof POSITION_COLORS] + '20' }
+              ]}
+            >
+              <Text style={[
+                styles.positionChipText,
+                { color: POSITION_COLORS[position as keyof typeof POSITION_COLORS] }
+              ]}>
+                {position} ({playersByPosition[position].length})
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Players Grid */}
+        <View style={styles.playersGrid}>
+          {team?.players.map((player, index) => {
+            const stats = getPlayerStats(player.id);
+            const positionColor = POSITION_COLORS[player.position as keyof typeof POSITION_COLORS] || colors.primary.main;
+            
+            return (
+              <Animated.View
+                key={player.id}
+                style={[
+                  styles.playerGridItem,
+                  {
+                    opacity: fadeAnim,
+                    transform: [{
+                      translateY: slideAnim.interpolate({
+                        inputRange: [0, 30],
+                        outputRange: [0, 30 + (index * 5)],
+                      }),
+                    }],
+                  },
+                ]}
+              >
+                <TouchableOpacity style={styles.playerCard}>
+                  <LinearGradient
+                    colors={[colors.background.secondary, colors.background.tertiary]}
+                    style={styles.playerCardGradient}
+                  >
+                    {/* Position Badge */}
+                    <View style={[styles.positionBadge, { backgroundColor: positionColor }]}>
+                      <Text style={styles.positionBadgeText}>{player.position}</Text>
+                    </View>
+                    
+                    {/* Jersey Number */}
+                    {player.jerseyNumber && (
+                      <View style={styles.jerseyNumber}>
+                        <Text style={styles.jerseyNumberText}>{player.jerseyNumber}</Text>
+                      </View>
+                    )}
+                    
+                    {/* Player Avatar */}
+                    <View style={styles.playerAvatar}>
+                      <Ionicons name="person" size={40} color={colors.text.tertiary} />
+                    </View>
+                    
+                    {/* Player Info */}
+                    <Text style={styles.playerName} numberOfLines={1}>{player.name}</Text>
+                    
+                    {/* Stats Row */}
+                    {stats && (
+                      <View style={styles.playerStatsRow}>
+                        <View style={styles.playerStatItem}>
+                          <Text style={styles.playerStatValue}>{stats.goals}</Text>
+                          <Text style={styles.playerStatLabel}>G</Text>
+                        </View>
+                        <View style={styles.playerStatDivider} />
+                        <View style={styles.playerStatItem}>
+                          <Text style={styles.playerStatValue}>{stats.assists}</Text>
+                          <Text style={styles.playerStatLabel}>A</Text>
+                        </View>
+                        <View style={styles.playerStatDivider} />
+                        <View style={styles.playerStatItem}>
+                          <Text style={styles.playerStatValue}>{stats.matches}</Text>
+                          <Text style={styles.playerStatLabel}>M</Text>
+                        </View>
+                      </View>
+                    )}
+                    
+                    {/* Rating */}
+                    {stats && stats.rating > 0 && (
+                      <View style={[styles.ratingBadge, { backgroundColor: getRatingColor(stats.rating) }]}>
+                        <Text style={styles.ratingText}>{stats.rating.toFixed(1)}</Text>
+                      </View>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
+            );
+          })}
+        </View>
+      </ScrollView>
+    );
+  };
+
+  const getRatingColor = (rating: number) => {
+    if (rating >= 8) return colors.primary.main;
+    if (rating >= 7) return colors.semantic.success;
+    if (rating >= 6) return colors.semantic.warning;
+    return colors.semantic.error;
+  };
+
+  const getPositionName = (pos: string) => {
+    switch (pos) {
+      case 'GK': return 'Goalkeepers';
+      case 'DEF': return 'Defenders';
+      case 'MID': return 'Midfielders';
+      case 'FWD': return 'Forwards';
+      default: return pos;
+    }
   };
 
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#00E676" />
+        <ActivityIndicator size="large" color={colors.primary.main} />
         <Text style={styles.loadingText}>Loading team details...</Text>
       </View>
     );
@@ -264,93 +463,122 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>Team not found</Text>
-        <TouchableOpacity 
-          style={styles.backButton}
+        <ProfessionalButton
+          title="Go Back"
           onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </TouchableOpacity>
+          variant="secondary"
+        />
       </View>
     );
   }
 
   const totals = calculateTeamTotals();
+  const teamColors = team.primaryColor 
+    ? [team.primaryColor, team.secondaryColor || team.primaryColor]
+    : gradients.primary;
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.headerBackButton}
-          onPress={() => navigation.goBack()}
+      <StatusBar barStyle="light-content" />
+      
+      {/* Team Header */}
+      <Animated.View 
+        style={[
+          styles.header,
+          {
+            transform: [{ scale: headerScale }],
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={teamColors}
+          style={styles.headerGradient}
         >
-          <Text style={styles.headerBackText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.teamName}>{team.name}</Text>
-        {team.description && (
-          <Text style={styles.teamDescription}>{team.description}</Text>
-        )}
-        {teamStats.length === 0 && (
-          <View style={styles.noDataIndicator}>
-            <Text style={styles.noDataText}>⚠️ No match data yet</Text>
-          </View>
-        )}
-      </View>
-
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Team Stats Overview */}
-        <View style={styles.statsOverview}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{totals.totalPlayers}</Text>
-            <Text style={styles.statTitle} numberOfLines={1}>Players</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{totals.totalGoals}</Text>
-            <Text style={styles.statTitle} numberOfLines={1}>Goals</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{totals.totalAssists}</Text>
-            <Text style={styles.statTitle} numberOfLines={1}>Assists</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{totals.totalMatches}</Text>
-            <Text style={styles.statTitle} numberOfLines={1}>Matches</Text>
-          </View>
-        </View>
-
-        {/* Team Actions */}
-        <View style={styles.teamActions}>
           <TouchableOpacity 
-            style={styles.formationButton}
-            onPress={() => {
-              // Navigate to TeamFormation within the Teams stack
-              navigation.navigate('TeamFormation', {
-                teamId: team.id,
-                teamName: team.name
-              });
-            }}
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
           >
-            <View style={styles.formationButtonContent}>
-              <View style={styles.formationIcon}>
-                <Text style={styles.formationIconText}>⚽</Text>
-              </View>
-              <View style={styles.formationTextContainer}>
-                <Text style={styles.formationButtonTitle}>Team Formation</Text>
-                <Text style={styles.formationButtonSubtitle}>Plan your tactics • 5v5, 7v7, 11v11</Text>
-              </View>
-              <Text style={styles.formationArrow}>→</Text>
+            <View style={styles.backButtonBackground}>
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
-        </View>
-
-        {/* Squad Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Squad</Text>
-          <View style={styles.playersContainer}>
-            {team.players.map(renderPlayerCard)}
+          
+          <View style={styles.headerContent}>
+            <ProfessionalTeamBadge
+              teamName={team.name}
+              size="large"
+              variant="detailed"
+              teamColor={team.primaryColor}
+            />
+            
+            <Text style={styles.teamName}>{team.name}</Text>
+            {team.description && (
+              <Text style={styles.teamDescription}>{team.description}</Text>
+            )}
+            
+            {/* Compact Stats Row */}
+            <View style={styles.headerStats}>
+              <View style={styles.headerStatItem}>
+                <Text style={styles.headerStatValue}>{totals.totalPlayers}</Text>
+                <Text style={styles.headerStatLabel}>Players</Text>
+              </View>
+              <View style={styles.headerStatDivider} />
+              <View style={styles.headerStatItem}>
+                <Text style={styles.headerStatValue}>{totals.totalGoals}</Text>
+                <Text style={styles.headerStatLabel}>Goals</Text>
+              </View>
+              <View style={styles.headerStatDivider} />
+              <View style={styles.headerStatItem}>
+                <Text style={styles.headerStatValue}>{totals.totalMatches}</Text>
+                <Text style={styles.headerStatLabel}>Matches</Text>
+              </View>
+            </View>
           </View>
+        </LinearGradient>
+      </Animated.View>
+
+      {/* Modern Tabs */}
+      <View style={styles.modernTabs}>
+        {['overview', 'squad', 'stats'].map((tab) => (
+          <TouchableOpacity
+            key={tab}
+            style={[
+              styles.modernTab,
+              selectedTab === tab && styles.activeModernTab
+            ]}
+            onPress={() => setSelectedTab(tab as any)}
+          >
+            <Text style={[
+              styles.modernTabText,
+              selectedTab === tab && styles.activeModernTabText
+            ]}>
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </Text>
+            {selectedTab === tab && (
+              <View style={styles.tabIndicator} />
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Tab Content */}
+      {selectedTab === 'overview' && renderOverviewTab()}
+      {selectedTab === 'squad' && renderSquadTab()}
+      
+      {selectedTab === 'stats' && (
+        <View style={styles.comingSoon}>
+          <LinearGradient
+            colors={[colors.primary.main + '20', colors.primary.dark + '10']}
+            style={styles.comingSoonGradient}
+          >
+            <Ionicons name="stats-chart" size={64} color={colors.primary.main} />
+            <Text style={styles.comingSoonText}>Team Analytics</Text>
+            <Text style={styles.comingSoonSubtext}>
+              Detailed performance metrics coming soon
+            </Text>
+          </LinearGradient>
         </View>
-      </ScrollView>
+      )}
     </View>
   );
 }
@@ -358,280 +586,376 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: colors.background.primary,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#121212',
+    backgroundColor: colors.background.primary,
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: spacing.md,
+    fontSize: typography.fontSize.regular,
+    color: colors.text.secondary,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#121212',
-    padding: 20,
+    backgroundColor: colors.background.primary,
+    padding: spacing.xl,
   },
   errorText: {
-    fontSize: 18,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 20,
+    fontSize: typography.fontSize.large,
+    color: colors.text.secondary,
+    marginBottom: spacing.lg,
     textAlign: 'center',
   },
   header: {
-    backgroundColor: '#1F1F1F',
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
+    ...shadows.lg,
   },
-  headerBackButton: {
-    marginBottom: 12,
-    padding: 8,
-    alignSelf: 'flex-start',
-  },
-  headerBackText: {
-    color: '#00E676',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  teamName: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  teamDescription: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.7)',
-    lineHeight: 22,
-    marginBottom: 12,
-  },
-  noDataIndicator: {
-    backgroundColor: 'rgba(255, 152, 0, 0.2)',
-    borderLeftWidth: 3,
-    borderLeftColor: '#FF9800',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 4,
-  },
-  noDataText: {
-    color: '#FF9800',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  content: {
-    flex: 1,
-  },
-  statsOverview: {
-    flexDirection: 'row',
-    padding: 16,
-    gap: 8,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#1F1F1F',
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    minHeight: 70,
-    justifyContent: 'center',
-  },
-  statNumber: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#00E676',
-    marginBottom: 2,
-  },
-  statTitle: {
-    fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.7)',
-    textTransform: 'uppercase',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  section: {
-    backgroundColor: '#1F1F1F',
-    margin: 20,
-    marginTop: 0,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 20,
-  },
-  playersContainer: {
-    gap: 16,
-  },
-  playerCard: {
-    backgroundColor: '#2A2A2A',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  playerHeader: {
-    marginBottom: 12,
-  },
-  playerInfo: {
-    flex: 1,
-  },
-  playerNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  playerName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    flex: 1,
-  },
-  roleIcon: {
-    fontSize: 20,
-    marginLeft: 8,
-  },
-  playerDetails: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  positionTag: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  positionText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  jerseyNumber: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontWeight: '500',
-  },
-  playerStatsGrid: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  statBox: {
-    flex: 1,
-    alignItems: 'center',
-    backgroundColor: '#333333',
-    borderRadius: 8,
-    padding: 10,
-    minHeight: 60,
-    justifyContent: 'center',
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#00E676',
-    marginBottom: 2,
-  },
-  statLabel: {
-    fontSize: 9,
-    color: 'rgba(255, 255, 255, 0.7)',
-    textTransform: 'uppercase',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  noStatsAvailable: {
-    padding: 20,
-    alignItems: 'center',
-    backgroundColor: '#2A2A2A',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 152, 0, 0.3)',
-  },
-  noStatsText: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  noStatsSubtext: {
-    color: 'rgba(255, 255, 255, 0.5)',
-    fontSize: 12,
-    textAlign: 'center',
+  headerGradient: {
+    paddingTop: 50,
+    paddingBottom: spacing.md,
   },
   backButton: {
-    backgroundColor: '#00E676',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginTop: 20,
+    position: 'absolute',
+    top: 50,
+    left: spacing.screenPadding,
+    zIndex: 1,
+    padding: spacing.sm,
   },
-  backButtonText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: '600',
+  backButtonBackground: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  teamActions: {
-    marginVertical: 20,
-    paddingHorizontal: 0,
+  headerContent: {
+    alignItems: 'center',
+    paddingHorizontal: spacing.screenPadding,
+    marginTop: spacing.xl,
   },
-  formationButton: {
-    backgroundColor: 'rgba(0, 230, 118, 0.1)',
-    borderWidth: 1,
-    borderColor: '#00E676',
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-    shadowColor: '#00E676',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
+  teamName: {
+    fontSize: typography.fontSize.title2,
+    fontWeight: typography.fontWeight.bold,
+    color: '#FFFFFF',
+    marginTop: spacing.sm,
+    textAlign: 'center',
   },
-  formationButtonContent: {
+  teamDescription: {
+    fontSize: typography.fontSize.small,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: spacing.xxs,
+    textAlign: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  headerStats: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: '100%',
+    marginTop: spacing.lg,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
   },
-  formationIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#00E676',
-    justifyContent: 'center',
+  headerStatItem: {
+    flex: 1,
     alignItems: 'center',
-    marginRight: 16,
   },
-  formationIconText: {
-    fontSize: 20,
+  headerStatValue: {
+    fontSize: typography.fontSize.title3,
+    fontWeight: typography.fontWeight.bold,
+    color: '#FFFFFF',
   },
-  formationTextContainer: {
+  headerStatLabel: {
+    fontSize: typography.fontSize.caption,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: spacing.xxs,
+  },
+  headerStatDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  modernTabs: {
+    flexDirection: 'row',
+    backgroundColor: colors.background.secondary,
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  modernTab: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  activeModernTab: {
+    // Active state handled by indicator
+  },
+  modernTabText: {
+    fontSize: typography.fontSize.regular,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.secondary,
+  },
+  activeModernTabText: {
+    color: colors.primary.main,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  tabIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    left: '10%',
+    right: '10%',
+    height: 3,
+    backgroundColor: colors.primary.main,
+    borderRadius: 2,
+  },
+  tabContent: {
     flex: 1,
   },
-  formationButtonTitle: {
-    fontSize: 17,
-    fontWeight: 'bold',
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: spacing.screenPadding,
+    marginHorizontal: -spacing.xs,
+  },
+  statGridItem: {
+    width: '50%',
+    paddingHorizontal: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  statGridGradient: {
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+  },
+  statGridValue: {
+    fontSize: typography.fontSize.title1,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginVertical: spacing.xs,
+  },
+  statGridLabel: {
+    fontSize: typography.fontSize.caption,
+    color: colors.text.secondary,
+    textTransform: 'uppercase',
+  },
+  topPerformers: {
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: spacing.xl,
+  },
+  sectionTitle: {
+    fontSize: typography.fontSize.title3,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+  },
+  performerCard: {
+    marginBottom: spacing.sm,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+  },
+  performerGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+  },
+  performerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  performerInfo: {
+    flex: 1,
+  },
+  performerName: {
+    fontSize: typography.fontSize.regular,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+  },
+  performerRole: {
+    fontSize: typography.fontSize.caption,
+    color: colors.text.secondary,
+  },
+  performerStat: {
+    fontSize: typography.fontSize.regular,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: spacing.xl,
+    marginHorizontal: -spacing.xs,
+  },
+  actionCard: {
+    flex: 1,
+    marginHorizontal: spacing.xs,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    ...shadows.md,
+  },
+  actionGradient: {
+    padding: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 120,
+  },
+  actionTitle: {
+    fontSize: typography.fontSize.regular,
+    fontWeight: typography.fontWeight.bold,
     color: '#FFFFFF',
-    marginBottom: 2,
+    marginTop: spacing.sm,
   },
-  formationButtonSubtitle: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.7)',
+  actionSubtitle: {
+    fontSize: typography.fontSize.caption,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: spacing.xxs,
   },
-  formationArrow: {
-    fontSize: 18,
-    color: '#00E676',
-    fontWeight: 'bold',
+  positionFilter: {
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: spacing.lg,
+  },
+  positionChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.badge,
+    marginRight: spacing.sm,
+  },
+  positionChipText: {
+    fontSize: typography.fontSize.small,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  playersGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: spacing.screenPadding,
+    marginHorizontal: -spacing.xs,
+  },
+  playerGridItem: {
+    width: '50%',
+    paddingHorizontal: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  playerCard: {
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    ...shadows.sm,
+  },
+  playerCardGradient: {
+    padding: spacing.md,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  positionBadge: {
+    position: 'absolute',
+    top: spacing.sm,
+    left: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: borderRadius.xs,
+  },
+  positionBadgeText: {
+    fontSize: typography.fontSize.micro,
+    fontWeight: typography.fontWeight.bold,
+    color: '#FFFFFF',
+  },
+  jerseyNumber: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+  },
+  jerseyNumberText: {
+    fontSize: typography.fontSize.title3,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.tertiary,
+  },
+  playerAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.background.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  playerName: {
+    fontSize: typography.fontSize.regular,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.xs,
+  },
+  playerStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.accent,
+    borderRadius: borderRadius.sm,
+    padding: spacing.xs,
+  },
+  playerStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  playerStatValue: {
+    fontSize: typography.fontSize.small,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+  },
+  playerStatLabel: {
+    fontSize: typography.fontSize.micro,
+    color: colors.text.secondary,
+  },
+  playerStatDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: colors.surface.border,
+  },
+  ratingBadge: {
+    position: 'absolute',
+    bottom: spacing.sm,
+    right: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+    borderRadius: borderRadius.sm,
+  },
+  ratingText: {
+    fontSize: typography.fontSize.caption,
+    fontWeight: typography.fontWeight.bold,
+    color: '#FFFFFF',
+  },
+  comingSoon: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl,
+  },
+  comingSoonGradient: {
+    width: '100%',
+    padding: spacing.xxxl,
+    borderRadius: borderRadius.xl,
+    alignItems: 'center',
+  },
+  comingSoonText: {
+    fontSize: typography.fontSize.title3,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    marginTop: spacing.md,
+  },
+  comingSoonSubtext: {
+    fontSize: typography.fontSize.regular,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
+    textAlign: 'center',
   },
 });

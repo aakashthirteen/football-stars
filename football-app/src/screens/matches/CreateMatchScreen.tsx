@@ -8,9 +8,23 @@ import {
   TextInput,
   Alert,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
+  Modal,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
 import { apiService } from '../../services/api';
+
+// Professional Components
+import {
+  ProfessionalHeader,
+  ProfessionalButton,
+  ProfessionalTeamBadge,
+  DesignSystem,
+} from '../../components/professional';
+
+const { colors, typography, spacing, borderRadius, shadows } = DesignSystem;
 
 interface CreateMatchScreenProps {
   navigation: any;
@@ -31,6 +45,10 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [duration, setDuration] = useState('90');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingTeams, setLoadingTeams] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [showTeamSelector, setShowTeamSelector] = useState(false);
+  const [selectorType, setSelectorType] = useState<'home' | 'away'>('home');
 
   useEffect(() => {
     loadTeams();
@@ -38,16 +56,22 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
 
   const loadTeams = async () => {
     try {
-      console.log('🏟️ Loading teams for match creation...');
+      setLoadingTeams(true);
       const response = await apiService.getTeams();
-      console.log('📊 Teams response:', response);
       const teamsArray = response.teams || [];
-      console.log(`✅ Found ${teamsArray.length} teams available for matches`);
       setTeams(teamsArray);
     } catch (error) {
-      console.error('❌ Error loading teams:', error);
+      console.error('Error loading teams:', error);
       Alert.alert('Error', 'Failed to load teams');
+    } finally {
+      setLoadingTeams(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadTeams();
+    setRefreshing(false);
   };
 
   const handleCreateMatch = async () => {
@@ -71,9 +95,7 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
         duration: parseInt(duration) || 90,
       };
 
-      console.log('🏗️ Creating match with data:', matchData);
       const response = await apiService.createMatch(matchData);
-      console.log('✅ Match created successfully:', response);
       
       if (!response || !response.match || !response.match.id) {
         throw new Error('Invalid response from server - no match ID received');
@@ -106,7 +128,6 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
         },
       ]);
     } catch (error: any) {
-      console.error('❌ Error creating match:', error);
       Alert.alert(
         'Error', 
         error.message || 'Failed to create match. Please try again.',
@@ -120,92 +141,211 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
     }
   };
 
+  const openTeamSelector = (type: 'home' | 'away') => {
+    setSelectorType(type);
+    setShowTeamSelector(true);
+  };
+
+  const selectTeam = (team: Team) => {
+    if (selectorType === 'home') {
+      setHomeTeam(team);
+    } else {
+      setAwayTeam(team);
+    }
+    setShowTeamSelector(false);
+  };
+
   const renderTeamSelector = (
-    title: string,
+    label: string,
     selectedTeam: Team | null,
-    onSelect: (team: Team) => void,
-    excludeTeam?: Team
+    type: 'home' | 'away',
+    icon: string,
+    color: string
   ) => (
-    <View style={styles.selectorContainer}>
-      <Text style={styles.selectorTitle}>{title}</Text>
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.teamSelector}
+    <View style={styles.teamSelectorCard}>
+      <View style={styles.teamSelectorHeader}>
+        <Ionicons name={icon as any} size={20} color={color} />
+        <Text style={styles.teamSelectorLabel}>{label}</Text>
+      </View>
+      
+      <TouchableOpacity
+        style={[
+          styles.teamSelectorButton,
+          selectedTeam && styles.teamSelectorButtonSelected,
+        ]}
+        onPress={() => openTeamSelector(type)}
       >
-        {teams
-          .filter(team => excludeTeam ? team.id !== excludeTeam.id : true)
-          .map((team) => (
-            <TouchableOpacity
-              key={team.id}
-              style={[
-                styles.teamOption,
-                selectedTeam?.id === team.id && styles.selectedTeam,
-              ]}
-              onPress={() => onSelect(team)}
-            >
-              <Text style={[
-                styles.teamOptionText,
-                selectedTeam?.id === team.id && styles.selectedTeamText,
-              ]}>
-                {team.name}
+        {selectedTeam ? (
+          <View style={styles.selectedTeamContent}>
+            <ProfessionalTeamBadge teamName={selectedTeam.name} size="medium" />
+            <View style={styles.selectedTeamInfo}>
+              <Text style={styles.selectedTeamName}>{selectedTeam.name}</Text>
+              <Text style={styles.selectedTeamPlayers}>
+                {selectedTeam.players.length} players
               </Text>
-              <Text style={[
-                styles.playersCount,
-                selectedTeam?.id === team.id && styles.selectedPlayersCount,
-              ]}>
-                {team.players.length} players
-              </Text>
-            </TouchableOpacity>
-          ))}
-      </ScrollView>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.text.secondary} />
+          </View>
+        ) : (
+          <View style={styles.unselectedTeamContent}>
+            <View style={styles.unselectedTeamIcon}>
+              <Ionicons name="add" size={24} color={colors.text.secondary} />
+            </View>
+            <Text style={styles.unselectedTeamText}>Select {label}</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+          </View>
+        )}
+      </TouchableOpacity>
     </View>
   );
 
-  return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backButtonText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Create New Match</Text>
-      </View>
-
-      <View style={styles.form}>
-        {/* Team Selection */}
-        {renderTeamSelector('Home Team', homeTeam, setHomeTeam)}
-        
-        <View style={styles.vsContainer}>
-          <Text style={styles.vsText}>VS</Text>
+  const renderTeamSelectorModal = () => (
+    <Modal
+      visible={showTeamSelector}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => setShowTeamSelector(false)}
+    >
+      <View style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity 
+            onPress={() => setShowTeamSelector(false)}
+            style={styles.modalCloseButton}
+          >
+            <Ionicons name="close" size={24} color={colors.text.primary} />
+          </TouchableOpacity>
+          <Text style={styles.modalTitle}>
+            Select {selectorType === 'home' ? 'Home' : 'Away'} Team
+          </Text>
+          <View style={styles.modalSpacer} />
         </View>
         
-        {renderTeamSelector('Away Team', awayTeam, setAwayTeam, homeTeam)}
+        <ScrollView style={styles.modalContent}>
+          {teams
+            .filter(team => {
+              // Filter out already selected team
+              const otherTeam = selectorType === 'home' ? awayTeam : homeTeam;
+              return !otherTeam || team.id !== otherTeam.id;
+            })
+            .map((team) => (
+              <TouchableOpacity
+                key={team.id}
+                style={styles.modalTeamOption}
+                onPress={() => selectTeam(team)}
+              >
+                <ProfessionalTeamBadge teamName={team.name} size="medium" />
+                <View style={styles.modalTeamInfo}>
+                  <Text style={styles.modalTeamName}>{team.name}</Text>
+                  <Text style={styles.modalTeamPlayers}>
+                    {team.players.length} players
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.text.secondary} />
+              </TouchableOpacity>
+            ))}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+
+  if (loadingTeams) {
+    return (
+      <View style={styles.container}>
+        <ProfessionalHeader
+          title="Create Match"
+          showBack
+          onBack={() => navigation.goBack()}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary.main} />
+          <Text style={styles.loadingText}>Loading teams...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <ProfessionalHeader
+        title="Create Match"
+        subtitle="Set up your match details"
+        showBack
+        onBack={() => navigation.goBack()}
+      />
+
+      <ScrollView 
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
+        {/* Team Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Select Teams</Text>
+          
+          {teams.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="people-outline" size={48} color={colors.text.secondary} />
+              <Text style={styles.emptyStateTitle}>No Teams Available</Text>
+              <Text style={styles.emptyStateText}>Create teams before setting up matches</Text>
+              <ProfessionalButton
+                title="Create Team"
+                icon="add"
+                onPress={() => navigation.navigate('Teams', { screen: 'CreateTeam' })}
+                style={styles.createTeamButton}
+              />
+            </View>
+          ) : (
+            <>
+              {renderTeamSelector('Home Team', homeTeam, 'home', 'home', colors.accent.blue)}
+              {renderTeamSelector('Away Team', awayTeam, 'away', 'airplane', colors.accent.orange)}
+            </>
+          )}
+        </View>
 
         {/* Match Details */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Match Details</Text>
           
-          <Text style={styles.label}>Venue (Optional)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g., Central Park, Home Ground"
-            value={venue}
-            onChangeText={setVenue}
-            maxLength={100}
-          />
+          {/* Venue Input */}
+          <View style={styles.formGroup}>
+            <Text style={styles.formLabel}>Venue</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="location-outline" size={20} color={colors.text.secondary} />
+              <TextInput
+                style={styles.textInput}
+                placeholder="Enter venue name (optional)"
+                placeholderTextColor={colors.text.tertiary}
+                value={venue}
+                onChangeText={setVenue}
+                maxLength={100}
+              />
+            </View>
+          </View>
 
-          <Text style={styles.label}>Match Date & Time</Text>
-          <TouchableOpacity
-            style={styles.dateButton}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <Text style={styles.dateText}>
-              📅 {matchDate.toLocaleDateString()} at {matchDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-            </Text>
-          </TouchableOpacity>
+          {/* Date & Time */}
+          <View style={styles.formGroup}>
+            <Text style={styles.formLabel}>Date & Time</Text>
+            <TouchableOpacity
+              style={styles.datePickerButton}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Ionicons name="calendar-outline" size={20} color={colors.text.secondary} />
+              <View style={styles.datePickerContent}>
+                <Text style={styles.datePickerText}>
+                  {matchDate.toLocaleDateString('en-US', { 
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })} at {matchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.text.secondary} />
+            </TouchableOpacity>
+          </View>
 
           {showDatePicker && (
             <DateTimePicker
@@ -221,236 +361,416 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
             />
           )}
 
-          <Text style={styles.label}>Duration (minutes)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="90"
-            value={duration}
-            onChangeText={setDuration}
-            keyboardType="numeric"
-            maxLength={3}
-          />
+          {/* Duration */}
+          <View style={styles.formGroup}>
+            <Text style={styles.formLabel}>Match Duration</Text>
+            <View style={styles.durationOptions}>
+              {['30', '45', '60', '90', '120'].map((dur) => (
+                <TouchableOpacity
+                  key={dur}
+                  style={[
+                    styles.durationOption,
+                    duration === dur && styles.selectedDurationOption,
+                  ]}
+                  onPress={() => setDuration(dur)}
+                >
+                  <Text style={[
+                    styles.durationOptionText,
+                    duration === dur && styles.selectedDurationOptionText,
+                  ]}>
+                    {dur}'
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
         </View>
 
         {/* Match Preview */}
         {homeTeam && awayTeam && (
-          <View style={styles.preview}>
-            <Text style={styles.previewTitle}>Match Preview</Text>
-            <View style={styles.previewMatch}>
-              <View style={styles.previewTeam}>
-                <Text style={styles.previewTeamName}>{homeTeam.name}</Text>
-                <Text style={styles.previewTeamRole}>Home</Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Match Preview</Text>
+            <View style={styles.previewCard}>
+              <View style={styles.previewTeams}>
+                <View style={styles.previewTeam}>
+                  <ProfessionalTeamBadge teamName={homeTeam.name} size="large" />
+                  <Text style={styles.previewTeamName}>{homeTeam.name}</Text>
+                  <View style={styles.homeBadge}>
+                    <Text style={styles.badgeText}>HOME</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.previewVs}>
+                  <Text style={styles.vsText}>VS</Text>
+                </View>
+                
+                <View style={styles.previewTeam}>
+                  <ProfessionalTeamBadge teamName={awayTeam.name} size="large" />
+                  <Text style={styles.previewTeamName}>{awayTeam.name}</Text>
+                  <View style={styles.awayBadge}>
+                    <Text style={styles.badgeText}>AWAY</Text>
+                  </View>
+                </View>
               </View>
-              <Text style={styles.previewVs}>vs</Text>
-              <View style={styles.previewTeam}>
-                <Text style={styles.previewTeamName}>{awayTeam.name}</Text>
-                <Text style={styles.previewTeamRole}>Away</Text>
+              
+              <View style={styles.previewDetails}>
+                {venue && (
+                  <View style={styles.previewDetail}>
+                    <Ionicons name="location" size={16} color={colors.text.secondary} />
+                    <Text style={styles.previewDetailText}>{venue}</Text>
+                  </View>
+                )}
+                <View style={styles.previewDetail}>
+                  <Ionicons name="calendar" size={16} color={colors.text.secondary} />
+                  <Text style={styles.previewDetailText}>
+                    {matchDate.toLocaleDateString('en-US', { 
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })} at {matchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </View>
+                <View style={styles.previewDetail}>
+                  <Ionicons name="time" size={16} color={colors.text.secondary} />
+                  <Text style={styles.previewDetailText}>{duration} minutes</Text>
+                </View>
               </View>
             </View>
-            {venue && (
-              <Text style={styles.previewVenue}>📍 {venue}</Text>
-            )}
-            <Text style={styles.previewDate}>
-              🕐 {matchDate.toLocaleDateString()} at {matchDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-            </Text>
           </View>
         )}
 
-        <TouchableOpacity
-          style={[styles.createButton, isLoading && styles.buttonDisabled]}
-          onPress={handleCreateMatch}
-          disabled={isLoading || !homeTeam || !awayTeam}
-        >
-          <Text style={styles.createButtonText}>
-            {isLoading ? 'Creating Match...' : '⚽ Create Match'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+        {/* Create Button */}
+        <View style={styles.section}>
+          <ProfessionalButton
+            title={isLoading ? 'Creating Match...' : 'Create Match'}
+            icon={isLoading ? undefined : 'football'}
+            onPress={handleCreateMatch}
+            disabled={isLoading || !homeTeam || !awayTeam}
+            loading={isLoading}
+            fullWidth
+          />
+        </View>
+      </ScrollView>
+
+      {renderTeamSelectorModal()}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: colors.background.primary,
   },
-  header: {
-    backgroundColor: '#2E7D32',
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 24,
+  content: {
+    flex: 1,
   },
-  backButton: {
-    marginBottom: 10,
+  contentContainer: {
+    padding: spacing.screenPadding,
+    paddingTop: spacing.screenPadding * 2, // Much more space for header with subtitle
+    paddingBottom: spacing.screenPadding * 2,
   },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  form: {
-    padding: 24,
-  },
-  selectorContainer: {
-    marginBottom: 24,
-  },
-  selectorTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
-  },
-  teamSelector: {
-    flexDirection: 'row',
-  },
-  teamOption: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    marginRight: 12,
-    minWidth: 140,
-    borderWidth: 2,
-    borderColor: '#e0e0e0',
-  },
-  selectedTeam: {
-    borderColor: '#2E7D32',
-    backgroundColor: '#e8f5e8',
-  },
-  teamOptionText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-  selectedTeamText: {
-    color: '#2E7D32',
-  },
-  playersCount: {
-    fontSize: 14,
-    color: '#666',
-  },
-  selectedPlayersCount: {
-    color: '#2E7D32',
-  },
-  vsContainer: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 16,
   },
-  vsText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2E7D32',
+  loadingText: {
+    ...typography.body,
+    color: colors.text.secondary,
+    marginTop: spacing.md,
   },
+
+  // Sections
   section: {
-    marginTop: 24,
+    marginBottom: spacing.xl,
   },
   sectionTitle: {
-    fontSize: 20,
+    ...typography.h3,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+  },
+
+  // Empty State
+  emptyState: {
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.card,
+    padding: spacing.xl,
+    alignItems: 'center',
+    ...shadows.card,
+  },
+  emptyStateTitle: {
+    ...typography.h4,
+    color: colors.text.primary,
+    marginTop: spacing.md,
+  },
+  emptyStateText: {
+    ...typography.body,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+    marginBottom: spacing.lg,
+  },
+  createTeamButton: {
+    marginTop: spacing.md,
+  },
+
+  // Team Selector Cards
+  teamSelectorCard: {
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.card,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    ...shadows.card,
+  },
+  teamSelectorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  teamSelectorLabel: {
+    ...typography.body,
+    color: colors.text.primary,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 16,
+    marginLeft: spacing.sm,
   },
-  label: {
-    fontSize: 16,
+  teamSelectorButton: {
+    backgroundColor: colors.surface.secondary,
+    borderRadius: borderRadius.card,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.surface.border,
+  },
+  teamSelectorButtonSelected: {
+    borderColor: colors.primary.main,
+    backgroundColor: colors.primary.main + '10',
+  },
+  selectedTeamContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  selectedTeamInfo: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  selectedTeamName: {
+    ...typography.body,
+    color: colors.text.primary,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-    marginTop: 16,
   },
-  input: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    fontSize: 16,
+  selectedTeamPlayers: {
+    ...typography.caption,
+    color: colors.text.secondary,
   },
-  dateButton: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+  unselectedTeamContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  dateText: {
-    fontSize: 16,
-    color: '#333',
+  unselectedTeamIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surface.tertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  preview: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 12,
-    marginTop: 24,
-    borderWidth: 1,
-    borderColor: '#2E7D32',
+  unselectedTeamText: {
+    ...typography.body,
+    color: colors.text.secondary,
+    flex: 1,
+    marginLeft: spacing.md,
   },
-  previewTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2E7D32',
-    marginBottom: 16,
+
+  // Modal
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.background.primary,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surface.border,
+  },
+  modalCloseButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    ...typography.h3,
+    color: colors.text.primary,
+    flex: 1,
     textAlign: 'center',
   },
-  previewMatch: {
+  modalSpacer: {
+    width: 40,
+  },
+  modalContent: {
+    flex: 1,
+    padding: spacing.lg,
+  },
+  modalTeamOption: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.card,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    ...shadows.small,
+  },
+  modalTeamInfo: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  modalTeamName: {
+    ...typography.body,
+    color: colors.text.primary,
+    fontWeight: '600',
+  },
+  modalTeamPlayers: {
+    ...typography.caption,
+    color: colors.text.secondary,
+  },
+
+  // Form Groups
+  formGroup: {
+    marginBottom: spacing.lg,
+  },
+  formLabel: {
+    ...typography.body,
+    color: colors.text.primary,
+    fontWeight: '600',
+    marginBottom: spacing.sm,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.card,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.surface.border,
+    ...shadows.small,
+  },
+  textInput: {
+    flex: 1,
+    ...typography.body,
+    color: colors.text.primary,
+    marginLeft: spacing.sm,
+  },
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.card,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.surface.border,
+    ...shadows.small,
+  },
+  datePickerContent: {
+    flex: 1,
+    marginLeft: spacing.sm,
+  },
+  datePickerText: {
+    ...typography.body,
+    color: colors.text.primary,
+  },
+
+  // Duration Options
+  durationOptions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  durationOption: {
+    flex: 1,
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.card,
+    padding: spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.surface.border,
+    ...shadows.small,
+  },
+  selectedDurationOption: {
+    backgroundColor: colors.primary.main + '20',
+    borderColor: colors.primary.main,
+  },
+  durationOptionText: {
+    ...typography.body,
+    color: colors.text.primary,
+    fontWeight: '500',
+  },
+  selectedDurationOptionText: {
+    color: colors.primary.main,
+    fontWeight: '600',
+  },
+
+  // Preview
+  previewCard: {
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.card,
+    padding: spacing.lg,
+    ...shadows.card,
+  },
+  previewTeams: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
   },
   previewTeam: {
     flex: 1,
     alignItems: 'center',
   },
   previewTeamName: {
-    fontSize: 16,
+    ...typography.body,
+    color: colors.text.primary,
     fontWeight: '600',
-    color: '#333',
+    marginTop: spacing.sm,
     textAlign: 'center',
-    marginBottom: 4,
-  },
-  previewTeamRole: {
-    fontSize: 12,
-    color: '#666',
-    textTransform: 'uppercase',
   },
   previewVs: {
-    fontSize: 16,
+    paddingHorizontal: spacing.lg,
+  },
+  vsText: {
+    ...typography.h4,
+    color: colors.text.secondary,
     fontWeight: 'bold',
-    color: '#2E7D32',
-    marginHorizontal: 16,
   },
-  previewVenue: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 8,
+  homeBadge: {
+    backgroundColor: colors.accent.blue + '20',
+    borderRadius: borderRadius.small,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    marginTop: spacing.xs,
   },
-  previewDate: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 4,
+  awayBadge: {
+    backgroundColor: colors.accent.orange + '20',
+    borderRadius: borderRadius.small,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    marginTop: spacing.xs,
   },
-  createButton: {
-    backgroundColor: '#2E7D32',
-    paddingVertical: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 32,
-  },
-  buttonDisabled: {
-    backgroundColor: '#a5a5a5',
-  },
-  createButtonText: {
-    color: '#fff',
-    fontSize: 18,
+  badgeText: {
+    ...typography.caption,
+    color: colors.text.primary,
     fontWeight: '600',
+    fontSize: 10,
+  },
+  previewDetails: {
+    gap: spacing.sm,
+  },
+  previewDetail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  previewDetailText: {
+    ...typography.body,
+    color: colors.text.secondary,
+    marginLeft: spacing.sm,
   },
 });

@@ -9,18 +9,27 @@ import {
   RefreshControl,
   Animated,
   StatusBar,
+  Image,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '../../store/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { apiService } from '../../services/api';
 import { LinearGradient } from 'expo-linear-gradient';
-import { PlayerStatsCard } from '../../components/PlayerStatsCard';
-import { MatchCard } from '../../components/MatchCard';
+
+// Professional Components
+import { 
+  ProfessionalHeader, 
+  ProfessionalMatchCard, 
+  ProfessionalPlayerStats,
+  ProfessionalButton,
+  DesignSystem 
+} from '../../components/professional';
+
 import { FloatingActionButton } from '../../components/FloatingActionButton';
-import { Colors, Gradients } from '../../theme/colors';
 
 const { width, height } = Dimensions.get('window');
+const { colors, typography, spacing, borderRadius, shadows, gradients } = DesignSystem;
 
 interface HomeScreenProps {
   navigation: any;
@@ -37,7 +46,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
-  const headerSlideAnim = useRef(new Animated.Value(-100)).current;
+  const tickerAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     animateEntrance();
@@ -54,7 +63,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 1000,
+        duration: 800,
         useNativeDriver: true,
       }),
       Animated.spring(slideAnim, {
@@ -63,40 +72,37 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         tension: 40,
         useNativeDriver: true,
       }),
-      Animated.spring(headerSlideAnim, {
-        toValue: 0,
-        friction: 8,
-        tension: 40,
-        delay: 200,
-        useNativeDriver: true,
-      }),
     ]).start();
+  };
+
+  const startTickerAnimation = (matchesCount: number) => {
+    // Reset and start ticker animation for live matches
+    tickerAnim.setValue(0);
+    Animated.loop(
+      Animated.timing(tickerAnim, {
+        toValue: -matchesCount * 200, // Each match takes ~200px width
+        duration: matchesCount * 5000, // 5 seconds per match
+        useNativeDriver: true,
+      })
+    ).start();
   };
 
   const loadDashboardData = async () => {
     try {
       setLoadingStats(true);
       
-      console.log('🔍 Debug - Current user:', JSON.stringify(user, null, 2));
-      
+      // Load matches
       try {
         const matchesResponse = await apiService.getMatches();
-        console.log('🏟️ Matches loaded:', matchesResponse);
-        console.log('🔍 Debug - Full matches response:', JSON.stringify(matchesResponse, null, 2));
         const matches = matchesResponse.matches || [];
         
-        // Check if we have any matches at all
-        console.log('🔍 Total matches in system:', matches.length);
-        if (matches.length > 0) {
-          console.log('🔍 First match sample:', JSON.stringify(matches[0], null, 2));
-        }
-        
-        // THE ISSUE: Backend might not include players array in match teams
-        // Let's not try to calculate from matches - rely on API stats instead
-        console.log('🔍 Completed matches in system:', matches.filter(m => m.status === 'COMPLETED').length);
-        console.log('🔍 Live matches in system:', matches.filter(m => m.status === 'LIVE').length);
-        
         setAllMatches(matches);
+        
+        // Start ticker animation if there are live matches
+        const liveMatches = matches.filter((m: any) => m.status === 'LIVE');
+        if (liveMatches.length > 0) {
+          startTickerAnimation(liveMatches.length);
+        }
         
         // Filter upcoming matches
         const now = new Date();
@@ -118,27 +124,20 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         setAllMatches([]);
       }
       
-      // Load player stats from API - this is the source of truth
+      // Load player stats
       try {
         const stats = await apiService.getCurrentUserStats();
-        console.log('📊 API Player stats:', JSON.stringify(stats, null, 2));
         
-        // Check if stats exists and has data
         if (!stats) {
-          console.warn('⚠️ No stats returned from API');
           throw new Error('No stats data');
         }
         
-        // Use API stats directly - handle both camelCase and snake_case
-        // Also convert string values to numbers
         const matchesPlayed = parseInt(stats.matchesPlayed || stats.matches_played || '0');
         const goals = parseInt(stats.goals || '0');
         const assists = parseInt(stats.assists || '0');
         
-        // Calculate average rating if not provided (simple formula based on goals + assists per match)
         let averageRating = parseFloat(stats.averageRating || stats.average_rating || '0');
         if (averageRating === 0 && matchesPlayed > 0) {
-          // Simple rating formula: base 5.0 + (goals + assists) / matches, capped at 10
           averageRating = Math.min(5.0 + ((goals + assists) / matchesPlayed), 10.0);
         }
         
@@ -153,15 +152,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           minutesPlayed: parseInt(stats.minutesPlayed || stats.minutes_played || '0'),
         });
         
-        console.log('📊 Final player stats set:', {
-          matchesPlayed,
-          goals,
-          assists,
-          averageRating,
-        });
       } catch (error) {
         console.error('Error loading stats:', error);
-        // Set default stats if API fails
         setPlayerStats({
           goals: 0,
           assists: 0,
@@ -193,97 +185,54 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     return 'Good Evening';
   };
 
-  const renderHeader = () => (
-    <Animated.View
-      style={[
-        styles.header,
-        {
-          transform: [{ translateY: headerSlideAnim }],
-        },
-      ]}
-    >
-      <LinearGradient
-        colors={Gradients.field}
-        style={styles.headerGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <StatusBar barStyle="light-content" />
+  const renderLiveMatchTicker = () => {
+    const liveMatches = allMatches.filter(m => m.status === 'LIVE');
+    if (liveMatches.length === 0) return null;
 
-        <View style={styles.headerContent}>
-          <View style={styles.headerTop}>
-            <View>
-              <Text style={styles.greeting}>
-                {getGreeting()}, <Text style={styles.userName}>{user?.name?.split(' ')[0]}</Text>! ⚽
-              </Text>
-              <Text style={styles.subGreeting}>Ready to dominate the field?</Text>
-            </View>
-            
-            <TouchableOpacity 
-              style={styles.notificationButton}
-              onPress={() => navigation.getParent()?.navigate('Profile')}
-            >
-              <View style={styles.notificationGradient}>
-                <Ionicons name="notifications" size={24} color="#fff" />
-                <View style={styles.notificationBadge} />
-              </View>
-            </TouchableOpacity>
-          </View>
+    // Duplicate matches for continuous scroll
+    const tickerMatches = [...liveMatches, ...liveMatches];
 
-          {/* Live Score Ticker */}
-          {allMatches.filter(m => m.status === 'LIVE').length > 0 && (
-            <View style={styles.liveScoreTicker}>
-              <View style={styles.liveIndicator}>
-                <View style={styles.liveDot} />
-                <Text style={styles.liveText}>LIVE NOW</Text>
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {allMatches
-                  .filter(m => m.status === 'LIVE')
-                  .map((match) => (
-                    <TouchableOpacity
-                      key={match.id}
-                      style={styles.liveScoreItem}
-                      onPress={() => navigation.getParent()?.navigate('Matches', { 
-                        screen: 'MatchScoring', 
-                        params: { matchId: match.id } 
-                      })}
-                    >
-                      <Text style={styles.liveScoreText}>
-                        {match.homeTeam?.name} {match.homeScore} - {match.awayScore} {match.awayTeam?.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-              </ScrollView>
-            </View>
-          )}
-        </View>
-      </LinearGradient>
-    </Animated.View>
-  );
-
-  const renderPlayerStats = () => {
-    if (!playerStats && loadingStats) return null;
-    
     return (
-      <Animated.View
-        style={{
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }],
-        }}
-      >
-        <PlayerStatsCard
-          playerName={user?.name || 'Player'}
-          position={playerStats?.position || 'MID'}
-          stats={{
-            goals: playerStats?.goals || 0,
-            assists: playerStats?.assists || 0,
-            matches: playerStats?.matchesPlayed || 0,
-            rating: playerStats?.averageRating || 0,
-          }}
-          onPress={() => navigation.getParent()?.navigate('Profile')}
-        />
-      </Animated.View>
+      <View style={styles.liveTickerContainer}>
+        <LinearGradient
+          colors={[colors.accent.coral, colors.accent.orange]}
+          style={styles.liveTickerGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+        >
+          <View style={styles.liveIndicator}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>LIVE</Text>
+          </View>
+          
+          <View style={styles.tickerContent}>
+            <Animated.View 
+              style={[
+                styles.tickerScroll,
+                {
+                  transform: [{ translateX: tickerAnim }],
+                },
+              ]}
+            >
+              {tickerMatches.map((match, index) => (
+                <TouchableOpacity
+                  key={`${match.id}-${index}`}
+                  style={styles.tickerItem}
+                  onPress={() => navigation.getParent()?.navigate('Matches', { 
+                    screen: 'MatchScoring', 
+                    params: { matchId: match.id } 
+                  })}
+                >
+                  <Text style={styles.tickerMatch}>
+                    {match.homeTeam?.name} {match.homeScore} - {match.awayScore} {match.awayTeam?.name}
+                  </Text>
+                  <View style={styles.tickerSeparator} />
+                </TouchableOpacity>
+              ))}
+            </Animated.View>
+          </View>
+        </LinearGradient>
+      </View>
     );
   };
 
@@ -292,34 +241,30 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       {
         id: 'match',
         title: 'Quick Match',
-        subtitle: 'Start now',
         icon: 'football',
-        gradient: Gradients.live,
+        gradient: gradients.quickMatch,
         screen: 'Matches',
         nested: { screen: 'CreateMatch' },
       },
       {
         id: 'team',
         title: 'My Teams',
-        subtitle: 'Manage',
         icon: 'people',
-        gradient: ['#2196F3', '#1976D2'],
+        gradient: gradients.quickTeam,
         screen: 'Teams',
       },
       {
         id: 'tournament',
         title: 'Tournaments',
-        subtitle: 'Compete',
         icon: 'trophy',
-        gradient: Gradients.victory,
+        gradient: gradients.quickTournament,
         screen: 'Tournaments',
       },
       {
         id: 'discover',
         title: 'Find Players',
-        subtitle: 'Scout',
         icon: 'search',
-        gradient: ['#9C27B0', '#7B1FA2'],
+        gradient: gradients.quickDiscover,
         screen: 'PlayerDiscovery',
       },
     ];
@@ -343,7 +288,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
                   navigation.getParent()?.navigate(action.screen);
                 }
               }}
-              activeOpacity={0.9}
+              activeOpacity={0.8}
             >
               <LinearGradient
                 colors={action.gradient}
@@ -351,11 +296,15 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               >
-                <View style={styles.quickActionIcon}>
-                  <Ionicons name={action.icon as any} size={32} color="#fff" />
+                <View style={styles.quickActionContent}>
+                  <View style={styles.quickActionIcon}>
+                    <Ionicons name={action.icon as any} size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.quickActionTitle}>{action.title}</Text>
                 </View>
-                <Text style={styles.quickActionTitle}>{action.title}</Text>
-                <Text style={styles.quickActionSubtitle}>{action.subtitle}</Text>
+                <View style={styles.quickActionArrow}>
+                  <Ionicons name="arrow-forward" size={16} color="rgba(255,255,255,0.6)" />
+                </View>
               </LinearGradient>
             </TouchableOpacity>
           ))}
@@ -376,25 +325,19 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     if (displayMatches.length === 0 && upcomingMatches.length === 0) {
       return (
         <View style={styles.emptySection}>
-          <LinearGradient
-            colors={Gradients.card}
-            style={styles.emptyCard}
-          >
-            <Ionicons name="football-outline" size={64} color={Colors.text.secondary} />
+          <View style={styles.emptyCard}>
+            <View style={[styles.emptyIcon, { backgroundColor: colors.primary.main }]}>
+              <Ionicons name="football-outline" size={48} color="#FFFFFF" />
+            </View>
             <Text style={styles.emptyTitle}>No Matches Yet</Text>
             <Text style={styles.emptySubtitle}>Start your football journey!</Text>
-            <TouchableOpacity
-              style={styles.emptyButton}
+            <ProfessionalButton
+              title="Create First Match"
+              icon="add"
               onPress={() => navigation.getParent()?.navigate('Matches', { screen: 'CreateMatch' })}
-            >
-              <LinearGradient
-                colors={Gradients.field}
-                style={styles.emptyButtonGradient}
-              >
-                <Text style={styles.emptyButtonText}>Create First Match</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </LinearGradient>
+              style={styles.emptyButton}
+            />
+          </View>
         </View>
       );
     }
@@ -405,21 +348,25 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           <View style={styles.matchesSection}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>
-                {liveMatches.length > 0 ? '🔴 Live & Recent' : '📊 Recent Matches'}
+                {liveMatches.length > 0 ? '🔴 Live & Recent' : 'Recent Matches'}
               </Text>
               <TouchableOpacity onPress={() => navigation.getParent()?.navigate('Matches')}>
                 <Text style={styles.seeAllText}>See all</Text>
               </TouchableOpacity>
             </View>
             {displayMatches.map((match) => (
-              <MatchCard
-                key={match.id}
-                match={match}
-                onPress={() => navigation.getParent()?.navigate('Matches', { 
-                  screen: 'MatchScoring', 
-                  params: { matchId: match.id } 
-                })}
-              />
+              <View key={match.id} style={styles.matchCardWrapper}>
+                <ProfessionalMatchCard
+                  match={{
+                    ...match,
+                    competition: 'Grassroots League',
+                  }}
+                  onPress={() => navigation.getParent()?.navigate('Matches', { 
+                    screen: 'MatchScoring', 
+                    params: { matchId: match.id } 
+                  })}
+                />
+              </View>
             ))}
           </View>
         )}
@@ -428,14 +375,18 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           <View style={styles.matchesSection}>
             <Text style={styles.sectionTitle}>📅 Upcoming Matches</Text>
             {upcomingMatches.map((match) => (
-              <MatchCard
-                key={match.id}
-                match={match}
-                onPress={() => navigation.getParent()?.navigate('Matches', { 
-                  screen: 'MatchScoring', 
-                  params: { matchId: match.id } 
-                })}
-              />
+              <View key={match.id} style={styles.matchCardWrapper}>
+                <ProfessionalMatchCard
+                  match={{
+                    ...match,
+                    competition: 'Grassroots League',
+                  }}
+                  onPress={() => navigation.getParent()?.navigate('Matches', { 
+                    screen: 'MatchScoring', 
+                    params: { matchId: match.id } 
+                  })}
+                />
+              </View>
             ))}
           </View>
         )}
@@ -445,26 +396,66 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#0A0E27', '#1A1F3A']}
-        style={styles.backgroundGradient}
-      />
+      <StatusBar barStyle="light-content" />
+      
       <ScrollView 
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={onRefresh}
-            tintColor={Colors.primary.light}
-            colors={[Colors.primary.main]}
+            tintColor={colors.primary.main}
+            colors={[colors.primary.main]}
           />
         }
       >
-        {renderHeader()}
+        {/* Professional Header */}
+        <ProfessionalHeader
+          showNotifications
+          showProfile
+          onNotifications={() => navigation.getParent()?.navigate('Profile')}
+          onProfile={() => navigation.getParent()?.navigate('Profile')}
+        >
+          <View style={styles.headerContent}>
+            <Text style={styles.greeting}>
+              {getGreeting()}, <Text style={styles.userName}>{user?.name?.split(' ')[0]}</Text>!
+            </Text>
+            <Text style={styles.subGreeting}>Ready to dominate the field? ⚽</Text>
+          </View>
+        </ProfessionalHeader>
+        
+        {/* Live Match Ticker */}
+        {renderLiveMatchTicker()}
+        
         <View style={styles.content}>
-          {renderPlayerStats()}
+          {/* Player Stats */}
+          {!loadingStats && playerStats && (
+            <Animated.View
+              style={{
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              }}
+            >
+              <ProfessionalPlayerStats
+                playerName={user?.name || 'Player'}
+                position={playerStats?.position || 'MID'}
+                stats={{
+                  goals: playerStats?.goals || 0,
+                  assists: playerStats?.assists || 0,
+                  matches: playerStats?.matchesPlayed || 0,
+                  rating: playerStats?.averageRating || 0,
+                }}
+                onPress={() => navigation.getParent()?.navigate('Profile')}
+              />
+            </Animated.View>
+          )}
+          
+          {/* Quick Actions */}
           {renderQuickActions()}
+          
+          {/* Matches */}
           {renderMatches()}
+          
           <View style={styles.bottomSpacing} />
         </View>
       </ScrollView>
@@ -472,6 +463,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       <FloatingActionButton
         onPress={() => navigation.getParent()?.navigate('Matches', { screen: 'CreateMatch' })}
         icon="add"
+        style={styles.fab}
       />
     </View>
   );
@@ -480,204 +472,191 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  backgroundGradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-  },
-  header: {
-    overflow: 'hidden',
-  },
-  headerGradient: {
-    paddingTop: 50,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    backgroundColor: colors.background.primary,
   },
   headerContent: {
-    position: 'relative',
-    zIndex: 1,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 20,
+    marginTop: 0, // Removed extra margin
   },
   greeting: {
-    fontSize: 28,
-    fontWeight: '300',
-    color: Colors.text.primary,
-    marginBottom: 4,
+    fontSize: typography.fontSize.title2,
+    fontWeight: typography.fontWeight.light,
+    color: colors.text.primary,
+    marginBottom: spacing.xxs,
   },
   userName: {
-    fontWeight: 'bold',
+    fontWeight: typography.fontWeight.bold,
   },
   subGreeting: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.8)',
+    fontSize: typography.fontSize.regular,
+    color: colors.text.secondary,
   },
-  notificationButton: {
-    padding: 4,
+  liveTickerContainer: {
+    height: 36,
+    marginTop: spacing.md,
+    marginBottom: spacing.lg,
+    marginHorizontal: spacing.screenPadding,
+    overflow: 'hidden',
+    borderRadius: borderRadius.md,
+    ...shadows.sm,
   },
-  notificationGradient: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    padding: 10,
-    borderRadius: 20,
-    position: 'relative',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: Colors.live.main,
-    borderWidth: 2,
-    borderColor: Colors.text.primary,
-  },
-  liveScoreTicker: {
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 16,
-    padding: 12,
+  liveTickerGradient: {
     flexDirection: 'row',
     alignItems: 'center',
+    height: '100%',
   },
   liveIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 12,
-    paddingRight: 12,
-    borderRightWidth: 1,
-    borderRightColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: spacing.md,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    height: '100%',
   },
   liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.live.main,
-    marginRight: 6,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+    marginRight: spacing.xs,
   },
   liveText: {
-    color: Colors.text.primary,
-    fontSize: 12,
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontSize: typography.fontSize.caption,
+    fontWeight: typography.fontWeight.bold,
+    letterSpacing: 0.5,
   },
-  liveScoreItem: {
-    marginRight: 20,
+  tickerContent: {
+    flex: 1,
+    overflow: 'hidden',
   },
-  liveScoreText: {
-    color: Colors.text.primary,
-    fontSize: 14,
+  tickerScroll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: spacing.xl,
+  },
+  tickerMatch: {
+    color: '#FFFFFF',
+    fontSize: typography.fontSize.small,
+    fontWeight: typography.fontWeight.medium,
+  },
+  tickerSeparator: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    marginLeft: spacing.xl,
   },
   content: {
-    marginTop: -20,
-    paddingBottom: 100,
+    flex: 1,
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.text.primary,
-    marginBottom: 16,
-    paddingHorizontal: 20,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.screenPadding,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 16,
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: spacing.md,
   },
   seeAllText: {
-    fontSize: 14,
-    color: Colors.primary.light,
-    fontWeight: '600',
+    fontSize: typography.fontSize.small,
+    color: colors.primary.main,
+    fontWeight: typography.fontWeight.semibold,
   },
   quickActionsSection: {
-    marginTop: 24,
+    marginTop: spacing.lg,
+    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.screenPadding,
   },
   quickActionsScroll: {
-    paddingHorizontal: 20,
+    paddingLeft: 0,
   },
   quickActionCard: {
-    marginRight: 12,
-    borderRadius: 20,
+    marginRight: spacing.md,
+    borderRadius: borderRadius.lg,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
+    ...shadows.sm,
   },
   quickActionGradient: {
     width: 120,
-    height: 120,
-    padding: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    height: 90,
+    padding: spacing.md,
+    justifyContent: 'space-between',
+  },
+  quickActionContent: {
+    flex: 1,
   },
   quickActionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.xs,
   },
   quickActionTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: Colors.text.primary,
-    marginBottom: 2,
+    fontSize: typography.fontSize.small,
+    fontWeight: typography.fontWeight.semibold,
+    color: '#FFFFFF',
   },
-  quickActionSubtitle: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
+  quickActionArrow: {
+    alignSelf: 'flex-end',
   },
   matchesSection: {
-    marginTop: 32,
+    marginTop: spacing.xl,
+    marginBottom: spacing.md,
+  },
+  matchCardWrapper: {
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: spacing.sm,
   },
   emptySection: {
-    padding: 20,
-    marginTop: 32,
+    padding: spacing.screenPadding,
+    marginTop: spacing.xl,
   },
   emptyCard: {
-    borderRadius: 20,
-    padding: 40,
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
     alignItems: 'center',
+    ...shadows.sm,
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xl,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.text.primary,
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: typography.fontSize.title3,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
   },
   emptySubtitle: {
-    fontSize: 16,
-    color: Colors.text.secondary,
-    marginBottom: 24,
+    fontSize: typography.fontSize.regular,
+    color: colors.text.secondary,
+    marginBottom: spacing.lg,
   },
   emptyButton: {
-    borderRadius: 25,
-    overflow: 'hidden',
-  },
-  emptyButtonGradient: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  emptyButtonText: {
-    color: Colors.text.primary,
-    fontSize: 16,
-    fontWeight: 'bold',
+    marginTop: spacing.sm,
   },
   bottomSpacing: {
-    height: 20,
+    height: 100,
+  },
+  fab: {
+    // Style passed from parent
   },
 });

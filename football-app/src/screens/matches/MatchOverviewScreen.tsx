@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,15 +6,19 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Animated,
-  Dimensions,
+  RefreshControl,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { apiService } from '../../services/api';
 import PitchFormation from '../../components/PitchFormation';
 
-const { width } = Dimensions.get('window');
+// Professional Components
+import { 
+  ProfessionalHeader,
+  DesignSystem 
+} from '../../components/professional';
+
+const { colors, typography, spacing, borderRadius, shadows } = DesignSystem;
 
 interface MatchOverviewScreenProps {
   navigation: any;
@@ -25,25 +29,10 @@ export default function MatchOverviewScreen({ navigation, route }: MatchOverview
   const { matchId } = route.params;
   const [match, setMatch] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadMatchDetails();
-    
-    // Entrance animation
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-    ]).start();
   }, []);
 
   const loadMatchDetails = async () => {
@@ -60,10 +49,16 @@ export default function MatchOverviewScreen({ navigation, route }: MatchOverview
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadMatchDetails();
+    setRefreshing(false);
+  };
+
   const getEventDescription = (eventType: string) => {
     switch (eventType) {
       case 'GOAL': return 'Goal';
-      case 'ASSIST': return 'Assist';
+      case 'ASSIST': return 'Assist';  
       case 'YELLOW_CARD': return 'Yellow Card';
       case 'RED_CARD': return 'Red Card';
       case 'SUBSTITUTION': return 'Substitution';
@@ -73,468 +68,413 @@ export default function MatchOverviewScreen({ navigation, route }: MatchOverview
 
   const getPositionColor = (position: string) => {
     switch (position) {
-      case 'GK': return '#FF5722';
-      case 'DEF': return '#2196F3';
-      case 'MID': return '#4CAF50';
-      case 'FWD': return '#FF9800';
-      default: return '#9E9E9E';
+      case 'GK': return colors.status.error;
+      case 'DEF': return colors.accent.blue;
+      case 'MID': return colors.primary.main;
+      case 'FWD': return colors.accent.orange;
+      default: return colors.text.secondary;
     }
   };
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <LinearGradient colors={['#0A0E27', '#1A1F3A']} style={styles.loadingGradient}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-          <Text style={styles.loadingText}>Loading match overview...</Text>
-        </LinearGradient>
+      <View style={styles.container}>
+        <ProfessionalHeader
+          title="Match Overview"
+          showBack={true}
+          onBack={() => navigation.goBack()}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary.main} />
+          <Text style={styles.loadingText}>Loading match details...</Text>
+        </View>
       </View>
     );
   }
 
   if (!match) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Match not found</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </TouchableOpacity>
+      <View style={styles.container}>
+        <ProfessionalHeader
+          title="Match Overview"
+          showBack={true}
+          onBack={() => navigation.goBack()}
+        />
+        <View style={styles.errorContainer}>
+          <Ionicons name="football-outline" size={64} color={colors.text.secondary} />
+          <Text style={styles.errorText}>Match not found</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
 
   return (
-    <LinearGradient colors={['#0A0E27', '#1A1F3A']} style={styles.container}>
-      {/* Header */}
-      <Animated.View 
-        style={[
-          styles.header,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          },
-        ]}
-      >
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        
-        <View style={styles.headerTitle}>
-          <Text style={styles.headerTitleText}>Match Overview</Text>
-          <Text style={styles.headerSubtitle}>Final Result</Text>
-        </View>
-        
-        <View style={styles.headerSpacer} />
-      </Animated.View>
+    <View style={styles.container}>
+      <ProfessionalHeader
+        title="Match Overview"
+        subtitle={`${match.homeTeam?.name} vs ${match.awayTeam?.name}`}
+        showBack={true}
+        onBack={() => navigation.goBack()}
+      />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
         {/* Match Result Card */}
-        <Animated.View 
-          style={[
-            styles.resultCard,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
-          <LinearGradient colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']} style={styles.resultGradient}>
-            <Text style={styles.matchStatus}>FULL TIME</Text>
-            
-            <View style={styles.teamsContainer}>
-              {/* Home Team */}
-              <View style={styles.teamResult}>
-                <Text style={styles.teamName} numberOfLines={1}>
-                  {match.homeTeam?.name || 'Home'}
-                </Text>
-                <View style={styles.scoreContainer}>
-                  <Text style={styles.teamScore}>{match.homeScore || 0}</Text>
-                </View>
-              </View>
-              
-              <View style={styles.vsContainer}>
-                <Text style={styles.vsText}>VS</Text>
-              </View>
-              
-              {/* Away Team */}
-              <View style={styles.teamResult}>
-                <Text style={styles.teamName} numberOfLines={1}>
-                  {match.awayTeam?.name || 'Away'}
-                </Text>
-                <View style={styles.scoreContainer}>
-                  <Text style={styles.teamScore}>{match.awayScore || 0}</Text>
-                </View>
-              </View>
-            </View>
-            
-            <View style={styles.matchInfo}>
-              <Text style={styles.matchDate}>
-                {new Date(match.matchDate || match.match_date).toLocaleDateString()}
+        <View style={styles.resultCard}>
+          <Text style={styles.matchStatus}>{match.status?.toUpperCase() || 'FULL TIME'}</Text>
+          
+          <View style={styles.teamsContainer}>
+            {/* Home Team */}
+            <View style={styles.teamResult}>
+              <Text style={styles.teamName} numberOfLines={1}>
+                {match.homeTeam?.name || 'Home'}
               </Text>
-              {match.venue && (
-                <Text style={styles.matchVenue}>📍 {match.venue}</Text>
-              )}
+              <View style={styles.scoreContainer}>
+                <Text style={styles.teamScore}>{match.homeScore || 0}</Text>
+              </View>
             </View>
-          </LinearGradient>
-        </Animated.View>
+            
+            <View style={styles.vsContainer}>
+              <Text style={styles.vsText}>VS</Text>
+            </View>
+            
+            {/* Away Team */}
+            <View style={styles.teamResult}>
+              <Text style={styles.teamName} numberOfLines={1}>
+                {match.awayTeam?.name || 'Away'}
+              </Text>
+              <View style={styles.scoreContainer}>
+                <Text style={styles.teamScore}>{match.awayScore || 0}</Text>
+              </View>
+            </View>
+          </View>
+          
+          <View style={styles.matchInfo}>
+            <Text style={styles.matchDate}>
+              {new Date(match.matchDate || match.match_date).toLocaleDateString()}
+            </Text>
+            {match.venue && (
+              <Text style={styles.matchVenue}>📍 {match.venue}</Text>
+            )}
+          </View>
+        </View>
 
         {/* Pitch Formation */}
         {match && match.homeTeam && match.awayTeam && (
-          <Animated.View 
-            style={[
-              styles.pitchFormationCard,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            <LinearGradient colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']} style={styles.pitchFormationGradient}>
-              <Text style={styles.sectionTitle}>Formation</Text>
-              <PitchFormation
-                homeTeam={match.homeTeam}
-                awayTeam={match.awayTeam}
-                onPlayerPress={(player) => {
-                  console.log('Player pressed:', player.name);
-                  // Future: Navigate to player profile
-                }}
-                showPlayerNames={true}
-                style={styles.pitchOverview}
-              />
-            </LinearGradient>
-          </Animated.View>
+          <View style={styles.pitchFormationCard}>
+            <Text style={styles.sectionTitle}>Formation</Text>
+            <PitchFormation
+              homeTeam={match.homeTeam}
+              awayTeam={match.awayTeam}
+              onPlayerPress={(player) => {
+                console.log('Player pressed:', player.name);
+                // Future: Navigate to player profile
+              }}
+              showPlayerNames={true}
+              style={styles.pitchOverview}
+            />
+          </View>
         )}
 
         {/* Match Events Timeline */}
         {match.events && match.events.length > 0 && (
-          <Animated.View 
-            style={[
-              styles.timelineCard,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            <LinearGradient colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']} style={styles.timelineGradient}>
-              <Text style={styles.sectionTitle}>Match Events</Text>
-              
-              {match.events.map((event: any, index: number) => (
-                <View key={event.id || index} style={styles.eventItem}>
-                  <View style={styles.eventTime}>
-                    <Text style={styles.eventMinute}>{event.minute}'</Text>
-                  </View>
-                  
-                  <View style={styles.eventContent}>
-                    <View style={styles.eventHeader}>
-                      <Text style={styles.eventType}>
-                        {getEventDescription(event.eventType)} by {event.player?.name?.split(' ')[0] || 'Unknown'}
-                      </Text>
-                      <Text style={styles.eventTeam}>
-                        {event.teamId === match.homeTeam?.id ? match.homeTeam?.name : match.awayTeam?.name}
-                      </Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.eventIcon}>
-                    {event.eventType === 'GOAL' && <Text style={styles.eventEmoji}>⚽</Text>}
-                    {event.eventType === 'ASSIST' && <Text style={styles.eventEmoji}>🅰️</Text>}
-                    {event.eventType === 'YELLOW_CARD' && <Text style={styles.eventEmoji}>🟨</Text>}
-                    {event.eventType === 'RED_CARD' && <Text style={styles.eventEmoji}>🟥</Text>}
+          <View style={styles.timelineCard}>
+            <Text style={styles.sectionTitle}>Match Events</Text>
+            
+            {match.events.map((event: any, index: number) => (
+              <View key={event.id || index} style={styles.eventItem}>
+                <View style={styles.eventTime}>
+                  <Text style={styles.eventMinute}>{event.minute}'</Text>
+                </View>
+                
+                <View style={styles.eventContent}>
+                  <View style={styles.eventHeader}>
+                    <Text style={styles.eventType}>
+                      {getEventDescription(event.eventType)} by {event.player?.name?.split(' ')[0] || 'Unknown'}
+                    </Text>
+                    <Text style={styles.eventTeam}>
+                      {event.teamId === match.homeTeam?.id ? match.homeTeam?.name : match.awayTeam?.name}
+                    </Text>
                   </View>
                 </View>
-              ))}
-            </LinearGradient>
-          </Animated.View>
+                
+                <View style={styles.eventIcon}>
+                  {event.eventType === 'GOAL' && <Text style={styles.eventEmoji}>⚽</Text>}
+                  {event.eventType === 'ASSIST' && <Text style={styles.eventEmoji}>🅰️</Text>}
+                  {event.eventType === 'YELLOW_CARD' && <Text style={styles.eventEmoji}>🟨</Text>}
+                  {event.eventType === 'RED_CARD' && <Text style={styles.eventEmoji}>🟥</Text>}
+                </View>
+              </View>
+            ))}
+          </View>
         )}
 
         {/* Team Lineups */}
-        <Animated.View 
-          style={[
-            styles.lineupsCard,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
-          <LinearGradient colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']} style={styles.lineupsGradient}>
-            <Text style={styles.sectionTitle}>Team Lineups</Text>
-            
-            <View style={styles.lineupsContainer}>
-              {/* Home Team Lineup */}
-              <View style={styles.teamLineup}>
-                <Text style={styles.teamLineupsTitle}>{match.homeTeam?.name}</Text>
-                <View style={styles.playersGrid}>
-                  {match.homeTeam?.players?.map((player: any, index: number) => (
-                    <TouchableOpacity 
-                      key={player.id || index} 
-                      style={styles.lineupPlayer}
-                      onPress={() => {
-                        // Navigate to player profile (placeholder for now)
-                        console.log('Navigate to player profile:', player.id, player.name);
-                      }}
-                    >
-                      <View style={[
-                        styles.playerJerseyMini, 
-                        { backgroundColor: getPositionColor(player.position) }
-                      ]}>
-                        <Text style={styles.playerNumberMini}>{player.jerseyNumber || index + 1}</Text>
-                      </View>
-                      <View style={styles.playerInfoMini}>
-                        <Text style={styles.playerNameMini} numberOfLines={1}>
-                          {player.name?.split(' ')[0] || 'Player'}
-                        </Text>
-                        <Text style={styles.playerPositionMini}>{player.position}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-              
-              {/* Away Team Lineup */}
-              <View style={styles.teamLineup}>
-                <Text style={styles.teamLineupsTitle}>{match.awayTeam?.name}</Text>
-                <View style={styles.playersGrid}>
-                  {match.awayTeam?.players?.map((player: any, index: number) => (
-                    <TouchableOpacity 
-                      key={player.id || index} 
-                      style={styles.lineupPlayer}
-                      onPress={() => {
-                        // Navigate to player profile (placeholder for now)
-                        console.log('Navigate to player profile:', player.id, player.name);
-                      }}
-                    >
-                      <View style={[
-                        styles.playerJerseyMini, 
-                        { backgroundColor: getPositionColor(player.position) }
-                      ]}>
-                        <Text style={styles.playerNumberMini}>{player.jerseyNumber || index + 1}</Text>
-                      </View>
-                      <View style={styles.playerInfoMini}>
-                        <Text style={styles.playerNameMini} numberOfLines={1}>
-                          {player.name?.split(' ')[0] || 'Player'}
-                        </Text>
-                        <Text style={styles.playerPositionMini}>{player.position}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+        <View style={styles.lineupsCard}>
+          <Text style={styles.sectionTitle}>Team Lineups</Text>
+          
+          <View style={styles.lineupsContainer}>
+            {/* Home Team Lineup */}
+            <View style={styles.teamLineup}>
+              <Text style={styles.teamLineupsTitle}>{match.homeTeam?.name}</Text>
+              <View style={styles.playersGrid}>
+                {match.homeTeam?.players?.map((player: any, index: number) => (
+                  <TouchableOpacity 
+                    key={player.id || index} 
+                    style={styles.lineupPlayer}
+                    onPress={() => {
+                      // Navigate to player profile (placeholder for now)
+                      console.log('Navigate to player profile:', player.id, player.name);
+                    }}
+                  >
+                    <View style={[
+                      styles.playerJerseyMini, 
+                      { backgroundColor: getPositionColor(player.position) }
+                    ]}>
+                      <Text style={styles.playerNumberMini}>{player.jerseyNumber || index + 1}</Text>
+                    </View>
+                    <View style={styles.playerInfoMini}>
+                      <Text style={styles.playerNameMini} numberOfLines={1}>
+                        {player.name?.split(' ')[0] || 'Player'}
+                      </Text>
+                      <Text style={styles.playerPositionMini}>{player.position}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
-          </LinearGradient>
-        </Animated.View>
+            
+            {/* Away Team Lineup */}
+            <View style={styles.teamLineup}>
+              <Text style={styles.teamLineupsTitle}>{match.awayTeam?.name}</Text>
+              <View style={styles.playersGrid}>
+                {match.awayTeam?.players?.map((player: any, index: number) => (
+                  <TouchableOpacity 
+                    key={player.id || index} 
+                    style={styles.lineupPlayer}
+                    onPress={() => {
+                      // Navigate to player profile (placeholder for now)
+                      console.log('Navigate to player profile:', player.id, player.name);
+                    }}
+                  >
+                    <View style={[
+                      styles.playerJerseyMini, 
+                      { backgroundColor: getPositionColor(player.position) }
+                    ]}>
+                      <Text style={styles.playerNumberMini}>{player.jerseyNumber || index + 1}</Text>
+                    </View>
+                    <View style={styles.playerInfoMini}>
+                      <Text style={styles.playerNameMini} numberOfLines={1}>
+                        {player.name?.split(' ')[0] || 'Player'}
+                      </Text>
+                      <Text style={styles.playerPositionMini}>{player.position}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+        </View>
 
         {/* Match Statistics */}
-        <Animated.View 
-          style={[
-            styles.statsCard,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
-          <LinearGradient colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']} style={styles.statsGradient}>
-            <Text style={styles.sectionTitle}>Match Statistics</Text>
-            
-            <View style={styles.statsRow}>
-              <Text style={styles.statLabel}>Goals</Text>
-              <Text style={styles.statValue}>{match.homeScore || 0} - {match.awayScore || 0}</Text>
-            </View>
-            
-            <View style={styles.statsRow}>
-              <Text style={styles.statLabel}>Total Events</Text>
-              <Text style={styles.statValue}>{match.events?.length || 0}</Text>
-            </View>
-            
-            <View style={styles.statsRow}>
-              <Text style={styles.statLabel}>Duration</Text>
-              <Text style={styles.statValue}>90 minutes</Text>
-            </View>
-          </LinearGradient>
-        </Animated.View>
+        <View style={styles.statsCard}>
+          <Text style={styles.sectionTitle}>Match Statistics</Text>
+          
+          <View style={styles.statsRow}>
+            <Text style={styles.statLabel}>Goals</Text>
+            <Text style={styles.statValue}>{match.homeScore || 0} - {match.awayScore || 0}</Text>
+          </View>
+          
+          <View style={styles.statsRow}>
+            <Text style={styles.statLabel}>Total Events</Text>
+            <Text style={styles.statValue}>{match.events?.length || 0}</Text>
+          </View>
+          
+          <View style={styles.statsRow}>
+            <Text style={styles.statLabel}>Duration</Text>
+            <Text style={styles.statValue}>90 minutes</Text>
+          </View>
+        </View>
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background.primary,
   },
-  loadingContainer: {
+  content: {
     flex: 1,
   },
-  loadingGradient: {
+  contentContainer: {
+    padding: spacing.screenPadding,
+    paddingTop: spacing.screenPadding * 2, // Much more space for header with subtitle
+    paddingBottom: spacing.screenPadding * 2,
+  },
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
-    color: '#fff',
-    fontSize: 16,
-    marginTop: 16,
+    ...typography.body,
+    color: colors.text.secondary,
+    marginTop: spacing.md,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0A0E27',
+    padding: spacing.screenPadding,
   },
   errorText: {
-    color: '#fff',
-    fontSize: 18,
-    marginBottom: 20,
+    ...typography.h3,
+    color: colors.text.primary,
+    marginTop: spacing.lg,
+    marginBottom: spacing.xl,
   },
   backButton: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    backgroundColor: colors.primary.main,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.button,
   },
   backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    ...typography.button,
+    color: colors.surface.primary,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitleText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  headerSubtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 14,
-    marginTop: 2,
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
+  
+  // Match Result Card
   resultCard: {
-    marginBottom: 24,
-  },
-  resultGradient: {
-    borderRadius: 20,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.card,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    ...shadows.card,
   },
   matchStatus: {
-    color: '#4CAF50',
-    fontSize: 14,
-    fontWeight: '600',
+    ...typography.caption,
+    color: colors.status.success,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.md,
   },
   teamsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: spacing.md,
   },
   teamResult: {
     flex: 1,
     alignItems: 'center',
   },
   teamName: {
-    color: '#fff',
-    fontSize: 16,
+    ...typography.body,
+    color: colors.text.primary,
     fontWeight: '600',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
     textAlign: 'center',
   },
   scoreContainer: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+    backgroundColor: colors.accent.blue + '20',
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: colors.accent.blue,
     justifyContent: 'center',
     alignItems: 'center',
   },
   teamScore: {
-    color: '#4CAF50',
-    fontSize: 24,
+    ...typography.h2,
+    color: colors.accent.blue,
     fontWeight: 'bold',
   },
   vsContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.md,
   },
   vsText: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 14,
+    ...typography.caption,
+    color: colors.text.secondary,
     fontWeight: '600',
   },
   matchInfo: {
     alignItems: 'center',
   },
   matchDate: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 14,
-    marginBottom: 4,
+    ...typography.body,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
   },
   matchVenue: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 12,
+    ...typography.caption,
+    color: colors.text.tertiary,
+  },
+
+  // Cards
+  pitchFormationCard: {
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.card,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    ...shadows.card,
   },
   timelineCard: {
-    marginBottom: 24,
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.card,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    ...shadows.card,
   },
-  timelineGradient: {
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+  lineupsCard: {
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.card,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    ...shadows.card,
+  },
+  statsCard: {
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.card,
+    padding: spacing.lg,
+    ...shadows.card,
   },
   sectionTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
+    ...typography.h3,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
   },
+
+  // Timeline Events
   eventItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: colors.surface.secondary,
   },
   eventTime: {
     width: 50,
     alignItems: 'center',
   },
   eventMinute: {
-    color: '#4CAF50',
-    fontSize: 14,
+    ...typography.caption,
+    color: colors.accent.blue,
     fontWeight: '600',
   },
   eventContent: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: spacing.md,
   },
   eventHeader: {
     flexDirection: 'row',
@@ -542,70 +482,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   eventType: {
-    color: '#fff',
-    fontSize: 14,
+    ...typography.body,
+    color: colors.text.primary,
     fontWeight: '600',
   },
   eventTeam: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 12,
-  },
-  eventDescription: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 12,
-    marginTop: 4,
+    ...typography.caption,
+    color: colors.text.secondary,
   },
   eventIcon: {
-    marginLeft: 12,
+    marginLeft: spacing.sm,
   },
   eventEmoji: {
     fontSize: 18,
   },
-  lineupsCard: {
-    marginBottom: 24,
-  },
-  lineupsGradient: {
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
+
+  // Team Lineups
   lineupsContainer: {
-    gap: 20,
+    gap: spacing.md,
   },
   teamLineup: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.surface.secondary,
+    borderRadius: borderRadius.card,
+    padding: spacing.md,
   },
   teamLineupsTitle: {
-    color: '#fff',
-    fontSize: 16,
+    ...typography.body,
+    color: colors.text.primary,
     fontWeight: '600',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.sm,
   },
   playersGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
+    gap: spacing.sm,
     justifyContent: 'space-between',
   },
   lineupPlayer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.small,
+    padding: spacing.sm,
     width: '47%',
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    shadowColor: 'rgba(0, 0, 0, 0.3)',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    marginBottom: spacing.xs,
+    ...shadows.small,
   },
   playerJerseyMini: {
     width: 24,
@@ -613,10 +535,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
+    marginRight: spacing.xs,
   },
   playerNumberMini: {
-    color: '#fff',
+    ...typography.caption,
+    color: colors.surface.primary,
     fontSize: 10,
     fontWeight: 'bold',
   },
@@ -624,50 +547,37 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   playerNameMini: {
-    color: '#fff',
-    fontSize: 12,
+    ...typography.caption,
+    color: colors.text.primary,
     fontWeight: '600',
+    fontSize: 12,
   },
   playerPositionMini: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    ...typography.caption,
+    color: colors.text.secondary,
     fontSize: 10,
   },
-  statsCard: {
-    marginBottom: 40,
-  },
-  statsGradient: {
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
+
+  // Statistics
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: colors.surface.secondary,
   },
   statLabel: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 14,
+    ...typography.body,
+    color: colors.text.secondary,
   },
   statValue: {
-    color: '#fff',
-    fontSize: 14,
+    ...typography.body,
+    color: colors.text.primary,
     fontWeight: '600',
   },
-  // Pitch Formation Styles
-  pitchFormationCard: {
-    marginBottom: 24,
-  },
-  pitchFormationGradient: {
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
+
+  // Pitch Formation
   pitchOverview: {
     backgroundColor: 'transparent',
   },

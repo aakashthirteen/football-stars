@@ -4,7 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
+  ScrollView,
   RefreshControl,
   Alert,
   ActivityIndicator,
@@ -16,9 +16,17 @@ import { useFocusEffect } from '@react-navigation/native';
 import { apiService } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Gradients } from '../../theme/colors';
 import { FloatingActionButton } from '../../components/FloatingActionButton';
 
+// Professional Components
+import {
+  ProfessionalHeader,
+  ProfessionalButton,
+  ProfessionalTeamBadge,
+  DesignSystem,
+} from '../../components/professional';
+
+const { colors, typography, spacing, borderRadius, shadows, gradients } = DesignSystem;
 const { width } = Dimensions.get('window');
 
 interface TeamsScreenProps {
@@ -34,7 +42,8 @@ interface Team {
 }
 
 export default function TeamsScreen({ navigation }: TeamsScreenProps) {
-  const [teams, setTeams] = useState<Team[]>([]);
+  const [myTeams, setMyTeams] = useState<Team[]>([]);
+  const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'my' | 'all'>('my');
@@ -42,374 +51,251 @@ export default function TeamsScreen({ navigation }: TeamsScreenProps) {
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
-  const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    animateEntrance();
+  }, []);
 
   useFocusEffect(
     React.useCallback(() => {
       loadTeams();
-      
-      // Start entrance animations
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      return () => {};
     }, [selectedTab])
   );
 
+  const animateEntrance = () => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
   const handleTabChange = (tab: 'my' | 'all') => {
     setSelectedTab(tab);
-    
-    // Animate tab indicator
-    Animated.spring(tabIndicatorAnim, {
-      toValue: tab === 'my' ? 0 : 1,
-      useNativeDriver: true,
-      tension: 100,
-      friction: 8,
-    }).start();
   };
 
   const loadTeams = async () => {
     try {
       setIsLoading(true);
-      const response = selectedTab === 'my' 
-        ? await apiService.getTeams()
-        : await apiService.getAllTeams();
       
-      if (response?.teams) {
-        setTeams(response.teams);
-      } else {
-        setTeams([]);
-      }
+      const [myTeamsResponse, allTeamsResponse] = await Promise.all([
+        apiService.getTeams().catch(() => ({ teams: [] })),
+        apiService.getAllTeams().catch(() => ({ teams: [] }))
+      ]);
+      
+      setMyTeams(myTeamsResponse?.teams || []);
+      setAllTeams(allTeamsResponse?.teams || []);
+      
     } catch (error: any) {
       console.error('Error loading teams:', error);
       Alert.alert('Error', 'Failed to load teams. Please try again.');
-      setTeams([]);
+      setMyTeams([]);
+      setAllTeams([]);
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const onRefresh = async () => {
+  const onRefresh = () => {
     setRefreshing(true);
-    await loadTeams();
-    setRefreshing(false);
+    loadTeams();
   };
 
-  const getTeamGradient = (teamName: string) => {
-    const gradients = [
-      ['#1B5E20', '#2E7D32'],
-      ['#0D47A1', '#1976D2'],
-      ['#B71C1C', '#D32F2F'],
-      ['#E65100', '#FF9800'],
-      ['#4A148C', '#7B1FA2'],
-    ];
-    const index = teamName.charCodeAt(0) % gradients.length;
-    return gradients[index];
-  };
-
-  const TeamCard = ({ item, index }: { item: Team; index: number }) => {
-    const scaleAnim = useRef(new Animated.Value(1)).current;
-    
-    const handlePressIn = () => {
-      Animated.spring(scaleAnim, {
-        toValue: 0.95,
-        useNativeDriver: true,
-        tension: 100,
-        friction: 7,
-      }).start();
-    };
-    
-    const handlePressOut = () => {
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 100,
-        friction: 7,
-      }).start();
-    };
+  const renderTeamCard = (team: Team, index: number) => {
+    const playerCount = team.players?.length || 0;
+    const isActive = playerCount > 0;
     
     return (
-      <Animated.View 
-        style={[
-          { marginBottom: 16 },
-          { transform: [{ scale: scaleAnim }] }
-        ]}
+      <TouchableOpacity
+        key={team.id}
+        style={styles.teamCard}
+        onPress={() => navigation.navigate('TeamDetails', { teamId: team.id })}
+        activeOpacity={0.8}
       >
-        <TouchableOpacity 
-          onPress={() => navigation.navigate('TeamDetails', { teamId: item.id })}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          activeOpacity={1}
-          style={styles.teamCardContainer}
+        <View style={styles.teamBadgeSection}>
+          <ProfessionalTeamBadge 
+            teamName={team.name} 
+            size="large" 
+          />
+        </View>
+        
+        <View style={styles.teamContent}>
+          <Text style={styles.teamName} numberOfLines={1}>
+            {team.name}
+          </Text>
+          
+          {team.description && (
+            <Text style={styles.teamDescription} numberOfLines={1}>
+              {team.description}
+            </Text>
+          )}
+          
+          <View style={styles.teamStats}>
+            <View style={styles.statItem}>
+              <Ionicons name="people" size={14} color={colors.text.secondary} />
+              <Text style={styles.statText}>{playerCount} players</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <View style={[styles.statusDot, { backgroundColor: isActive ? colors.status.success : colors.text.tertiary }]} />
+              <Text style={[styles.statText, { color: isActive ? colors.status.success : colors.text.tertiary }]}>
+                {isActive ? 'Active' : 'Inactive'}
+              </Text>
+            </View>
+          </View>
+        </View>
+        
+        <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} style={styles.chevron} />
+      </TouchableOpacity>
+    );
+  };
+
+  const renderTabSelector = () => {
+    const myCount = myTeams.length;
+    const allCount = allTeams.length;
+    
+    return (
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tab, selectedTab === 'my' && styles.activeTab]}
+          onPress={() => handleTabChange('my')}
+          activeOpacity={0.7}
         >
-          <LinearGradient
-            colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
-            style={styles.teamCard}
-          >
-            {/* Glassmorphism backdrop */}
-            <View style={styles.glassBackdrop} />
-            
-            <View style={styles.teamHeader}>
-              <LinearGradient
-                colors={getTeamGradient(item.name)}
-                style={styles.teamIconContainer}
-              >
-                <Ionicons name="shield-checkmark" size={24} color="#fff" />
-              </LinearGradient>
-              
-              <View style={styles.teamInfo}>
-                <Text style={styles.teamName} numberOfLines={1}>{item.name}</Text>
-                {item.description ? (
-                  <Text style={styles.teamDescription} numberOfLines={2}>
-                    {item.description}
-                  </Text>
-                ) : (
-                  <Text style={styles.teamDescriptionPlaceholder}>
-                    No description available
-                  </Text>
-                )}
-              </View>
-              
-              <TouchableOpacity 
-                style={styles.moreButton}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  // Could show team options menu
-                }}
-              >
-                <Ionicons name="ellipsis-vertical" size={20} color="#B0BEC5" />
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.teamStats}>
-              <View style={styles.statCard}>
-                <View style={styles.statIcon}>
-                  <Ionicons name="people" size={16} color="#4FC3F7" />
-                </View>
-                <View>
-                  <Text style={styles.statValue}>{item.players?.length || 0}</Text>
-                  <Text style={styles.statLabel}>Players</Text>
-                </View>
-              </View>
-              
-              <View style={styles.statCard}>
-                <View style={styles.statIcon}>
-                  <Ionicons name="trophy" size={16} color="#FFD700" />
-                </View>
-                <View>
-                  <Text style={styles.statValue}>
-                    {item.players?.filter(p => p.role === 'CAPTAIN').length || 0}
-                  </Text>
-                  <Text style={styles.statLabel}>Captains</Text>
-                </View>
-              </View>
-              
-              <View style={styles.statCard}>
-                <View style={styles.statIcon}>
-                  <Ionicons name="football" size={16} color="#81C784" />
-                </View>
-                <View>
-                  <Text style={styles.statValue}>0</Text>
-                  <Text style={styles.statLabel}>Matches</Text>
-                </View>
-              </View>
-            </View>
-            
-            <View style={styles.teamFooter}>
-              <View style={styles.badges}>
-                {item.players?.some(p => p.role === 'CAPTAIN') && (
-                  <View style={styles.captainBadge}>
-                    <Ionicons name="star" size={10} color="#FFD700" />
-                    <Text style={styles.badgeText}>Captain Set</Text>
-                  </View>
-                )}
-                
-                <View style={[
-                  styles.statusBadge,
-                  { backgroundColor: item.players?.length > 0 ? 'rgba(76, 175, 80, 0.2)' : 'rgba(158, 158, 158, 0.2)' }
-                ]}>
-                  <View style={[
-                    styles.statusDot,
-                    { backgroundColor: item.players?.length > 0 ? '#4CAF50' : '#9E9E9E' }
-                  ]} />
-                  <Text style={[
-                    styles.badgeText,
-                    { color: item.players?.length > 0 ? '#4CAF50' : '#9E9E9E' }
-                  ]}>
-                    {item.players?.length > 0 ? 'Active' : 'Inactive'}
-                  </Text>
-                </View>
-              </View>
-              
-              <TouchableOpacity 
-                style={styles.actionButton}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  navigation.navigate('TeamDetails', { teamId: item.id });
-                }}
-              >
-                <Text style={styles.actionButtonText}>View Team</Text>
-                <Ionicons name="chevron-forward" size={16} color="#4FC3F7" />
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
+          <Text style={[styles.tabText, selectedTab === 'my' && styles.activeTabText]}>
+            My Teams
+          </Text>
+          <View style={[styles.tabBadge, selectedTab === 'my' && styles.activeTabBadge]}>
+            <Text style={[styles.tabCount, selectedTab === 'my' && styles.activeTabCount]}>{myCount}</Text>
+          </View>
         </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.tab, selectedTab === 'all' && styles.activeTab]}
+          onPress={() => handleTabChange('all')}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.tabText, selectedTab === 'all' && styles.activeTabText]}>
+            All Teams
+          </Text>
+          <View style={[styles.tabBadge, selectedTab === 'all' && styles.activeTabBadge]}>
+            <Text style={[styles.tabCount, selectedTab === 'all' && styles.activeTabCount]}>{allCount}</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+  
+  const renderEmptyState = () => {
+    return (
+      <View style={styles.emptyState}>
+        <View style={[styles.emptyIcon, { backgroundColor: colors.primary.main }]}>
+          <Ionicons name="people-outline" size={48} color="#FFFFFF" />
+        </View>
+        <Text style={styles.emptyTitle}>
+          {selectedTab === 'my' ? 'No Teams Yet' : 'No Teams Available'}
+        </Text>
+        <Text style={styles.emptySubtext}>
+          {selectedTab === 'my' 
+            ? 'Create your first team to organize matches and track stats' 
+            : 'Check back later for teams to join'}
+        </Text>
+        {selectedTab === 'my' && (
+          <ProfessionalButton
+            title="Create Your First Team"
+            icon="add-circle"
+            onPress={() => navigation.navigate('CreateTeam')}
+            style={styles.createButton}
+          />
+        )}
+      </View>
+    );
+  };
+  
+  const renderTeamsList = () => {
+    const currentTeams = selectedTab === 'my' ? myTeams : allTeams;
+    
+    if (currentTeams.length === 0) {
+      return renderEmptyState();
+    }
+    
+    return (
+      <Animated.View
+        style={{
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }],
+        }}
+      >
+        <View style={styles.teamsGrid}>
+          {currentTeams.map((team, index) => renderTeamCard(team, index))}
+        </View>
       </Animated.View>
     );
   };
 
-  const renderTeam = ({ item, index }: { item: Team; index: number }) => {
-    return <TeamCard item={item} index={index} />;
-  };
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <StatusBar barStyle="light-content" />
+        <ActivityIndicator size="large" color={colors.primary.main} />
+        <Text style={styles.loadingText}>Loading teams...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Modern Header */}
-      <Animated.View
-        style={[
-          styles.header,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          },
-        ]}
-      >
-        <LinearGradient
-          colors={Gradients.field}
-          style={styles.headerGradient}
-        >
-          <StatusBar barStyle="light-content" />
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>Teams</Text>
-            <Text style={styles.headerSubtitle}>
-              {teams.length} {teams.length === 1 ? 'team' : 'teams'} available
-            </Text>
-          </View>
-        </LinearGradient>
-
-        {/* Modern Tabs */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab]}
-            onPress={() => handleTabChange('my')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.tabText, selectedTab === 'my' && styles.activeTabText]}>
-              My Teams
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.tab]}
-            onPress={() => handleTabChange('all')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.tabText, selectedTab === 'all' && styles.activeTabText]}>
-              All Teams
-            </Text>
-          </TouchableOpacity>
-          
-          {/* Animated Tab Indicator */}
-          <Animated.View
-            style={[
-              styles.tabIndicator,
-              {
-                transform: [{
-                  translateX: tabIndicatorAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, width / 2],
-                  }),
-                }],
-              },
-            ]}
-          />
-        </View>
-      </Animated.View>
-
-      {/* Teams List */}
-      <FlatList
-        data={teams}
-        renderItem={renderTeam}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={[styles.list, teams.length === 0 && styles.emptyContainer]}
+      <StatusBar barStyle="light-content" />
+      
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={onRefresh}
-            tintColor="#4FC3F7"
-            colors={['#4FC3F7']}
+            tintColor={colors.primary.main}
+            colors={[colors.primary.main]}
           />
         }
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={() => (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyContainer}>
-              <View style={styles.emptyIconContainer}>
-                <Ionicons name="shield-outline" size={80} color="rgba(255, 255, 255, 0.3)" />
-              </View>
-              
-              {selectedTab === 'my' ? (
-                <>
-                  <Text style={styles.emptyText}>No teams yet</Text>
-                  <Text style={styles.emptySubtext}>
-                    Create your first team to organize matches,{'\n'}
-                    track stats, and build your squad!
-                  </Text>
-                  <TouchableOpacity 
-                    onPress={() => navigation.navigate('CreateTeam')}
-                    activeOpacity={0.8}
-                  >
-                    <LinearGradient
-                      colors={['#4FC3F7', '#0288D1']}
-                      style={styles.createTeamButton}
-                    >
-                      <Ionicons name="add-circle" size={24} color="#fff" />
-                      <Text style={styles.createTeamButtonText}>Create Your First Team</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.emptyText}>No teams available</Text>
-                  <Text style={styles.emptySubtext}>
-                    No teams are currently visible.{'\n'}
-                    Check back later for new teams to join!
-                  </Text>
-                </>
-              )}
-            </View>
-          </View>
-        )}
-      />
+      >
+        {/* Professional Header */}
+        <ProfessionalHeader
+          title="Teams"
+          subtitle="View and manage your teams"
+          showNotifications
+          onNotifications={() => navigation.getParent()?.navigate('Profile')}
+        />
+        
+        {/* Tab Selector */}
+        <View style={styles.tabSection}>
+          {renderTabSelector()}
+        </View>
+        
+        {/* Teams List */}
+        <View style={styles.teamsSection}>
+          {renderTeamsList()}
+        </View>
+        
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
       
       {/* Floating Action Button */}
       {selectedTab === 'my' && (
         <FloatingActionButton
           onPress={() => navigation.navigate('CreateTeam')}
           icon="add"
-          style={{ bottom: 100 }}
+          style={styles.fab}
         />
-      )}
-      
-      {/* Loading Overlay */}
-      {isLoading && (
-        <View style={styles.loadingOverlay}>
-          <LinearGradient
-            colors={['rgba(10, 14, 39, 0.9)', 'rgba(26, 31, 58, 0.9)']}
-            style={styles.loadingContainer}
-          >
-            <ActivityIndicator size="large" color="#4FC3F7" />
-            <Text style={styles.loadingText}>Loading teams...</Text>
-          </LinearGradient>
-        </View>
       )}
     </View>
   );
@@ -418,261 +304,175 @@ export default function TeamsScreen({ navigation }: TeamsScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: colors.background.primary,
   },
-  header: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  headerGradient: {
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-  },
-  headerContent: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.background.primary,
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
+  loadingText: {
+    marginTop: spacing.md,
+    fontSize: 16,
+    color: colors.text.secondary,
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-    textAlign: 'center',
-    marginTop: 4,
+  content: {
+    flex: 1,
+  },
+  
+  // Tab Section - La Liga style
+  tabSection: {
+    paddingHorizontal: spacing.screenPadding,
+    marginTop: spacing.xl,
+    marginBottom: spacing.lg,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    marginHorizontal: 20,
-    borderRadius: 12,
-    padding: 4,
-    position: 'relative',
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xs,
+    ...shadows.sm,
   },
   tab: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    zIndex: 1,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  activeTabText: {
-    color: '#fff',
-  },
-  tabIndicator: {
-    position: 'absolute',
-    top: 4,
-    left: 4,
-    width: (width - 48) / 2,
-    height: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 8,
-    zIndex: 0,
-  },
-  list: {
-    padding: 20,
-    paddingBottom: 120,
-  },
-  teamCardContainer: {},
-  teamCard: {
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    overflow: 'hidden',
-  },
-  glassBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
-  },
-  teamHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  teamIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    gap: spacing.xs,
   },
-  teamInfo: {
+  activeTab: {
+    backgroundColor: colors.primary.main,
+  },
+  tabText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  activeTabText: {
+    color: '#FFFFFF',
+  },
+  tabBadge: {
+    backgroundColor: colors.surface.secondary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  activeTabBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  tabCount: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text.secondary,
+  },
+  activeTabCount: {
+    color: '#FFFFFF',
+  },
+  
+  // Teams Section
+  teamsSection: {
+    paddingHorizontal: spacing.screenPadding,
+  },
+  teamsGrid: {
+    gap: spacing.md,
+  },
+  
+  // Team Card - Modern design
+  teamCard: {
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    ...shadows.sm,
+  },
+  teamBadgeSection: {
+    marginRight: spacing.md,
+  },
+  teamContent: {
     flex: 1,
   },
   teamName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
   },
   teamDescription: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-    lineHeight: 20,
-  },
-  teamDescriptionPlaceholder: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.4)',
-    fontStyle: 'italic',
-  },
-  moreButton: {
-    padding: 8,
-    marginLeft: 8,
+    color: colors.text.secondary,
+    marginBottom: spacing.sm,
   },
   teamStats: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    alignItems: 'center',
+    gap: spacing.md,
   },
-  statCard: {
+  statItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    flex: 1,
-    marginHorizontal: 2,
+    gap: spacing.xs,
   },
-  statIcon: {
-    marginRight: 8,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  statLabel: {
-    fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  teamFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  badges: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  captainBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 215, 0, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
+  statText: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    fontWeight: '500',
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
   },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#FFD700',
+  statDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: colors.surface.border,
   },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(79, 195, 247, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 4,
+  chevron: {
+    marginLeft: spacing.sm,
   },
-  actionButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#4FC3F7',
-  },
+  
+  // Empty State
   emptyState: {
-    flex: 1,
-    paddingTop: 60,
-  },
-  emptyContainer: {
     alignItems: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
+    paddingVertical: spacing.xxxl * 1.5,
+    paddingHorizontal: spacing.xl,
   },
-  emptyIconContainer: {
-    marginBottom: 20,
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xl,
   },
-  emptyText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
     textAlign: 'center',
-    marginBottom: 8,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 16,
+    color: colors.text.secondary,
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
+    lineHeight: 24,
+    marginBottom: spacing.xl,
   },
-  createTeamButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
+  createButton: {
+    marginTop: spacing.sm,
   },
-  createTeamButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  
+  bottomSpacing: {
+    height: 120,
   },
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-  },
-  loadingContainer: {
-    padding: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: 16,
+  fab: {
+    bottom: 100,
   },
 });
