@@ -15,6 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { apiService } from '../../services/api';
+import { useAuthStore } from '../../store/authStore';
 import { TeamPlayerStats } from '../../types';
 
 // Professional Components
@@ -61,6 +62,7 @@ const POSITION_COLORS = {
 
 export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScreenProps) {
   const { teamId } = route.params;
+  const { user } = useAuthStore();
   const [team, setTeam] = useState<Team | null>(null);
   const [teamStats, setTeamStats] = useState<TeamPlayerStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -143,6 +145,83 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
     } catch (error: any) {
       console.error('Error loading team stats:', error);
       setTeamStats([]);
+    }
+  };
+
+  // Check if current user is team admin
+  const isTeamAdmin = () => {
+    console.log('Debug - User ID:', user?.id);
+    console.log('Debug - Team Created By:', team?.createdBy);
+    console.log('Debug - Is Admin:', user?.id === team?.createdBy);
+    return user?.id === team?.createdBy;
+  };
+
+  // Remove player from team (admin only)
+  const handleRemovePlayer = (playerId: string, playerName: string) => {
+    if (!isTeamAdmin()) {
+      Alert.alert('Permission Denied', 'Only team admins can remove players.');
+      return;
+    }
+
+    Alert.alert(
+      'Remove Player',
+      `Are you sure you want to remove ${playerName} from the team?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Remove', 
+          style: 'destructive',
+          onPress: () => removePlayerFromTeam(playerId)
+        }
+      ]
+    );
+  };
+
+  const removePlayerFromTeam = async (playerId: string) => {
+    try {
+      await apiService.removePlayerFromTeam(teamId, playerId);
+      Alert.alert('Success', 'Player removed from team');
+      loadTeamDetails(); // Reload team data
+    } catch (error: any) {
+      console.error('Error removing player:', error);
+      Alert.alert('Error', 'Failed to remove player from team');
+    }
+  };
+
+  // Add player to team (admin only)
+  const handleAddPlayer = () => {
+    if (!isTeamAdmin()) {
+      Alert.alert('Permission Denied', 'Only team admins can add players.');
+      return;
+    }
+    
+    // For now, show a simple alert with input. Later we can create a dedicated screen.
+    Alert.prompt(
+      'Add Player',
+      'Enter the player ID to add them to the team:\n(This will be improved with player search in future updates)',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Add', 
+          onPress: (playerId) => {
+            if (playerId && playerId.trim()) {
+              addPlayerToTeam(playerId.trim());
+            }
+          }
+        }
+      ],
+      'plain-text'
+    );
+  };
+
+  const addPlayerToTeam = async (playerId: string) => {
+    try {
+      await apiService.addPlayerToTeam(teamId, playerId);
+      Alert.alert('Success', 'Player added to team successfully!');
+      loadTeamDetails(); // Reload team data
+    } catch (error: any) {
+      console.error('Error adding player:', error);
+      Alert.alert('Error', error.message || 'Failed to add player to team');
     }
   };
 
@@ -326,6 +405,31 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
 
     return (
       <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+        {/* DEBUG: Always visible test button */}
+        <View style={styles.adminSection}>
+          <ProfessionalButton
+            title="TEST: Add Player (Always Visible)"
+            icon="person-add"
+            onPress={() => {
+              console.log('Test button pressed');
+              Alert.alert('Debug', `User ID: ${user?.id}\nTeam Creator: ${team?.createdBy}\nIs Admin: ${isTeamAdmin()}`);
+            }}
+            style={styles.addPlayerButton}
+          />
+        </View>
+
+        {/* Add Player Button (Admin Only) */}
+        {isTeamAdmin() && (
+          <View style={styles.adminSection}>
+            <ProfessionalButton
+              title="Add Player (Admin Only)"
+              icon="person-add"
+              onPress={handleAddPlayer}
+              style={styles.addPlayerButton}
+            />
+          </View>
+        )}
+
         {/* Position Filter */}
         <ScrollView 
           horizontal 
@@ -352,6 +456,27 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
 
         {/* Players Grid */}
         <View style={styles.playersGrid}>
+          {/* Empty State for No Players */}
+          {(!team?.players || team.players.length === 0) && (
+            <View style={styles.emptyPlayersState}>
+              <Ionicons name="people-outline" size={64} color={colors.text.tertiary} />
+              <Text style={styles.emptyPlayersTitle}>No Players Yet</Text>
+              <Text style={styles.emptyPlayersSubtitle}>
+                {isTeamAdmin() 
+                  ? 'Add players to build your squad' 
+                  : 'This team has no players yet'}
+              </Text>
+              {isTeamAdmin() && (
+                <ProfessionalButton
+                  title="Add First Player"
+                  icon="person-add"
+                  onPress={handleAddPlayer}
+                  style={styles.emptyStateButton}
+                />
+              )}
+            </View>
+          )}
+
           {team?.players.map((player, index) => {
             const stats = getPlayerStats(player.id);
             const positionColor = POSITION_COLORS[player.position as keyof typeof POSITION_COLORS] || colors.primary.main;
@@ -377,6 +502,16 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
                     colors={[colors.background.secondary, colors.background.tertiary]}
                     style={styles.playerCardGradient}
                   >
+                    {/* Admin Remove Button */}
+                    {isTeamAdmin() && (
+                      <TouchableOpacity 
+                        style={styles.removePlayerButton}
+                        onPress={() => handleRemovePlayer(player.id, player.name)}
+                      >
+                        <Ionicons name="close-circle" size={20} color={colors.status.error} />
+                      </TouchableOpacity>
+                    )}
+
                     {/* Position Badge */}
                     <View style={[styles.positionBadge, { backgroundColor: positionColor }]}>
                       <Text style={styles.positionBadgeText}>{player.position}</Text>
@@ -514,6 +649,14 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
             <Text style={styles.teamName}>{team.name}</Text>
             {team.description && (
               <Text style={styles.teamDescription}>{team.description}</Text>
+            )}
+            
+            {/* Admin Badge */}
+            {isTeamAdmin() && (
+              <View style={styles.adminBadge}>
+                <Ionicons name="shield-checkmark" size={16} color="#FFFFFF" />
+                <Text style={styles.adminBadgeText}>TEAM ADMIN</Text>
+              </View>
             )}
             
             {/* Compact Stats Row */}
@@ -957,5 +1100,71 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginTop: spacing.xs,
     textAlign: 'center',
+  },
+  
+  // Admin Controls
+  adminSection: {
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: spacing.lg,
+  },
+  addPlayerButton: {
+    marginBottom: spacing.sm,
+  },
+  removePlayerButton: {
+    position: 'absolute',
+    top: spacing.xs,
+    right: spacing.xs,
+    zIndex: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  // Empty Players State
+  emptyPlayersState: {
+    alignItems: 'center',
+    paddingVertical: spacing.xxxl * 2,
+    paddingHorizontal: spacing.xl,
+  },
+  emptyPlayersTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  emptyPlayersSubtitle: {
+    fontSize: 16,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: spacing.xl,
+  },
+  emptyStateButton: {
+    marginTop: spacing.md,
+  },
+  
+  // Admin Badge
+  adminBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.badge,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    gap: spacing.xs,
+  },
+  adminBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
 });

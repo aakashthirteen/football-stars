@@ -14,7 +14,7 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop, G, Circle, Text as SvgText } from 'react-native-svg';
+import { BlurView } from 'expo-blur';
 
 // Professional Components
 import {
@@ -36,131 +36,14 @@ interface UserProfile {
   bio?: string;
   joinedDate: string;
   profileImage?: string;
-  jerseyNumber?: string;
+  jerseyNumber?: number;
   level?: number;
   totalScore?: number;
   appearances?: number;
   goals?: number;
   assists?: number;
-  winRate?: number;
-  dailyStreaks?: number;
+  dailyStreak?: number;
 }
-
-// Jersey SVG Component
-const JerseySVG = ({ number, name }: { number: string; name: string }) => {
-  return (
-    <Svg width={width * 0.6} height={width * 0.7} viewBox="0 0 240 280">
-      <Defs>
-        <SvgLinearGradient id="jerseyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-          <Stop offset="0%" stopColor="#00E568" stopOpacity="1" />
-          <Stop offset="100%" stopColor="#00B348" stopOpacity="1" />
-        </SvgLinearGradient>
-        <SvgLinearGradient id="sleeveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <Stop offset="0%" stopColor="#00C458" stopOpacity="1" />
-          <Stop offset="100%" stopColor="#00A040" stopOpacity="1" />
-        </SvgLinearGradient>
-      </Defs>
-      
-      {/* Jersey Body */}
-      <Path
-        d="M 60 40 
-           L 60 20 
-           Q 60 10 70 10 
-           L 90 10 
-           Q 95 10 95 15 
-           L 95 25 
-           Q 120 20 145 25 
-           L 145 15 
-           Q 145 10 150 10 
-           L 170 10 
-           Q 180 10 180 20 
-           L 180 40 
-           L 200 60 
-           L 200 80 
-           L 180 70 
-           L 180 240 
-           Q 180 250 170 250 
-           L 70 250 
-           Q 60 250 60 240 
-           L 60 70 
-           L 40 80 
-           L 40 60 
-           L 60 40"
-        fill="url(#jerseyGradient)"
-        stroke="#009038"
-        strokeWidth="2"
-      />
-      
-      {/* Left Sleeve */}
-      <Path
-        d="M 60 40 L 40 60 L 40 80 L 60 70"
-        fill="url(#sleeveGradient)"
-        stroke="#009038"
-        strokeWidth="2"
-      />
-      
-      {/* Right Sleeve */}
-      <Path
-        d="M 180 40 L 200 60 L 200 80 L 180 70"
-        fill="url(#sleeveGradient)"
-        stroke="#009038"
-        strokeWidth="2"
-      />
-      
-      {/* Collar */}
-      <Path
-        d="M 95 25 Q 120 20 145 25"
-        fill="none"
-        stroke="#FFFFFF"
-        strokeWidth="3"
-        opacity="0.3"
-      />
-      
-      {/* Jersey Number */}
-      <SvgText
-        x="120"
-        y="140"
-        fontSize="60"
-        fontWeight="bold"
-        fill="#FFFFFF"
-        textAnchor="middle"
-        fontFamily="System"
-      >
-        {number}
-      </SvgText>
-      
-      {/* Player Name */}
-      <SvgText
-        x="120"
-        y="90"
-        fontSize="18"
-        fontWeight="600"
-        fill="#FFFFFF"
-        textAnchor="middle"
-        fontFamily="System"
-        letterSpacing="2"
-      >
-        {name.toUpperCase()}
-      </SvgText>
-      
-      {/* Decorative Lines */}
-      <Path
-        d="M 60 180 L 180 180"
-        fill="none"
-        stroke="#FFFFFF"
-        strokeWidth="1"
-        opacity="0.1"
-      />
-      <Path
-        d="M 60 200 L 180 200"
-        fill="none"
-        stroke="#FFFFFF"
-        strokeWidth="1"
-        opacity="0.1"
-      />
-    </Svg>
-  );
-};
 
 export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const { user, logout } = useAuthStore();
@@ -179,17 +62,16 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
           name: user.name || 'Unknown Player',
           email: user.email || '',
           position: 'MID',
-          jerseyNumber: '10',
-          level: 7,
-          totalScore: 2856,
-          appearances: 28,
-          goals: 71,
-          assists: 8,
-          winRate: 78,
-          dailyStreaks: 14,
           bio: 'Passionate football player looking to improve my game and connect with fellow players.',
           joinedDate: '2024-01-15',
           profileImage: undefined,
+          jerseyNumber: 10,
+          level: 13,
+          totalScore: 2300,
+          appearances: 28,
+          goals: 71,
+          assists: 8,
+          dailyStreak: 14,
         });
       }
     } catch (error) {
@@ -199,17 +81,13 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     }
   };
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
-  };
-
   const getPositionColor = (position?: string) => {
     switch (position) {
       case 'GK': return colors.status.error;
       case 'DEF': return colors.accent.blue;
       case 'MID': return colors.primary.main;
       case 'FWD': return colors.accent.orange;
-      default: return colors.primary.main;
+      default: return colors.text.secondary;
     }
   };
 
@@ -233,150 +111,168 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     );
   };
 
-  const renderProfileCard = () => {
-    if (!profile) return null;
+  const handleEditProfile = () => {
+    navigation.navigate('EditProfile', { profile });
+  };
+
+  const renderJerseyCard = () => {
+    const getInitials = (name: string) => {
+      return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+    };
 
     return (
-      <View style={styles.profileCard}>
+      <View style={styles.jerseyCard}>
         <LinearGradient
-          colors={[colors.primary.dark, colors.primary.main]}
-          style={styles.cardGradient}
+          colors={[colors.primary.main, colors.primary.dark]}
+          style={styles.jerseyGradient}
         >
-          {/* Header */}
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>MY UNITED</Text>
+          {/* Header Actions */}
+          <View style={styles.jerseyHeader}>
+            <Text style={styles.jerseyTitle}>FOOTBALL STARS</Text>
             <View style={styles.headerActions}>
-              <TouchableOpacity onPress={() => navigation.navigate('EditProfile')}>
-                <Ionicons name="share-outline" size={24} color="#FFFFFF" />
+              <TouchableOpacity style={styles.iconButton}>
+                <Ionicons name="share-outline" size={22} color="#FFFFFF" />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={{ marginLeft: spacing.lg }}>
-                <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
+              <TouchableOpacity style={styles.iconButton} onPress={() => navigation.navigate('Settings')}>
+                <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Jersey Container */}
-          <View style={styles.jerseyContainer}>
-            <JerseySVG 
-              number={profile.jerseyNumber || '10'} 
-              name={profile.name.split(' ').pop() || 'PLAYER'} 
-            />
-            
-            {/* Profile Picture Overlay */}
-            <View style={styles.profilePictureContainer}>
-              <View style={styles.profilePicture}>
-                {profile.profileImage ? (
-                  <Image source={{ uri: profile.profileImage }} style={styles.profileImage} />
+          {/* Jersey Display */}
+          <View style={styles.jerseyDisplay}>
+            <View style={styles.jersey}>
+              {/* Jersey Shape */}
+              <View style={styles.jerseyShape}>
+                <Text style={styles.jerseyName}>{profile?.name?.split(' ').pop()?.toUpperCase()}</Text>
+                <Text style={styles.jerseyNumber}>{profile?.jerseyNumber || 10}</Text>
+              </View>
+              
+              {/* Profile Photo */}
+              <View style={styles.profilePhotoContainer}>
+                {profile?.profileImage ? (
+                  <Image source={{ uri: profile.profileImage }} style={styles.profilePhoto} />
                 ) : (
-                  <Text style={styles.profileInitials}>{getInitials(profile.name)}</Text>
+                  <View style={styles.profilePhotoPlaceholder}>
+                    <Text style={styles.profileInitials}>{getInitials(profile?.name || 'PL')}</Text>
+                  </View>
                 )}
               </View>
             </View>
+
+            {/* Level Badge */}
+            <View style={styles.levelBadge}>
+              <Ionicons name="star" size={16} color="#FFFFFF" />
+              <Text style={styles.levelText}>LEVEL {profile?.level || 1}</Text>
+            </View>
+
+            {/* Position Badge */}
+            <View style={styles.positionBadge}>
+              <Ionicons name="shield-checkmark" size={16} color="#FFFFFF" />
+              <Text style={styles.positionText}>{profile?.position} PLAYER</Text>
+            </View>
           </View>
 
-          {/* Level Badge */}
-          <View style={styles.levelBadge}>
-            <Ionicons name="star" size={16} color="#FFFFFF" />
-            <Text style={styles.levelText}>LEVEL {profile.level}</Text>
-          </View>
-
-          {/* Fan Status */}
-          <View style={styles.fanStatus}>
-            <Ionicons name="shield-checkmark-outline" size={20} color="#FFFFFF" />
-            <Text style={styles.fanStatusText}>FOOTBALL STARS FAN</Text>
-          </View>
-
-          {/* Stats Grid */}
-          <View style={styles.statsGrid}>
+          {/* Stats Row */}
+          <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <Text style={styles.statLabel}>DAILY STREAKS</Text>
-              <Text style={styles.statValue}>{profile.dailyStreaks}</Text>
+              <Text style={styles.statLabel}>DAILY STREAK</Text>
+              <Text style={styles.statValue}>{profile?.dailyStreak || 0}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statLabel}>TOTAL SCORE</Text>
-              <Text style={styles.statValue}>{profile.totalScore}</Text>
+              <Text style={styles.statValue}>{profile?.totalScore || 0}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statLabel}>APPEARANCES</Text>
-              <Text style={styles.statValue}>{profile.appearances}</Text>
+              <Text style={styles.statValue}>{profile?.appearances || 0}</Text>
             </View>
           </View>
         </LinearGradient>
-
-        {/* Action Buttons */}
-        <View style={styles.actionButtonsContainer}>
-          <TouchableOpacity style={styles.primaryActionButton} onPress={() => navigation.navigate('CreateTeam')}>
-            <Text style={styles.primaryActionText}>GET OFFICIAL MEMBERSHIP</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.secondaryActionButton} onPress={() => navigation.navigate('Teams')}>
-            <Text style={styles.secondaryActionText}>BUY SHIRT</Text>
-          </TouchableOpacity>
-
-          {/* Quick Actions */}
-          <View style={styles.quickActionsGrid}>
-            <TouchableOpacity style={styles.quickActionCard}>
-              <LinearGradient
-                colors={[colors.surface.secondary, colors.surface.primary]}
-                style={styles.quickActionGradient}
-              >
-                <Ionicons name="ticket-outline" size={24} color={colors.text.primary} />
-                <Text style={styles.quickActionTitle}>MY TICKETS</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.quickActionCard}>
-              <LinearGradient
-                colors={[colors.surface.secondary, colors.surface.primary]}
-                style={styles.quickActionGradient}
-              >
-                <Ionicons name="location-outline" size={24} color={colors.text.primary} />
-                <Text style={styles.quickActionTitle}>STADIUM</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        </View>
       </View>
     );
   };
 
-  const renderDetailedStats = () => {
-    if (!profile) return null;
+  const renderActionButtons = () => (
+    <View style={styles.actionButtons}>
+      <TouchableOpacity style={styles.primaryButton} onPress={handleEditProfile}>
+        <LinearGradient
+          colors={[colors.primary.main, colors.primary.dark]}
+          style={styles.buttonGradient}
+        >
+          <Text style={styles.primaryButtonText}>EDIT PROFILE</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+      
+      <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('MyStats')}>
+        <Text style={styles.secondaryButtonText}>VIEW STATS</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
-    return (
-      <View style={styles.detailedStatsSection}>
-        <Text style={styles.sectionTitle}>Performance Stats</Text>
-        
-        <View style={styles.performanceGrid}>
-          <View style={styles.performanceCard}>
-            <View style={[styles.performanceIcon, { backgroundColor: colors.primary.main + '20' }]}>
-              <Ionicons name="football" size={20} color={colors.primary.main} />
-            </View>
-            <Text style={styles.performanceValue}>{profile.goals}</Text>
-            <Text style={styles.performanceLabel}>Goals</Text>
-          </View>
-          
-          <View style={styles.performanceCard}>
-            <View style={[styles.performanceIcon, { backgroundColor: colors.accent.blue + '20' }]}>
-              <Ionicons name="trending-up" size={20} color={colors.accent.blue} />
-            </View>
-            <Text style={styles.performanceValue}>{profile.assists}</Text>
-            <Text style={styles.performanceLabel}>Assists</Text>
-          </View>
-          
-          <View style={styles.performanceCard}>
-            <View style={[styles.performanceIcon, { backgroundColor: colors.accent.gold + '20' }]}>
-              <Ionicons name="trophy" size={20} color={colors.accent.gold} />
-            </View>
-            <Text style={styles.performanceValue}>{profile.winRate}%</Text>
-            <Text style={styles.performanceLabel}>Win Rate</Text>
-          </View>
-        </View>
+  const renderQuickStats = () => (
+    <View style={styles.quickStats}>
+      <View style={styles.quickStatCard}>
+        <LinearGradient
+          colors={['rgba(0, 215, 87, 0.15)', 'rgba(0, 215, 87, 0.05)']}
+          style={styles.quickStatGradient}
+        >
+          <Ionicons name="football" size={32} color={colors.primary.main} />
+          <Text style={styles.quickStatValue}>{profile?.goals || 0}</Text>
+          <Text style={styles.quickStatLabel}>Goals</Text>
+        </LinearGradient>
       </View>
-    );
-  };
+      
+      <View style={styles.quickStatCard}>
+        <LinearGradient
+          colors={['rgba(59, 130, 246, 0.15)', 'rgba(59, 130, 246, 0.05)']}
+          style={styles.quickStatGradient}
+        >
+          <Ionicons name="trending-up" size={32} color={colors.accent.blue} />
+          <Text style={styles.quickStatValue}>{profile?.assists || 0}</Text>
+          <Text style={styles.quickStatLabel}>Assists</Text>
+        </LinearGradient>
+      </View>
+    </View>
+  );
+
+  const renderMenuItems = () => (
+    <View style={styles.menuSection}>
+      <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Teams')}>
+        <View style={styles.menuIcon}>
+          <Ionicons name="people" size={24} color={colors.primary.main} />
+        </View>
+        <Text style={styles.menuText}>My Teams</Text>
+        <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+      </TouchableOpacity>
+      
+      <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Matches')}>
+        <View style={styles.menuIcon}>
+          <Ionicons name="football" size={24} color={colors.accent.blue} />
+        </View>
+        <Text style={styles.menuText}>Match History</Text>
+        <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+      </TouchableOpacity>
+      
+      <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Tournaments')}>
+        <View style={styles.menuIcon}>
+          <Ionicons name="trophy" size={24} color={colors.accent.gold} />
+        </View>
+        <Text style={styles.menuText}>Tournaments</Text>
+        <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+      </TouchableOpacity>
+      
+      <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Settings')}>
+        <View style={styles.menuIcon}>
+          <Ionicons name="settings" size={24} color={colors.text.secondary} />
+        </View>
+        <Text style={styles.menuText}>Settings</Text>
+        <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+      </TouchableOpacity>
+    </View>
+  );
 
   if (loading) {
     return (
@@ -396,22 +292,23 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Main Profile Card */}
-        {renderProfileCard()}
+        {/* Jersey Card */}
+        {renderJerseyCard()}
         
-        {/* Detailed Stats */}
-        {renderDetailedStats()}
+        {/* Action Buttons */}
+        {renderActionButtons()}
         
-        {/* Account Actions */}
-        <View style={styles.accountSection}>
-          <TouchableOpacity 
-            style={styles.logoutButton}
-            onPress={handleLogout}
-          >
-            <Ionicons name="log-out-outline" size={20} color={colors.status.error} />
-            <Text style={styles.logoutButtonText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Quick Stats */}
+        {renderQuickStats()}
+        
+        {/* Menu Items */}
+        {renderMenuItems()}
+        
+        {/* Logout Button */}
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={20} color={colors.status.error} />
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
         
         <View style={styles.bottomSpacing} />
       </ScrollView>
@@ -439,78 +336,105 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: spacing.xl,
-    paddingBottom: 100,
+    paddingTop: 44, // Account for status bar
   },
-
-  // Profile Card
-  profileCard: {
-    marginHorizontal: spacing.screenPadding,
+  
+  // Jersey Card
+  jerseyCard: {
+    margin: spacing.screenPadding,
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
-    backgroundColor: colors.surface.primary,
     ...shadows.lg,
   },
-  cardGradient: {
-    paddingTop: spacing.lg,
+  jerseyGradient: {
+    padding: spacing.lg,
   },
-  cardHeader: {
+  jerseyHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
+    marginBottom: spacing.xl,
   },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: '900',
+  jerseyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
     color: '#FFFFFF',
-    letterSpacing: 2,
+    letterSpacing: 1,
   },
   headerActions: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: spacing.sm,
   },
-
-  // Jersey
-  jerseyContainer: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
-    position: 'relative',
-  },
-  profilePictureContainer: {
-    position: 'absolute',
-    bottom: 40,
-    alignSelf: 'center',
-  },
-  profilePicture: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 4,
-    borderColor: '#FFFFFF',
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  jerseyDisplay: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  jersey: {
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  jerseyShape: {
+    width: 140,
+    height: 160,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
     ...shadows.md,
   },
-  profileImage: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
+  jerseyName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.primary.dark,
+    letterSpacing: 1,
+    marginBottom: spacing.xs,
+  },
+  jerseyNumber: {
+    fontSize: 48,
+    fontWeight: '900',
+    color: colors.primary.dark,
+    lineHeight: 48,
+  },
+  profilePhotoContainer: {
+    position: 'absolute',
+    bottom: -30,
+    alignSelf: 'center',
+  },
+  profilePhoto: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
+  },
+  profilePhotoPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.surface.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
   },
   profileInitials: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
-    color: colors.primary.main,
+    color: colors.text.primary,
   },
-
-  // Level & Status
   levelBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.badge,
@@ -523,167 +447,156 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
-  fanStatus: {
+  positionBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'center',
-    marginBottom: spacing.xl,
     gap: spacing.xs,
   },
-  fanStatusText: {
+  positionText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: 'rgba(255, 255, 255, 0.9)',
     letterSpacing: 0.5,
   },
-
-  // Stats Grid
-  statsGrid: {
+  statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    marginHorizontal: -spacing.lg,
+    marginBottom: -spacing.lg,
+    padding: spacing.lg,
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
   },
   statLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.6)',
-    letterSpacing: 0.5,
+    color: 'rgba(255, 255, 255, 0.7)',
     marginBottom: spacing.xs,
+    letterSpacing: 0.5,
   },
   statValue: {
-    fontSize: 26,
-    fontWeight: '800',
+    fontSize: 24,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
   statDivider: {
     width: 1,
     height: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
-
+  
   // Action Buttons
-  actionButtonsContainer: {
-    padding: spacing.lg,
+  actionButtons: {
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: spacing.xl,
+    gap: spacing.md,
   },
-  primaryActionButton: {
-    backgroundColor: colors.primary.main,
-    paddingVertical: spacing.md,
+  primaryButton: {
     borderRadius: borderRadius.button,
-    alignItems: 'center',
-    marginBottom: spacing.sm,
+    overflow: 'hidden',
+    ...shadows.md,
   },
-  primaryActionText: {
-    fontSize: 14,
+  buttonGradient: {
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+  },
+  primaryButtonText: {
+    fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 1,
   },
-  secondaryActionButton: {
-    backgroundColor: colors.background.secondary,
+  secondaryButton: {
+    backgroundColor: colors.surface.primary,
     paddingVertical: spacing.md,
     borderRadius: borderRadius.button,
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.surface.border,
   },
-  secondaryActionText: {
-    fontSize: 14,
+  secondaryButtonText: {
+    fontSize: 16,
     fontWeight: '700',
     color: colors.text.primary,
     letterSpacing: 1,
   },
-  quickActionsGrid: {
+  
+  // Quick Stats
+  quickStats: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    paddingHorizontal: spacing.screenPadding,
+    gap: spacing.md,
+    marginBottom: spacing.xl,
   },
-  quickActionCard: {
+  quickStatCard: {
     flex: 1,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     overflow: 'hidden',
   },
-  quickActionGradient: {
+  quickStatGradient: {
     padding: spacing.lg,
     alignItems: 'center',
-    gap: spacing.xs,
   },
-  quickActionTitle: {
-    fontSize: 11,
+  quickStatValue: {
+    fontSize: 28,
     fontWeight: '700',
     color: colors.text.primary,
-    letterSpacing: 0.5,
+    marginVertical: spacing.xs,
   },
-
-  // Detailed Stats
-  detailedStatsSection: {
-    padding: spacing.screenPadding,
-    marginTop: spacing.xl,
+  quickStatLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text.secondary,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text.primary,
-    marginBottom: spacing.lg,
+  
+  // Menu Items
+  menuSection: {
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: spacing.xl,
   },
-  performanceGrid: {
+  menuItem: {
     flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  performanceCard: {
-    flex: 1,
+    alignItems: 'center',
     backgroundColor: colors.surface.primary,
     padding: spacing.lg,
     borderRadius: borderRadius.lg,
-    alignItems: 'center',
+    marginBottom: spacing.sm,
     ...shadows.sm,
   },
-  performanceIcon: {
+  menuIcon: {
     width: 44,
     height: 44,
     borderRadius: 22,
+    backgroundColor: colors.surface.secondary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.sm,
+    marginRight: spacing.md,
   },
-  performanceValue: {
-    fontSize: 24,
-    fontWeight: '700',
+  menuText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
     color: colors.text.primary,
-    marginBottom: spacing.xs,
   },
-  performanceLabel: {
-    fontSize: 12,
-    color: colors.text.secondary,
-    fontWeight: '500',
-  },
-
-  // Account Section
-  accountSection: {
-    padding: spacing.screenPadding,
-    marginTop: spacing.lg,
-  },
+  
+  // Logout
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface.primary,
-    borderWidth: 1.5,
-    borderColor: colors.status.error,
+    marginHorizontal: spacing.screenPadding,
     paddingVertical: spacing.md,
-    borderRadius: borderRadius.button,
     gap: spacing.xs,
   },
-  logoutButtonText: {
+  logoutText: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.status.error,
   },
+  
   bottomSpacing: {
     height: spacing.xxxl,
   },
