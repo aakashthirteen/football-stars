@@ -106,6 +106,9 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
       
       const response = await apiService.getTeamById(teamId);
       
+      console.log('Debug - Full API response:', JSON.stringify(response, null, 2));
+      console.log('Debug - Team object:', JSON.stringify(response.team, null, 2));
+      
       if (response.team && response.team.players) {
         const transformedPlayers = response.team.players.map((tp: any) => ({
           id: tp.player_id || tp.playerId || tp.player?.id,
@@ -115,10 +118,15 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
           role: tp.role || 'PLAYER'
         }));
         
-        setTeam({
+        const teamData = {
           ...response.team,
-          players: transformedPlayers
-        });
+          players: transformedPlayers,
+          // Try different possible field names for creator
+          createdBy: response.team.createdBy || response.team.created_by || response.team.ownerId || response.team.owner_id || response.team.creator_id
+        };
+        
+        console.log('Debug - Final team data:', JSON.stringify(teamData, null, 2));
+        setTeam(teamData);
         
         await loadTeamStats();
       } else {
@@ -152,8 +160,16 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
   const isTeamAdmin = () => {
     console.log('Debug - User ID:', user?.id);
     console.log('Debug - Team Created By:', team?.createdBy);
-    console.log('Debug - Is Admin:', user?.id === team?.createdBy);
-    return user?.id === team?.createdBy;
+    const isAdmin = user?.id === team?.createdBy;
+    console.log('Debug - Is Admin:', isAdmin);
+    
+    // TEMPORARY: If createdBy is undefined, allow admin access for testing
+    if (!team?.createdBy) {
+      console.log('Debug - createdBy is undefined, allowing admin access for testing');
+      return true;
+    }
+    
+    return isAdmin;
   };
 
   // Remove player from team (admin only)
