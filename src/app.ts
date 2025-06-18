@@ -9,6 +9,7 @@ import matchRoutes from './routes/matches';
 import statsRoutes from './routes/stats';
 import playerRoutes from './routes/players';
 import tournamentRoutes from './routes/tournaments';
+import uploadRoutes from './routes/upload';
 
 // Import database
 import { database } from './models/databaseFactory';
@@ -189,6 +190,7 @@ app.use('/api/matches', matchRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/players', playerRoutes);
 app.use('/api/tournaments', tournamentRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

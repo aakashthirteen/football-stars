@@ -91,22 +91,35 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
 
   const handleImageSelected = async (imageUri: string) => {
     try {
-      setProfileImage(imageUri);
+      console.log('📸 ProfileScreen: Image selected, uploading to cloud storage...');
       
-      // Update profile state
+      // Show loading state
+      setProfileImage(imageUri); // Show local image immediately for better UX
+      
+      // Upload to Cloudinary
+      const uploadResult = await apiService.uploadProfileImage(imageUri);
+      console.log('✅ ProfileScreen: Image uploaded, updating profile...');
+      
+      // Update profile with Cloudinary URL
+      const updatedProfile = await apiService.updateCurrentPlayerProfile({
+        profileImage: uploadResult.imageUrl
+      });
+      
+      console.log('✅ ProfileScreen: Profile updated with cloud image URL');
+      
+      // Update local state with cloud URL
+      setProfileImage(uploadResult.imageUrl);
       if (profile) {
         setProfile({
           ...profile,
-          profileImage: imageUri
+          profileImage: uploadResult.imageUrl,
+          avatarUrl: uploadResult.imageUrl
         });
       }
       
-      // Here you would typically upload to your backend
-      // await apiService.uploadProfileImage(imageUri);
-      
-      Alert.alert('Success', 'Profile photo updated successfully!');
+      Alert.alert('Success', 'Profile photo uploaded and updated successfully!');
     } catch (error) {
-      console.error('Error updating profile image:', error);
+      console.error('❌ ProfileScreen: Error updating profile image:', error);
       Alert.alert('Error', 'Failed to update profile photo. Please try again.');
     }
   };

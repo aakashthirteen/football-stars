@@ -1430,6 +1430,77 @@ class ApiService {
       return { success: false, error: error.message };
     }
   }
+
+  // Image upload endpoints
+  async uploadProfileImage(imageUri: string) {
+    try {
+      console.log('📤 API: Starting profile image upload');
+      
+      // Convert image to base64
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      const base64 = await this.blobToBase64(blob);
+      
+      console.log('📤 API: Image converted to base64, uploading to server');
+      
+      const uploadResponse = await this.request('/upload/profile-image', {
+        method: 'POST',
+        body: JSON.stringify({
+          imageData: base64,
+          imageType: 'profile'
+        }),
+      });
+      
+      console.log('✅ API: Profile image uploaded successfully:', uploadResponse.imageUrl);
+      return uploadResponse;
+    } catch (error) {
+      console.error('❌ API: Profile image upload failed:', error);
+      throw error;
+    }
+  }
+
+  async uploadTeamBadge(imageUri: string, teamId: string) {
+    try {
+      console.log('📤 API: Starting team badge upload for team:', teamId);
+      
+      // Convert image to base64
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      const base64 = await this.blobToBase64(blob);
+      
+      console.log('📤 API: Team badge converted to base64, uploading to server');
+      
+      const uploadResponse = await this.request('/upload/team-badge', {
+        method: 'POST',
+        body: JSON.stringify({
+          imageData: base64,
+          teamId: teamId
+        }),
+      });
+      
+      console.log('✅ API: Team badge uploaded successfully:', uploadResponse.imageUrl);
+      return uploadResponse;
+    } catch (error) {
+      console.error('❌ API: Team badge upload failed:', error);
+      throw error;
+    }
+  }
+
+  // Helper method to convert blob to base64
+  private blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+        } else {
+          reject(new Error('Failed to convert blob to base64'));
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
 }
 
 export const apiService = new ApiService();
