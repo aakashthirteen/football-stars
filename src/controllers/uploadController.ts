@@ -9,6 +9,16 @@ export const uploadProfileImage = async (req: AuthRequest, res: Response): Promi
       return;
     }
 
+    // Check if Cloudinary is configured
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      console.error('❌ Cloudinary not configured');
+      res.status(503).json({ 
+        error: 'Image upload service not configured',
+        details: 'Please contact administrator to set up image upload service'
+      });
+      return;
+    }
+
     const { imageData, imageType = 'profile' } = req.body;
 
     if (!imageData) {

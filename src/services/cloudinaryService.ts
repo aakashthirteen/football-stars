@@ -2,10 +2,16 @@ const cloudinary = require('cloudinary').v2;
 
 // Cloudinary configuration
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dgxdkhxqo', // Default free account
-  api_key: process.env.CLOUDINARY_API_KEY || '925437891254279',
-  api_secret: process.env.CLOUDINARY_API_SECRET || 'nXrJu8aNJ5Zr7JO4ZHCK3XYG5F4',
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
+// Check if Cloudinary is configured
+if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+  console.warn('⚠️  Cloudinary environment variables not set. Image upload will not work.');
+  console.warn('Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in Railway environment variables.');
+}
 
 export class CloudinaryService {
   /**
