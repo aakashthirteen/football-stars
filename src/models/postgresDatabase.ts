@@ -143,7 +143,7 @@ export class PostgresDatabase {
         `);
         console.log('✅ Updated matches status constraint to include HALFTIME');
       } catch (error) {
-        console.log('⚠️ Status constraint update failed (might already be correct):', error.message);
+        console.log('⚠️ Status constraint update failed (might already be correct):', error instanceof Error ? error.message : String(error));
       }
 
       // Match events table
