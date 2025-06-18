@@ -45,28 +45,61 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
 }) => {
   const isLive = status === 'LIVE' || status === 'HALFTIME';
   const wavePositionAnim = useRef(new Animated.Value(0)).current;
+  const waveOpacityAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (status === 'LIVE') {
-      // Simple wave that goes left to right, then right to left
+      // Wave animation with fade in/out at edges
       Animated.loop(
         Animated.sequence([
-          // Move from left to right
-          Animated.timing(wavePositionAnim, {
+          // Left to right movement with fade out at end
+          Animated.parallel([
+            Animated.timing(wavePositionAnim, {
+              toValue: 1,
+              duration: 1200,
+              useNativeDriver: true,
+            }),
+            Animated.sequence([
+              Animated.delay(800), // Stay visible for most of the journey
+              Animated.timing(waveOpacityAnim, {
+                toValue: 0,
+                duration: 400,
+                useNativeDriver: true,
+              }),
+            ]),
+          ]),
+          // Reset position to right and fade in, then move to left
+          Animated.parallel([
+            Animated.timing(wavePositionAnim, {
+              toValue: 0,
+              duration: 1200,
+              useNativeDriver: true,
+            }),
+            Animated.sequence([
+              Animated.timing(waveOpacityAnim, {
+                toValue: 1,
+                duration: 400,
+                useNativeDriver: true,
+              }),
+              Animated.delay(400), // Stay visible for most of the journey
+              Animated.timing(waveOpacityAnim, {
+                toValue: 0,
+                duration: 400,
+                useNativeDriver: true,
+              }),
+            ]),
+          ]),
+          // Small pause and reset opacity for next cycle
+          Animated.timing(waveOpacityAnim, {
             toValue: 1,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
-          // Move from right to left
-          Animated.timing(wavePositionAnim, {
-            toValue: 0,
-            duration: 1500,
+            duration: 100,
             useNativeDriver: true,
           }),
         ])
       ).start();
     } else {
       wavePositionAnim.setValue(0);
+      waveOpacityAnim.setValue(1);
     }
   }, [status]);
   
@@ -133,6 +166,7 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
                               }),
                             },
                           ],
+                          opacity: waveOpacityAnim,
                         }
                       ]} 
                     />
