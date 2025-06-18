@@ -56,13 +56,13 @@ export interface Match {
   awayScore: number;
   liveStartTime?: Date;
   currentMinute?: number;
-  currentHalf: 1 | 2;
-  firstHalfMinutes: number;
-  secondHalfMinutes: number;
+  currentHalf?: 1 | 2;
+  firstHalfMinutes?: number;
+  secondHalfMinutes?: number;
   firstHalfStartTime?: Date;
   secondHalfStartTime?: Date;
-  addedTimeFirstHalf: number;
-  addedTimeSecondHalf: number;
+  addedTimeFirstHalf?: number;
+  addedTimeSecondHalf?: number;
   createdBy: string;
   createdAt: Date;
 }
@@ -92,6 +92,13 @@ export interface MatchWithDetails extends Match {
   // Include snake_case versions for database compatibility
   live_start_time?: Date;
   current_minute?: number;
+  current_half?: number;
+  first_half_minutes?: number;
+  second_half_minutes?: number;
+  first_half_start_time?: Date;
+  second_half_start_time?: Date;
+  added_time_first_half?: number;
+  added_time_second_half?: number;
 }
 
 export interface MatchEvent {
