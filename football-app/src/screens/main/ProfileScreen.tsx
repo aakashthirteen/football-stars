@@ -15,6 +15,7 @@ import { useAuthStore } from '../../store/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
+import { apiService } from '../../services/api';
 
 // Professional Components
 import {

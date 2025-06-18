@@ -115,7 +115,7 @@ export const ImagePickerComponent: React.FC<ImagePickerComponentProps> = ({
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images' as ImagePicker.MediaType,
         allowsEditing: true,
         aspect: type === 'badge' ? [1, 1] : type === 'cover' ? [16, 9] : [1, 1],
         quality: 1,
