@@ -45,28 +45,53 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
 }) => {
   const isLive = status === 'LIVE' || status === 'HALFTIME';
   const liveProgressAnim = useRef(new Animated.Value(0)).current;
+  const wavePositionAnim = useRef(new Animated.Value(-100)).current;
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (isLive) {
-      // Simple pulsing animation like a heartbeat
+    if (status === 'LIVE') {
+      // Continuous wave animation that creates a flowing effect
       Animated.loop(
         Animated.sequence([
-          Animated.timing(liveProgressAnim, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: false,
-          }),
-          Animated.timing(liveProgressAnim, {
-            toValue: 0.3,
-            duration: 1000,
+          // Wave starts from left, builds up intensity
+          Animated.parallel([
+            Animated.timing(wavePositionAnim, {
+              toValue: 150,
+              duration: 2000,
+              useNativeDriver: false,
+            }),
+            Animated.sequence([
+              // Fade in quickly
+              Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: false,
+              }),
+              // Stay visible in middle
+              Animated.delay(800),
+              // Fade out gradually
+              Animated.timing(fadeAnim, {
+                toValue: 0,
+                duration: 900,
+                useNativeDriver: false,
+              }),
+            ]),
+          ]),
+          // Small pause before next wave
+          Animated.delay(400),
+          // Reset for next wave
+          Animated.timing(wavePositionAnim, {
+            toValue: -150,
+            duration: 0,
             useNativeDriver: false,
           }),
         ])
       ).start();
     } else {
-      liveProgressAnim.setValue(0);
+      wavePositionAnim.setValue(-150);
+      fadeAnim.setValue(0);
     }
-  }, [isLive, status]);
+  }, [status]);
   
   const getStatusDisplay = () => {
     switch (status) {
@@ -116,17 +141,42 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
                   <Text style={styles.liveText}>{status === 'HALFTIME' ? 'HT' : 'LIVE'}</Text>
                 </View>
                 
-                {/* Live Progress Bar */}
+                {/* Live Progress Bar Wave */}
                 {status === 'LIVE' && (
                   <View style={styles.liveProgressContainer}>
-                    <Animated.View 
-                      style={[
-                        styles.liveProgressBar,
-                        {
-                          opacity: liveProgressAnim,
-                        }
-                      ]} 
-                    />
+                    {/* Multiple wave segments for the effect */}
+                    {[0, 1, 2].map((index) => (
+                      <Animated.View 
+                        key={index}
+                        style={[
+                          styles.liveProgressBar,
+                          {
+                            transform: [
+                              {
+                                translateX: wavePositionAnim.interpolate({
+                                  inputRange: [-150, 0, 150],
+                                  outputRange: [-30 - (index * 8), 0 + (index * 3), 50 + (index * 8)],
+                                }),
+                              },
+                              {
+                                scaleX: fadeAnim.interpolate({
+                                  inputRange: [0, 0.5, 1],
+                                  outputRange: [0.2, 1.2, 0.2],
+                                }),
+                              },
+                            ],
+                            opacity: fadeAnim.interpolate({
+                              inputRange: [0, 0.3, 0.7, 1],
+                              outputRange: [0, 1, 1, 0],
+                            }),
+                            width: fadeAnim.interpolate({
+                              inputRange: [0, 0.5, 1],
+                              outputRange: [5, 15, 5],
+                            }),
+                          }
+                        ]} 
+                      />
+                    ))}
                   </View>
                 )}
               </View>
@@ -323,11 +373,20 @@ const styles = StyleSheet.create({
     height: 2,
     marginTop: spacing.xs,
     overflow: 'hidden',
+    borderRadius: 1,
+    backgroundColor: 'rgba(0, 212, 87, 0.2)',
   },
   liveProgressBar: {
+    position: 'absolute',
     height: '100%',
-    width: '100%',
+    width: 20,
     backgroundColor: colors.primary.main,
+    borderRadius: 1,
+    shadowColor: colors.primary.main,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 2,
+    elevation: 2,
   },
   statusContainer: {
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
