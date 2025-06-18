@@ -130,7 +130,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     if (isLive && !isHalftime) {
       interval = setInterval(() => {
         updateMatchTimer();
-      }, 10000); // Update every 10 seconds for testing
+      }, match?.duration === 5 ? 1000 : 10000); // Update every 1 second for 5-min matches, 10 seconds for others
     }
     return () => clearInterval(interval);
   }, [isLive, isHalftime, match]);
@@ -146,28 +146,45 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     const firstHalfMinutes = match.first_half_minutes || halfDuration;
     const secondHalfMinutes = match.second_half_minutes || halfDuration;
     
+    // For 5-minute matches, use seconds instead of minutes for faster testing
+    const timeUnit = match.duration === 5 ? 1000 : 60000; // 1 second vs 1 minute
+    const timeMultiplier = match.duration === 5 ? 1 : 1; // Show actual seconds for 5-min matches
+    
     if (currentHalf === 2 && match.second_half_start_time) {
       // In second half, calculate from second half start time + first half minutes
       const secondHalfStart = new Date(match.second_half_start_time);
-      const elapsedInSecondHalf = Math.floor((now.getTime() - secondHalfStart.getTime()) / 60000);
+      const elapsedInSecondHalf = Math.floor((now.getTime() - secondHalfStart.getTime()) / timeUnit) * timeMultiplier;
       actualMinute = firstHalfMinutes + elapsedInSecondHalf;
     } else {
       // In first half, calculate from match start
       const matchStart = new Date(match.matchDate || match.match_date);
-      actualMinute = Math.max(1, Math.floor((now.getTime() - matchStart.getTime()) / 60000));
+      actualMinute = Math.max(1, Math.floor((now.getTime() - matchStart.getTime()) / timeUnit) * timeMultiplier);
     }
     
     setCurrentMinute(actualMinute);
     
     // Auto half-time at actual first half duration + stoppage time
     const halfTimeMinute = firstHalfMinutes + addedTimeFirstHalf;
+    console.log('⏱️ TIMER CHECK:', {
+      actualMinute,
+      halfTimeMinute, 
+      firstHalfMinutes,
+      currentHalf,
+      isHalftime,
+      isLive,
+      duration: match.duration,
+      shouldTriggerHalftime: actualMinute >= halfTimeMinute && currentHalf === 1 && !isHalftime && isLive
+    });
+    
     if (actualMinute >= halfTimeMinute && currentHalf === 1 && !isHalftime && isLive) {
+      console.log('🟨 TIMER: Triggering halftime at minute', actualMinute);
       handleHalftime();
     }
     
     // Auto full-time at total match duration + stoppage time
     const fullTimeMinute = firstHalfMinutes + secondHalfMinutes + addedTimeSecondHalf;
     if (actualMinute >= fullTimeMinute && currentHalf === 2 && isLive) {
+      console.log('🔴 TIMER: Triggering fulltime at minute', actualMinute);
       handleFullTime();
     }
   };
@@ -180,15 +197,19 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       const halfDuration = (matchData.duration || 90) / 2;
       const firstHalfMinutes = matchData.first_half_minutes || halfDuration;
       
+      // For 5-minute matches, use seconds instead of minutes for faster testing
+      const timeUnit = matchData.duration === 5 ? 1000 : 60000;
+      const timeMultiplier = matchData.duration === 5 ? 1 : 1;
+      
       if (matchData.current_half === 2 && matchData.second_half_start_time) {
         // In second half, calculate from second half start time + first half minutes
         const secondHalfStart = new Date(matchData.second_half_start_time);
-        const elapsedInSecondHalf = Math.floor((now.getTime() - secondHalfStart.getTime()) / 60000);
+        const elapsedInSecondHalf = Math.floor((now.getTime() - secondHalfStart.getTime()) / timeUnit) * timeMultiplier;
         setCurrentMinute(firstHalfMinutes + elapsedInSecondHalf);
       } else {
         // In first half, calculate from match start
         const matchStart = new Date(matchData.matchDate || matchData.match_date);
-        const elapsed = Math.max(1, Math.floor((now.getTime() - matchStart.getTime()) / 60000));
+        const elapsed = Math.max(1, Math.floor((now.getTime() - matchStart.getTime()) / timeUnit) * timeMultiplier);
         setCurrentMinute(elapsed);
       }
     }
@@ -196,15 +217,28 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   const handleHalftime = async () => {
     try {
-      await apiService.pauseForHalftime(matchId);
+      console.log('🟨 HALFTIME: Starting halftime process for match:', matchId);
+      console.log('🟨 HALFTIME: Current match state:', {
+        status: match?.status,
+        currentHalf: match?.current_half,
+        currentMinute: currentMinute
+      });
+      
+      const result = await apiService.pauseForHalftime(matchId);
+      console.log('✅ HALFTIME: API call successful:', result);
+      
       await soundService.playHalftimeWhistle();
       showCommentary("⏱️ HALF-TIME! The referee blows the whistle to end the first half.");
+      
+      console.log('🔄 HALFTIME: Reloading match details...');
       await loadMatchDetails();
       
+      console.log('📋 HALFTIME: Showing halftime modal');
       // Show halftime modal for resuming second half
       setShowHalftimeModal(true);
     } catch (error) {
-      Alert.alert('Error', 'Failed to pause for halftime');
+      console.error('❌ HALFTIME: Failed to pause for halftime:', error);
+      Alert.alert('Error', `Failed to pause for halftime: ${error.message}`);
     }
   };
 

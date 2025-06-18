@@ -365,7 +365,7 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>Match Duration</Text>
             <View style={styles.durationOptions}>
-              {['30', '45', '60', '90', '120'].map((dur) => (
+              {['5', '30', '45', '60', '90', '120'].map((dur) => (
                 <TouchableOpacity
                   key={dur}
                   style={[
