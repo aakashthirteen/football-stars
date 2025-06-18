@@ -10,6 +10,7 @@ import {
   Modal,
   Dimensions,
   StatusBar,
+  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { 
@@ -192,77 +193,168 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
 
   const loadTournamentStats = async () => {
     try {
-      // This will need to be implemented in the backend
-      // For now, using mock data to demonstrate the UI
-      const mockStats: PlayerStat[] = [
-        { playerId: '1', playerName: 'John Striker', teamName: 'Team Alpha', goals: 8, assists: 3, yellowCards: 1, redCards: 0, matchesPlayed: 4 },
-        { playerId: '2', playerName: 'Mike Scorer', teamName: 'Team Beta', goals: 6, assists: 2, yellowCards: 2, redCards: 0, matchesPlayed: 3 },
-        { playerId: '3', playerName: 'Alex Forward', teamName: 'Team Gamma', goals: 5, assists: 4, yellowCards: 0, redCards: 1, matchesPlayed: 4 },
-        { playerId: '4', playerName: 'Chris Assist', teamName: 'Team Delta', goals: 2, assists: 7, yellowCards: 3, redCards: 0, matchesPlayed: 4 },
-        { playerId: '5', playerName: 'David Goal', teamName: 'Team Alpha', goals: 4, assists: 1, yellowCards: 1, redCards: 0, matchesPlayed: 3 },
-      ];
-      setPlayerStats(mockStats);
+      // Try to get real tournament stats from match events
+      if (tournament && tournament.matches && tournament.matches.length > 0) {
+        const statsMap = new Map<string, PlayerStat>();
+        
+        // Process all matches to calculate player stats
+        for (const match of tournament.matches) {
+          if (match.events && Array.isArray(match.events)) {
+            for (const event of match.events) {
+              const playerId = event.playerId;
+              const playerName = event.playerName || `Player ${playerId}`;
+              const teamName = event.teamId === match.homeTeamId ? match.homeTeamName : match.awayTeamName;
+              
+              if (!statsMap.has(playerId)) {
+                statsMap.set(playerId, {
+                  playerId,
+                  playerName,
+                  teamName,
+                  goals: 0,
+                  assists: 0,
+                  yellowCards: 0,
+                  redCards: 0,
+                  matchesPlayed: 1
+                });
+              }
+              
+              const playerStat = statsMap.get(playerId)!;
+              
+              switch (event.type) {
+                case 'GOAL':
+                  playerStat.goals += 1;
+                  break;
+                case 'ASSIST':
+                  playerStat.assists += 1;
+                  break;
+                case 'YELLOW_CARD':
+                  playerStat.yellowCards += 1;
+                  break;
+                case 'RED_CARD':
+                  playerStat.redCards += 1;
+                  break;
+              }
+            }
+          }
+        }
+        
+        const realStats = Array.from(statsMap.values());
+        setPlayerStats(realStats);
+      } else {
+        // No matches yet, show empty stats
+        setPlayerStats([]);
+      }
     } catch (error: any) {
       console.error('Error loading tournament stats:', error);
+      setPlayerStats([]);
     }
   };
 
   const handleRegisterTeam = async (teamId: string) => {
     try {
       setRegistering(true);
+      
+      // Validate team eligibility before registration
+      const selectedTeam = teams.find(t => t.id === teamId);
+      if (!selectedTeam) {
+        Alert.alert('Error', 'Team not found');
+        return;
+      }
+      
+      // Check if team has minimum players
+      const minimumPlayers = tournament?.tournamentType === 'KNOCKOUT' ? 11 : 7;
+      if (!selectedTeam.players || selectedTeam.players.length < minimumPlayers) {
+        Alert.alert(
+          'Insufficient Players', 
+          `Your team needs at least ${minimumPlayers} players to register for this tournament.`
+        );
+        return;
+      }
+      
+      // Check if tournament is still accepting registrations
+      if (!tournament || tournament.registeredTeams >= tournament.maxTeams) {
+        Alert.alert('Registration Closed', 'This tournament is already full.');
+        return;
+      }
+      
+      // Check if team is already registered
+      const isAlreadyRegistered = tournament.teams?.some(t => t.id === teamId);
+      if (isAlreadyRegistered) {
+        Alert.alert('Already Registered', 'This team is already registered for the tournament.');
+        return;
+      }
+      
       await apiService.registerTeamToTournament(tournamentId, teamId);
       
-      Alert.alert('Success', 'Team registered successfully!');
+      Alert.alert('Success', `${selectedTeam.name} has been registered successfully!`);
       setShowTeamSelector(false);
       loadTournamentDetails(); // Refresh tournament data
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to register team');
+      Alert.alert('Registration Failed', error.message || 'Failed to register team. Please try again.');
     } finally {
       setRegistering(false);
     }
   };
 
   const generateBracketNodes = () => {
-    if (!matches.length) {
+    if (!matches.length || tournament?.tournamentType !== 'KNOCKOUT') {
+      setBracketNodes([]);
       return;
     }
 
-    const rounds = Math.max(...matches.map(m => m.round));
-    const bracketWidth = screenWidth * 1.5;
-    const nodeWidth = 140;
-    const nodeHeight = 70;
-    const roundSpacing = bracketWidth / (rounds + 1);
-    const verticalSpacing = 90;
-    
-    const nodes: BracketNode[] = [];
-    
-    // Generate nodes for each round with proper spacing
-    for (let round = 1; round <= rounds; round++) {
-      const roundMatches = matches.filter(m => m.round === round);
-      const totalRoundHeight = (roundMatches.length * nodeHeight) + ((roundMatches.length - 1) * verticalSpacing);
-      const startY = Math.max(50, (600 - totalRoundHeight) / 2);
+    try {
+      const rounds = Math.max(...matches.map(m => m.round));
+      const bracketWidth = Math.max(screenWidth * 1.5, rounds * 200 + 120);
+      const nodeWidth = 140;
+      const nodeHeight = 70;
+      const roundSpacing = bracketWidth / (rounds + 1);
+      const verticalSpacing = 100;
       
-      roundMatches.forEach((match, index) => {
-        const matchPosition = Math.pow(2, rounds - round) * (index + 0.5);
-        const y = startY + (index * (nodeHeight + verticalSpacing));
+      const nodes: BracketNode[] = [];
+      
+      // Generate nodes for each round with proper spacing
+      for (let round = 1; round <= rounds; round++) {
+        const roundMatches = matches.filter(m => m.round === round);
+        if (roundMatches.length === 0) continue;
         
-        nodes.push({
-          id: match.id,
-          round,
-          match,
-          homeTeam: { id: match.homeTeamId, name: match.homeTeamName },
-          awayTeam: { id: match.awayTeamId, name: match.awayTeamName },
-          winner: match.winnerId ? 
-            (match.winnerId === match.homeTeamId ? 
+        const totalRoundHeight = (roundMatches.length * nodeHeight) + ((roundMatches.length - 1) * verticalSpacing);
+        const startY = Math.max(50, (600 - totalRoundHeight) / 2);
+        
+        roundMatches.forEach((match, index) => {
+          const y = startY + (index * (nodeHeight + verticalSpacing));
+          
+          // Determine winner based on match status and scores
+          let winner: { id: string; name: string } | undefined;
+          if (match.status === 'COMPLETED' && match.homeScore !== undefined && match.awayScore !== undefined) {
+            if (match.homeScore > match.awayScore) {
+              winner = { id: match.homeTeamId, name: match.homeTeamName };
+            } else if (match.awayScore > match.homeScore) {
+              winner = { id: match.awayTeamId, name: match.awayTeamName };
+            }
+          } else if (match.winnerId) {
+            winner = match.winnerId === match.homeTeamId ? 
               { id: match.homeTeamId, name: match.homeTeamName } : 
-              { id: match.awayTeamId, name: match.awayTeamName }) : undefined,
-          x: 60 + (round - 1) * roundSpacing,
-          y
+              { id: match.awayTeamId, name: match.awayTeamName };
+          }
+          
+          nodes.push({
+            id: match.id,
+            round,
+            match,
+            homeTeam: { id: match.homeTeamId, name: match.homeTeamName },
+            awayTeam: { id: match.awayTeamId, name: match.awayTeamName },
+            winner,
+            x: 60 + (round - 1) * roundSpacing,
+            y
+          });
         });
-      });
+      }
+      
+      setBracketNodes(nodes);
+    } catch (error) {
+      console.error('Error generating bracket nodes:', error);
+      setBracketNodes([]);
     }
-    
-    setBracketNodes(nodes);
   };
 
   const getTopStats = (category: keyof PlayerStat, limit: number = 5) => {
@@ -813,53 +905,75 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
       { key: 'redCards', title: 'Red Cards', icon: 'square', color: colors.status.error },
     ];
 
+    if (playerStats.length === 0) {
+      return (
+        <View style={styles.emptyState}>
+          <Ionicons name="stats-chart-outline" size={64} color={colors.text.tertiary} />
+          <Text style={styles.emptyTitle}>No Statistics Yet</Text>
+          <Text style={styles.emptySubtitle}>
+            Player statistics will appear once matches begin and events are recorded
+          </Text>
+        </View>
+      );
+    }
+
     return (
       <ScrollView showsVerticalScrollIndicator={false}>
-        {statCategories.map((category) => (
-          <View key={category.key} style={styles.statSection}>
-            <View style={styles.statHeader}>
-              <View style={[styles.statIconContainer, { backgroundColor: category.color + '20' }]}>
-                <Ionicons 
-                  name={category.icon as any} 
-                  size={20} 
-                  color={category.color} 
-                />
-              </View>
-              <Text style={styles.statTitle}>{category.title}</Text>
-            </View>
-            
-            <View style={styles.statList}>
-              {getTopStats(category.key as keyof PlayerStat).map((player, index) => (
-                <View key={player.playerId} style={styles.statRow}>
-                  <View style={[
-                    styles.rankBadge,
-                    index === 0 && styles.goldRank,
-                    index === 1 && styles.silverRank,
-                    index === 2 && styles.bronzeRank,
-                  ]}>
-                    <Text style={[
-                      styles.rankText,
-                      index < 3 && styles.topRankText
-                    ]}>
-                      {index + 1}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.playerInfo}>
-                    <Text style={styles.playerName}>{player.playerName}</Text>
-                    <Text style={styles.playerTeam}>{player.teamName}</Text>
-                  </View>
-                  
-                  <View style={[styles.statValueContainer, { backgroundColor: category.color + '10' }]}>
-                    <Text style={[styles.statValue, { color: category.color }]}>
-                      {player[category.key as keyof PlayerStat]}
-                    </Text>
-                  </View>
+        {statCategories.map((category) => {
+          const categoryStats = getTopStats(category.key as keyof PlayerStat);
+          
+          return (
+            <View key={category.key} style={styles.statSection}>
+              <View style={styles.statHeader}>
+                <View style={[styles.statIconContainer, { backgroundColor: category.color + '20' }]}>
+                  <Ionicons 
+                    name={category.icon as any} 
+                    size={20} 
+                    color={category.color} 
+                  />
                 </View>
-              ))}
+                <Text style={styles.statTitle}>{category.title}</Text>
+              </View>
+              
+              <View style={styles.statList}>
+                {categoryStats.length > 0 ? (
+                  categoryStats.map((player, index) => (
+                    <View key={player.playerId} style={styles.statRow}>
+                      <View style={[
+                        styles.rankBadge,
+                        index === 0 && styles.goldRank,
+                        index === 1 && styles.silverRank,
+                        index === 2 && styles.bronzeRank,
+                      ]}>
+                        <Text style={[
+                          styles.rankText,
+                          index < 3 && styles.topRankText
+                        ]}>
+                          {index + 1}
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.playerInfo}>
+                        <Text style={styles.playerName}>{player.playerName}</Text>
+                        <Text style={styles.playerTeam}>{player.teamName}</Text>
+                      </View>
+                      
+                      <View style={[styles.statValueContainer, { backgroundColor: category.color + '10' }]}>
+                        <Text style={[styles.statValue, { color: category.color }]}>
+                          {player[category.key as keyof PlayerStat]}
+                        </Text>
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  <View style={styles.noDataRow}>
+                    <Text style={styles.noDataText}>No {category.title.toLowerCase()} recorded yet</Text>
+                  </View>
+                )}
+              </View>
             </View>
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
     );
   };
@@ -1424,6 +1538,17 @@ const styles = StyleSheet.create({
   // Stats Styles
   statSection: {
     marginBottom: spacing.xl,
+  },
+  noDataRow: {
+    padding: spacing.lg,
+    alignItems: 'center',
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.lg,
+  },
+  noDataText: {
+    fontSize: typography.fontSize.regular,
+    color: colors.text.secondary,
+    fontStyle: 'italic',
   },
   statHeader: {
     flexDirection: 'row',

@@ -260,29 +260,37 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
 // Half-time control endpoints
 export const pauseForHalftime = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    console.log('🔄 pauseForHalftime called for match:', req.params.id);
     const { id } = req.params;
     
     const match = await database.getMatchById(id);
     if (!match) {
+      console.log('❌ Match not found:', id);
       res.status(404).json({ error: 'Match not found' });
       return;
     }
 
+    console.log('📊 Current match status:', match.status);
     if (match.status !== 'LIVE') {
+      console.log('❌ Match not live, cannot pause for halftime');
       res.status(400).json({ error: 'Match must be live to pause for halftime' });
       return;
     }
 
+    console.log('✅ Updating match to HALFTIME status');
     const updatedMatch = await database.updateMatch(id, { 
-      status: 'HALFTIME'
+      status: 'HALFTIME',
+      current_half: 1 // Ensure we're ending first half
     });
 
+    console.log('✅ Match updated successfully:', updatedMatch);
     res.json({
       match: updatedMatch,
       message: 'Match paused for halftime',
     });
   } catch (error) {
-    console.error('Pause for halftime error:', error);
+    console.error('❌ Pause for halftime error:', error);
+    console.error('❌ Error stack:', error instanceof Error ? error.stack : error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

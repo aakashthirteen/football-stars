@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,11 +23,12 @@ interface ProfessionalMatchHeaderProps {
   };
   homeScore: number;
   awayScore: number;
-  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED';
+  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'HALFTIME';
   currentMinute?: number;
   venue?: string;
   competition?: string;
   onBack?: () => void;
+  onEndMatch?: () => void;
 }
 
 export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = ({
@@ -39,13 +41,39 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
   venue,
   competition = 'Grassroots League',
   onBack,
+  onEndMatch,
 }) => {
-  const isLive = status === 'LIVE';
+  const isLive = status === 'LIVE' || status === 'HALFTIME';
+  const liveProgressAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (isLive) {
+      // Simple pulsing animation like a heartbeat
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(liveProgressAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: false,
+          }),
+          Animated.timing(liveProgressAnim, {
+            toValue: 0.3,
+            duration: 1000,
+            useNativeDriver: false,
+          }),
+        ])
+      ).start();
+    } else {
+      liveProgressAnim.setValue(0);
+    }
+  }, [isLive, status]);
   
   const getStatusDisplay = () => {
     switch (status) {
       case 'LIVE':
         return `${currentMinute}'`;
+      case 'HALFTIME':
+        return 'HT';
       case 'COMPLETED':
         return 'FT';
       default:
@@ -57,11 +85,10 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
     <View style={styles.container}>
       <LinearGradient
         colors={isLive 
-          ? [colors.status.live, '#B91C1C', colors.background.secondary]
+          ? [colors.background.secondary, colors.background.tertiary]
           : [colors.background.secondary, colors.background.tertiary]
         }
         style={styles.gradient}
-        locations={isLive ? [0, 0.3, 1] : [0, 1]}
       >
         {/* Top Bar */}
         <View style={styles.topBar}>
@@ -81,12 +108,40 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
             <Text style={styles.competitionText}>{competition}</Text>
           </View>
           
-          {isLive && (
-            <View style={styles.liveIndicator}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>LIVE</Text>
-            </View>
-          )}
+          <View style={styles.rightSection}>
+            {isLive && (
+              <View style={styles.liveSection}>
+                <View style={styles.liveIndicator}>
+                  <View style={styles.liveDot} />
+                  <Text style={styles.liveText}>{status === 'HALFTIME' ? 'HT' : 'LIVE'}</Text>
+                </View>
+                
+                {/* Live Progress Bar */}
+                {status === 'LIVE' && (
+                  <View style={styles.liveProgressContainer}>
+                    <Animated.View 
+                      style={[
+                        styles.liveProgressBar,
+                        {
+                          opacity: liveProgressAnim,
+                        }
+                      ]} 
+                    />
+                  </View>
+                )}
+              </View>
+            )}
+            
+            {(status === 'LIVE' || status === 'HALFTIME') && onEndMatch && (
+              <TouchableOpacity 
+                style={styles.endMatchButton}
+                onPress={onEndMatch}
+              >
+                <Ionicons name="stop-circle" size={18} color="#FFFFFF" />
+                <Text style={styles.endMatchText}>END</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
         
         {/* Score Section */}
@@ -154,7 +209,7 @@ const styles = StyleSheet.create({
   },
   gradient: {
     paddingTop: 50,
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.md,
   },
   topBar: {
     flexDirection: 'row',
@@ -181,6 +236,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.badge,
+    flex: 1,
+    marginHorizontal: spacing.sm,
   },
   competitionText: {
     fontSize: typography.fontSize.caption,
@@ -189,11 +246,12 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xs,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    flex: 1,
   },
   liveIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: colors.primary.main + '20',
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.badge,
@@ -202,13 +260,13 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.primary.main,
     marginRight: spacing.xs,
   },
   liveText: {
     fontSize: typography.fontSize.caption,
     fontWeight: typography.fontWeight.bold,
-    color: '#FFFFFF',
+    color: colors.primary.main,
     letterSpacing: 0.5,
   },
   scoreSection: {
@@ -260,6 +318,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: spacing.lg,
   },
+  liveProgressContainer: {
+    width: 40,
+    height: 2,
+    marginTop: spacing.xs,
+    overflow: 'hidden',
+  },
+  liveProgressBar: {
+    height: '100%',
+    width: '100%',
+    backgroundColor: colors.primary.main,
+  },
   statusContainer: {
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     paddingHorizontal: spacing.lg,
@@ -299,6 +368,34 @@ const styles = StyleSheet.create({
   venueText: {
     fontSize: typography.fontSize.caption,
     color: colors.text.tertiary,
+    marginLeft: spacing.xxs,
+  },
+  rightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  liveSection: {
+    alignItems: 'center',
+  },
+  endMatchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.accent.coral,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.badge,
+    marginLeft: spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  endMatchText: {
+    fontSize: typography.fontSize.small,
+    color: '#FFFFFF',
+    fontWeight: typography.fontWeight.bold,
+    textTransform: 'uppercase',
     marginLeft: spacing.xxs,
   },
 });

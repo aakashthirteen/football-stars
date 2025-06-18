@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
 import { apiService } from '../../services/api';
@@ -61,6 +62,17 @@ export default function TournamentsScreen({ navigation }: TournamentsScreenProps
       setTournaments(response.tournaments || []);
     } catch (error: any) {
       console.error('Error loading tournaments:', error);
+      // Show user-friendly error message
+      if (!refreshing) {
+        Alert.alert(
+          'Connection Error',
+          'Unable to load tournaments. Please check your internet connection and try again.',
+          [
+            { text: 'Retry', onPress: () => loadTournaments() },
+            { text: 'Cancel', style: 'cancel' }
+          ]
+        );
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -297,10 +309,13 @@ export default function TournamentsScreen({ navigation }: TournamentsScreenProps
 
         {/* Content */}
         <View style={styles.contentSection}>
-          {loading ? (
+          {loading && !refreshing ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={colors.primary.main} />
-              <Text style={styles.loadingText}>Loading tournaments...</Text>
+              <View style={styles.loadingCard}>
+                <ActivityIndicator size="large" color={colors.primary.main} />
+                <Text style={styles.loadingText}>Loading tournaments...</Text>
+                <Text style={styles.loadingSubtext}>Finding competitions near you</Text>
+              </View>
             </View>
           ) : (
             <>
@@ -342,10 +357,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.xxxl * 2,
   },
+  loadingCard: {
+    backgroundColor: colors.surface.primary,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    alignItems: 'center',
+    minWidth: 200,
+    ...shadows.md,
+  },
   loadingText: {
-    marginTop: spacing.md,
-    fontSize: 16,
+    marginTop: spacing.lg,
+    fontSize: typography.fontSize.large,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+  },
+  loadingSubtext: {
+    marginTop: spacing.xs,
+    fontSize: typography.fontSize.regular,
     color: colors.text.secondary,
+    textAlign: 'center',
   },
 
   // Tab Section - La Liga style

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,22 +9,25 @@ import {
   Alert,
   ActivityIndicator,
   StatusBar,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '../../store/authStore';
 import { apiService } from '../../services/api';
+import { FloatingActionButton } from '../../components/FloatingActionButton';
 
 // Professional Components
 import {
   ProfessionalButton,
   ProfessionalHeader,
+  DesignSystem,
 } from '../../components/professional';
 
-// Import DesignSystem
-import DesignSystem from '../../theme/designSystem';
-
-const { colors, typography, spacing, borderRadius, shadows } = DesignSystem;
+const { width } = Dimensions.get('window');
+const { colors, typography, spacing, borderRadius, shadows, gradients } = DesignSystem;
 
 interface CreateTournamentScreenProps {
   navigation: any;
@@ -33,6 +36,26 @@ interface CreateTournamentScreenProps {
 export default function CreateTournamentScreen({ navigation }: CreateTournamentScreenProps) {
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
+  
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
   
   // Form fields
   const [name, setName] = useState('');
@@ -126,7 +149,7 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
     <View style={styles.formGroup}>
       <Text style={styles.label}>Tournament Type *</Text>
       <View style={styles.typeGrid}>
-        {tournamentTypes.map((type) => (
+        {tournamentTypes.map((type, index) => (
           <TouchableOpacity
             key={type.value}
             style={[
@@ -136,8 +159,21 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
             onPress={() => setTournamentType(type.value as any)}
             activeOpacity={0.8}
           >
+            {tournamentType === type.value && (
+              <LinearGradient
+                colors={gradients.quickTournament}
+                style={styles.typeCardGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+            )}
             <View style={styles.typeHeader}>
-              <Text style={styles.typeIcon}>{type.icon}</Text>
+              <Text style={[
+                styles.typeIcon,
+                tournamentType === type.value && styles.typeIconSelected
+              ]}>
+                {type.icon}
+              </Text>
               {tournamentType === type.value && (
                 <View style={styles.selectedBadge}>
                   <Ionicons name="checkmark" size={16} color="#FFFFFF" />
@@ -166,39 +202,75 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       
-      <ScrollView 
-        showsVerticalScrollIndicator={false}
-        contentInsetAdjustmentBehavior="automatic"
+      <Animated.View 
+        style={[
+          styles.animatedContainer,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
       >
-        {/* Professional Header */}
-        <ProfessionalHeader
-          title="Create Tournament"
-          subtitle="Set up your football competition"
-          showBack
-          onBack={() => navigation.goBack()}
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="automatic"
         >
-          <ProfessionalButton
-            title={loading ? "Creating..." : "Create"}
-            icon={loading ? undefined : "add-circle"}
-            variant="primary"
-            onPress={handleCreate}
-            disabled={loading}
+          {/* Professional Header with Gradient */}
+          <LinearGradient
+            colors={gradients.quickTournament}
+            style={styles.headerGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
           >
-            {loading && <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: spacing.xs }} />}
-          </ProfessionalButton>
-        </ProfessionalHeader>
+            <ProfessionalHeader
+              title="Create Tournament"
+              subtitle="Set up your football competition"
+              showBack
+              onBack={() => navigation.goBack()}
+              style={styles.transparentHeader}
+            />
+          </LinearGradient>
 
-        <View style={styles.content}>
-          {/* Basic Information */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIcon}>
-                <Ionicons name="information-circle" size={20} color={colors.primary.main} />
+          <View style={styles.content}>
+            {/* Quick Actions Preview */}
+            <View style={styles.previewSection}>
+              <View style={styles.quickPreviewCard}>
+                <LinearGradient
+                  colors={gradients.quickTournament}
+                  style={styles.previewGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <View style={styles.previewContent}>
+                    <View style={styles.previewIcon}>
+                      <Text style={styles.previewEmoji}>
+                        {tournamentTypes.find(t => t.value === tournamentType)?.icon}
+                      </Text>
+                    </View>
+                    <Text style={styles.previewTitle}>
+                      {name || 'Tournament Name'}
+                    </Text>
+                    <Text style={styles.previewSubtitle}>
+                      {tournamentTypes.find(t => t.value === tournamentType)?.label} • {maxTeams} teams
+                    </Text>
+                  </View>
+                </LinearGradient>
               </View>
-              <Text style={styles.sectionTitle}>Basic Information</Text>
             </View>
-            
-            <View style={styles.formCard}>
+
+            {/* Basic Information */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <LinearGradient
+                  colors={[colors.primary.main + '20', colors.primary.main + '10']}
+                  style={styles.sectionIconGradient}
+                >
+                  <Ionicons name="information-circle" size={20} color={colors.primary.main} />
+                </LinearGradient>
+                <Text style={styles.sectionTitle}>Basic Information</Text>
+              </View>
+              
+              <View style={styles.modernFormCard}>
               <View style={styles.formGroup}>
                 <Text style={styles.label}>Tournament Name *</Text>
                 <TextInput
@@ -226,16 +298,19 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
             </View>
           </View>
 
-          {/* Tournament Format */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIcon}>
-                <Ionicons name="trophy" size={20} color={colors.accent.gold} />
+            {/* Tournament Format */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <LinearGradient
+                  colors={[colors.accent.gold + '20', colors.accent.gold + '10']}
+                  style={styles.sectionIconGradient}
+                >
+                  <Ionicons name="trophy" size={20} color={colors.accent.gold} />
+                </LinearGradient>
+                <Text style={styles.sectionTitle}>Tournament Format</Text>
               </View>
-              <Text style={styles.sectionTitle}>Tournament Format</Text>
-            </View>
-            
-            <View style={styles.formCard}>
+              
+              <View style={styles.modernFormCard}>
               {renderTypeSelector()}
               
               <View style={styles.formGroup}>
@@ -252,16 +327,19 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
             </View>
           </View>
 
-          {/* Schedule */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIcon}>
-                <Ionicons name="calendar" size={20} color={colors.accent.blue} />
+            {/* Schedule */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <LinearGradient
+                  colors={[colors.accent.blue + '20', colors.accent.blue + '10']}
+                  style={styles.sectionIconGradient}
+                >
+                  <Ionicons name="calendar" size={20} color={colors.accent.blue} />
+                </LinearGradient>
+                <Text style={styles.sectionTitle}>Schedule</Text>
               </View>
-              <Text style={styles.sectionTitle}>Schedule</Text>
-            </View>
-            
-            <View style={styles.formCard}>
+              
+              <View style={styles.modernFormCard}>
               <View style={styles.formGroup}>
                 <Text style={styles.label}>Start Date *</Text>
                 <TouchableOpacity 
@@ -286,16 +364,19 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
             </View>
           </View>
 
-          {/* Prize Details */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIcon}>
-                <Ionicons name="diamond" size={20} color={colors.accent.coral} />
+            {/* Prize Details */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <LinearGradient
+                  colors={[colors.accent.coral + '20', colors.accent.coral + '10']}
+                  style={styles.sectionIconGradient}
+                >
+                  <Ionicons name="diamond" size={20} color={colors.accent.coral} />
+                </LinearGradient>
+                <Text style={styles.sectionTitle}>Prize Details (Optional)</Text>
               </View>
-              <Text style={styles.sectionTitle}>Prize Details (Optional)</Text>
-            </View>
-            
-            <View style={styles.formCard}>
+              
+              <View style={styles.modernFormCard}>
               <View style={styles.row}>
                 <View style={styles.halfWidth}>
                   <Text style={styles.label}>Entry Fee (₹)</Text>
@@ -324,60 +405,20 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
             </View>
           </View>
 
-          {/* Tournament Preview */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIcon}>
-                <Ionicons name="eye" size={20} color={colors.accent.purple} />
-              </View>
-              <Text style={styles.sectionTitle}>Preview</Text>
-            </View>
-            
-            <View style={styles.previewCard}>
-              <View style={styles.previewHeader}>
-                <View style={styles.previewBadge}>
-                  <Text style={styles.previewIcon}>
-                    {tournamentTypes.find(t => t.value === tournamentType)?.icon}
-                  </Text>
-                </View>
-                <View style={styles.previewInfo}>
-                  <Text style={styles.previewName}>
-                    {name || 'Tournament Name'}
-                  </Text>
-                  <Text style={styles.previewType}>
-                    {tournamentTypes.find(t => t.value === tournamentType)?.label}
-                  </Text>
-                </View>
-              </View>
-              
-              <View style={styles.previewDetails}>
-                <View style={styles.previewDetailRow}>
-                  <Ionicons name="calendar-outline" size={16} color={colors.accent.blue} />
-                  <Text style={styles.previewDetail}>
-                    {formatDate(startDate)} - {formatDate(endDate)}
-                  </Text>
-                </View>
-                <View style={styles.previewDetailRow}>
-                  <Ionicons name="people-outline" size={16} color={colors.primary.main} />
-                  <Text style={styles.previewDetail}>
-                    Max {maxTeams} teams
-                  </Text>
-                </View>
-                {prizePool && (
-                  <View style={styles.previewDetailRow}>
-                    <Ionicons name="diamond-outline" size={16} color={colors.accent.gold} />
-                    <Text style={styles.previewDetail}>
-                      ₹{parseFloat(prizePool).toLocaleString()} prize pool
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
+            <View style={styles.bottomSpacing} />
           </View>
+        </ScrollView>
+      </Animated.View>
 
-          <View style={styles.bottomSpacing} />
-        </View>
-      </ScrollView>
+      {/* Floating Action Button */}
+      <FloatingActionButton
+        onPress={handleCreate}
+        icon={loading ? undefined : "checkmark"}
+        style={styles.fab}
+        disabled={loading}
+      >
+        {loading && <ActivityIndicator size="small" color="#FFFFFF" />}
+      </FloatingActionButton>
 
       {/* Date Pickers */}
       {showStartDatePicker && (
@@ -416,8 +457,61 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background.primary,
   },
+  animatedContainer: {
+    flex: 1,
+  },
+  headerGradient: {
+    paddingBottom: spacing.xl,
+  },
+  transparentHeader: {
+    backgroundColor: 'transparent',
+  },
   content: {
     flex: 1,
+    marginTop: -spacing.lg,
+  },
+  // Modern Preview Section
+  previewSection: {
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: spacing.xl,
+  },
+  quickPreviewCard: {
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+    ...shadows.md,
+  },
+  previewGradient: {
+    padding: spacing.xl,
+    minHeight: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  previewContent: {
+    alignItems: 'center',
+  },
+  previewIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  previewEmoji: {
+    fontSize: 24,
+  },
+  previewTitle: {
+    fontSize: typography.fontSize.title2,
+    fontWeight: typography.fontWeight.bold,
+    color: '#FFFFFF',
+    marginBottom: spacing.xs,
+    textAlign: 'center',
+  },
+  previewSubtitle: {
+    fontSize: typography.fontSize.regular,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
   },
   // Professional Section Styling
   section: {
@@ -429,11 +523,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
-  sectionIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surface.secondary,
+  sectionIconGradient: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.sm,
@@ -443,12 +536,12 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
   },
-  // Professional Form Card
-  formCard: {
+  // Modern Form Card
+  modernFormCard: {
     backgroundColor: colors.surface.primary,
     borderRadius: borderRadius.xl,
-    padding: spacing.lg,
-    ...shadows.sm,
+    padding: spacing.xl,
+    ...shadows.md,
   },
   formGroup: {
     marginBottom: spacing.lg,
@@ -460,19 +553,19 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   input: {
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.surface.border,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     fontSize: typography.fontSize.regular,
     color: colors.text.primary,
     backgroundColor: colors.surface.primary,
-    ...shadows.xs,
+    ...shadows.sm,
   },
   textArea: {
-    height: 80,
-    paddingTop: spacing.sm,
+    height: 100,
+    paddingTop: spacing.md,
     textAlignVertical: 'top',
   },
   row: {
@@ -482,21 +575,31 @@ const styles = StyleSheet.create({
   halfWidth: {
     flex: 1,
   },
-  // Professional Tournament Type Cards
+  // Modern Tournament Type Cards
   typeGrid: {
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   typeCard: {
-    padding: spacing.lg,
+    position: 'relative',
+    padding: spacing.xl,
     borderWidth: 2,
     borderColor: colors.surface.border,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.xl,
     backgroundColor: colors.surface.primary,
-    ...shadows.sm,
+    overflow: 'hidden',
+    ...shadows.md,
   },
   typeCardSelected: {
     borderColor: colors.primary.main,
-    backgroundColor: colors.primary.main + '10',
+    borderWidth: 3,
+  },
+  typeCardGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.1,
   },
   typeHeader: {
     flexDirection: 'row',
@@ -505,7 +608,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   typeIcon: {
-    fontSize: 24,
+    fontSize: 32,
+  },
+  typeIconSelected: {
+    fontSize: 36,
   },
   selectedBadge: {
     width: 24,
@@ -523,6 +629,7 @@ const styles = StyleSheet.create({
   },
   typeLabelSelected: {
     color: colors.primary.main,
+    fontSize: typography.fontSize.title3,
   },
   typeDescription: {
     fontSize: typography.fontSize.small,
@@ -530,82 +637,32 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   typeDescriptionSelected: {
-    color: colors.primary.dark,
+    color: colors.primary.main,
+    fontWeight: typography.fontWeight.medium,
   },
-  // Professional Date Button
+  // Modern Date Button
   dateButton: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.surface.border,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     backgroundColor: colors.surface.primary,
-    ...shadows.xs,
+    ...shadows.sm,
   },
   dateText: {
     fontSize: typography.fontSize.regular,
     color: colors.text.primary,
     fontWeight: typography.fontWeight.medium,
   },
-  // Professional Preview Card
-  previewCard: {
-    backgroundColor: colors.surface.primary,
-    padding: spacing.lg,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.surface.border,
-    ...shadows.md,
-  },
-  previewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  previewBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.surface.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  previewIcon: {
-    fontSize: 24,
-  },
-  previewInfo: {
-    flex: 1,
-  },
-  previewName: {
-    fontSize: typography.fontSize.large,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-    marginBottom: spacing.xxs,
-  },
-  previewType: {
-    fontSize: typography.fontSize.small,
-    color: colors.text.secondary,
-    textTransform: 'uppercase',
-    fontWeight: typography.fontWeight.semibold,
-    letterSpacing: 0.5,
-  },
-  previewDetails: {
-    gap: spacing.sm,
-  },
-  previewDetailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  previewDetail: {
-    fontSize: typography.fontSize.regular,
-    color: colors.text.secondary,
-    fontWeight: typography.fontWeight.medium,
+  // Floating Action Button
+  fab: {
+    bottom: 100,
   },
   bottomSpacing: {
-    height: 40,
+    height: 120,
   },
 });

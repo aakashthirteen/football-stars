@@ -99,6 +99,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const [awayFormation, setAwayFormation] = useState<any>(null);
   const [formationsLoaded, setFormationsLoaded] = useState(false);
   
+  // Halftime modal
+  const [showHalftimeModal, setShowHalftimeModal] = useState(false);
+  
   // Modals
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [showAssistModal, setShowAssistModal] = useState(false);
@@ -136,25 +139,49 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     if (!match) return;
 
     const now = new Date();
-    const matchStart = new Date(match.matchDate || match.match_date);
-    const elapsedSeconds = Math.max(1, Math.floor((now.getTime() - matchStart.getTime()) / 1000));
-    const elapsed = Math.floor(elapsedSeconds / 60); // Convert to minutes
+    let actualMinute;
     
-    // Simple timer - just count elapsed minutes from match start
-    setCurrentMinute(elapsed);
+    if (currentHalf === 2 && match.second_half_start_time) {
+      // In second half, calculate from second half start time + 45
+      const secondHalfStart = new Date(match.second_half_start_time);
+      const elapsedInSecondHalf = Math.floor((now.getTime() - secondHalfStart.getTime()) / 60000);
+      actualMinute = 45 + elapsedInSecondHalf;
+    } else {
+      // In first half, calculate from match start
+      const matchStart = new Date(match.matchDate || match.match_date);
+      actualMinute = Math.max(1, Math.floor((now.getTime() - matchStart.getTime()) / 60000));
+    }
     
-    // Auto half-time at 45 minutes (will enhance this later)
-    if (elapsed >= 45 && currentHalf === 1 && !isHalftime) {
+    setCurrentMinute(actualMinute);
+    
+    // Auto half-time at 45 minutes + stoppage time
+    const halfTimeMinute = 45 + addedTimeFirstHalf;
+    if (actualMinute >= halfTimeMinute && currentHalf === 1 && !isHalftime && isLive) {
       handleHalftime();
+    }
+    
+    // Auto full-time at 90 minutes + stoppage time
+    const fullTimeMinute = 90 + addedTimeSecondHalf;
+    if (actualMinute >= fullTimeMinute && currentHalf === 2 && isLive) {
+      handleFullTime();
     }
   };
 
   const updateCurrentMinute = (matchData: any) => {
     if (matchData.status === 'LIVE') {
       const now = new Date();
-      const matchStart = new Date(matchData.matchDate || matchData.match_date);
-      const elapsed = Math.max(1, Math.floor((now.getTime() - matchStart.getTime()) / 60000));
-      setCurrentMinute(elapsed);
+      
+      if (matchData.current_half === 2 && matchData.second_half_start_time) {
+        // In second half, calculate from second half start time + 45
+        const secondHalfStart = new Date(matchData.second_half_start_time);
+        const elapsedInSecondHalf = Math.floor((now.getTime() - secondHalfStart.getTime()) / 60000);
+        setCurrentMinute(45 + elapsedInSecondHalf);
+      } else {
+        // In first half, calculate from match start
+        const matchStart = new Date(matchData.matchDate || matchData.match_date);
+        const elapsed = Math.max(1, Math.floor((now.getTime() - matchStart.getTime()) / 60000));
+        setCurrentMinute(elapsed);
+      }
     }
   };
 
@@ -164,6 +191,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       await soundService.playHalftimeWhistle();
       showCommentary("⏱️ HALF-TIME! The referee blows the whistle to end the first half.");
       await loadMatchDetails();
+      
+      // Show halftime modal for resuming second half
+      setShowHalftimeModal(true);
     } catch (error) {
       Alert.alert('Error', 'Failed to pause for halftime');
     }
@@ -171,12 +201,34 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   const handleStartSecondHalf = async () => {
     try {
+      setShowHalftimeModal(false);
       await apiService.startSecondHalf(matchId);
       await soundService.playSecondHalfWhistle();
       showCommentary("⚽ SECOND HALF! The match resumes for the final 45 minutes!");
       await loadMatchDetails();
     } catch (error) {
       Alert.alert('Error', 'Failed to start second half');
+    }
+  };
+
+  const handleFullTime = async () => {
+    try {
+      await apiService.endMatch(matchId);
+      await soundService.playFullTimeWhistle();
+      showCommentary("📢 FULL-TIME! The referee blows the final whistle! The match has ended!");
+      
+      // Navigate to player rating after a short delay
+      setTimeout(() => {
+        navigation.replace('PlayerRating', { 
+          matchId,
+          homeTeamId: match?.homeTeam?.id,
+          homeTeamName: match?.homeTeam?.name,
+          awayTeamId: match?.awayTeam?.id,
+          awayTeamName: match?.awayTeam?.name
+        });
+      }, 2000);
+    } catch (error) {
+      console.error('Error ending match automatically:', error);
     }
   };
 
@@ -318,19 +370,25 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       timestamp: new Date()
     };
     setCommentaryHistory(prev => [newCommentary, ...prev]);
+    
+    // Toast notification animation - slide down from top
     Animated.sequence([
-      Animated.timing(commentaryAnimation, {
+      Animated.spring(commentaryAnimation, {
         toValue: 1,
-        duration: 400,
+        tension: 100,
+        friction: 8,
         useNativeDriver: true,
       }),
-      Animated.delay(4000),
+      Animated.delay(3000),
       Animated.timing(commentaryAnimation, {
         toValue: 0,
         duration: 400,
         useNativeDriver: true,
       }),
-    ]).start();
+    ]).start(() => {
+      // Clear commentary after animation
+      setLatestCommentary('');
+    });
   };
 
   const handleAction = (team: 'home' | 'away', actionType: string) => {
@@ -505,26 +563,6 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                           <Ionicons name="add" size={16} color={colors.accent.blue} />
                           <Text style={styles.quickButtonText}>+1</Text>
                         </TouchableOpacity>
-                        
-                        {currentHalf === 1 && !isHalftime && (
-                          <TouchableOpacity
-                            style={[styles.quickButton, styles.halftimeQuickButton]}
-                            onPress={handleHalftime}
-                          >
-                            <Ionicons name="pause" size={16} color="#FFFFFF" />
-                            <Text style={[styles.quickButtonText, { color: '#FFFFFF' }]}>HT</Text>
-                          </TouchableOpacity>
-                        )}
-                        
-                        {isHalftime && (
-                          <TouchableOpacity
-                            style={[styles.quickButton, styles.secondHalfQuickButton]}
-                            onPress={handleStartSecondHalf}
-                          >
-                            <Ionicons name="play" size={16} color="#FFFFFF" />
-                            <Text style={[styles.quickButtonText, { color: '#FFFFFF' }]}>2nd</Text>
-                          </TouchableOpacity>
-                        )}
                       </View>
                     </View>
                   </LinearGradient>
@@ -545,6 +583,23 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                       onQuickEvent={handleQuickEvent}
                     />
                   </LinearGradient>
+                </View>
+
+                {/* End Match Button */}
+                <View style={styles.cardSection}>
+                  <TouchableOpacity
+                    style={styles.endMatchButton}
+                    onPress={endMatch}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={[colors.background.secondary, colors.background.tertiary]}
+                      style={styles.endMatchGradient}
+                    >
+                      <Ionicons name="stop-circle" size={22} color={colors.accent.coral} />
+                      <Text style={styles.endMatchButtonText}>End Match</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
                 </View>
               </View>
             ) : (
@@ -1031,11 +1086,10 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             currentMinute={currentMinute}
             venue={match.venue}
             onBack={() => navigation.goBack()}
-            onEndMatch={endMatch}
           />
         </Animated.View>
         
-        {/* Live Commentary Banner */}
+        {/* Live Commentary Toast */}
         {latestCommentary && (
           <Animated.View 
             style={[
@@ -1045,22 +1099,23 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                 transform: [{
                   translateY: commentaryAnimation.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [-50, 0]
+                    outputRange: [-100, 0]
                   })
                 }]
               }
             ]}
           >
             <LinearGradient
-              colors={[colors.accent.coral, colors.accent.orange]}
+              colors={latestCommentary.includes('GOOOOOAL') || latestCommentary.includes('GOAL') 
+                ? ['#10B981', '#059669'] 
+                : latestCommentary.includes('CARD')
+                ? ['#F59E0B', '#D97706']
+                : ['#3B82F6', '#2563EB']
+              }
               style={styles.commentaryGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
-              <View style={styles.liveIndicator}>
-                <View style={styles.liveDot} />
-                <Text style={styles.liveText}>LIVE</Text>
-              </View>
               <Text style={styles.commentaryText}>{latestCommentary}</Text>
             </LinearGradient>
           </Animated.View>
@@ -1216,6 +1271,60 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
           </View>
         </View>
       </Modal>
+
+      {/* Halftime Modal */}
+      <Modal
+        visible={showHalftimeModal}
+        transparent
+        animationType="slide"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.halftimeModalContent}>
+            <LinearGradient
+              colors={[colors.background.secondary, colors.background.tertiary]}
+              style={styles.halftimeModalGradient}
+            >
+              <View style={styles.halftimeIconContainer}>
+                <Ionicons name="time-outline" size={48} color={colors.primary.main} />
+              </View>
+              
+              <Text style={styles.halftimeTitle}>HALF TIME</Text>
+              <Text style={styles.halftimeSubtitle}>
+                First half has ended at {45 + addedTimeFirstHalf} minutes
+              </Text>
+              
+              <View style={styles.halftimeStats}>
+                <View style={styles.halftimeScore}>
+                  <Text style={styles.halftimeTeamName}>{match?.homeTeam?.name}</Text>
+                  <Text style={styles.halftimeScoreText}>{match?.homeScore}</Text>
+                </View>
+                <Text style={styles.halftimeDash}>-</Text>
+                <View style={styles.halftimeScore}>
+                  <Text style={styles.halftimeScoreText}>{match?.awayScore}</Text>
+                  <Text style={styles.halftimeTeamName}>{match?.awayTeam?.name}</Text>
+                </View>
+              </View>
+              
+              <Text style={styles.halftimeInfo}>
+                The teams are taking a 15-minute break. Press the button below when ready to start the second half.
+              </Text>
+              
+              <TouchableOpacity
+                style={styles.startSecondHalfButton}
+                onPress={handleStartSecondHalf}
+              >
+                <LinearGradient
+                  colors={gradients.primary}
+                  style={styles.startSecondHalfGradient}
+                >
+                  <Ionicons name="play" size={20} color="#FFFFFF" />
+                  <Text style={styles.startSecondHalfText}>Start Second Half</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1229,28 +1338,32 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingHorizontal: spacing.screenPadding,
-    paddingBottom: spacing.xxxl,
+    flex: 1,
   },
   
   // Commentary Banner (replaces old commentary bar)
   commentaryBanner: {
-    marginHorizontal: spacing.screenPadding,
-    marginBottom: spacing.md,
-    borderRadius: borderRadius.card,
+    position: 'absolute',
+    top: 50,
+    left: spacing.screenPadding,
+    right: spacing.screenPadding,
+    zIndex: 1000,
+    borderRadius: borderRadius.xl,
     overflow: 'hidden',
-    ...shadows.card,
+    ...shadows.large,
   },
   commentaryGradient: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    flexDirection: 'row',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   
   // Modern Tab Navigation
   modernTabs: {
-    marginBottom: spacing.lg,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.screenPadding,
   },
   tabsScrollContent: {
     paddingVertical: spacing.xs,
@@ -1289,6 +1402,7 @@ const styles = StyleSheet.create({
   // Tab Content Container
   tabContentContainer: {
     flex: 1,
+    paddingHorizontal: spacing.screenPadding,
   },
   tabContent: {
     flex: 1,
@@ -1357,8 +1471,9 @@ const styles = StyleSheet.create({
   commentaryText: {
     color: '#FFFFFF',
     fontSize: typography.fontSize.regular,
-    fontWeight: typography.fontWeight.medium,
+    fontWeight: typography.fontWeight.semibold,
     textAlign: 'center',
+    flex: 1,
   },
   tabs: {
     borderBottomWidth: 1,
@@ -1928,5 +2043,109 @@ const styles = StyleSheet.create({
   secondHalfQuickButton: {
     backgroundColor: colors.primary.main,
     borderColor: colors.primary.main,
+  },
+  
+  // Halftime Modal Styles
+  halftimeModalContent: {
+    width: width * 0.9,
+    maxWidth: 400,
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+    ...shadows.large,
+  },
+  halftimeModalGradient: {
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  halftimeIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.primary.main + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  halftimeTitle: {
+    fontSize: typography.fontSize.h2,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
+  },
+  halftimeSubtitle: {
+    fontSize: typography.fontSize.regular,
+    color: colors.text.secondary,
+    marginBottom: spacing.xl,
+    textAlign: 'center',
+  },
+  halftimeStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xl,
+  },
+  halftimeScore: {
+    alignItems: 'center',
+  },
+  halftimeTeamName: {
+    fontSize: typography.fontSize.regular,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
+  },
+  halftimeScoreText: {
+    fontSize: typography.fontSize.h1,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+  },
+  halftimeDash: {
+    fontSize: typography.fontSize.h2,
+    color: colors.text.secondary,
+    marginHorizontal: spacing.lg,
+  },
+  halftimeInfo: {
+    fontSize: typography.fontSize.regular,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.md,
+  },
+  startSecondHalfButton: {
+    width: '100%',
+    borderRadius: borderRadius.button,
+    overflow: 'hidden',
+  },
+  startSecondHalfGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+  },
+  startSecondHalfText: {
+    fontSize: typography.fontSize.large,
+    fontWeight: typography.fontWeight.semibold,
+    color: '#FFFFFF',
+    marginLeft: spacing.sm,
+  },
+  
+  // Bottom End Match Button
+  endMatchButton: {
+    marginTop: spacing.lg,
+    borderRadius: borderRadius.button,
+    overflow: 'hidden',
+    ...shadows.large,
+  },
+  endMatchGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    gap: spacing.sm,
+  },
+  endMatchButtonText: {
+    fontSize: typography.fontSize.large,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
   },
 });

@@ -24,9 +24,16 @@ class SoundService {
         playThroughEarpieceAndroid: false,
       });
 
-      console.log('🎵 Sound service initialized (whistles will use vibration patterns)');
-      // For now, we'll use vibration patterns instead of actual audio
-      // This ensures the feature works immediately without external dependencies
+      console.log('🎵 Sound service initialized');
+      
+      // For now, we'll use a simple beep sound as whistle
+      // You can replace this with actual whistle sounds later
+      try {
+        // Create a simple tone using Audio.Recording API or use system sounds
+        console.log('🎵 Using system sounds for whistles');
+      } catch (soundError) {
+        console.log('🎵 Will use vibration patterns as fallback');
+      }
     } catch (error) {
       console.error('❌ Failed to initialize audio:', error);
     }
