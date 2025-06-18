@@ -333,7 +333,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     overflow: 'hidden',
     borderRadius: 1,
-    backgroundColor: 'rgba(0, 212, 87, 0.2)',
   },
   liveProgressBar: {
     height: '100%',
