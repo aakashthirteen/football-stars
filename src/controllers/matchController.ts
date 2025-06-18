@@ -297,20 +297,25 @@ export const pauseForHalftime = async (req: AuthRequest, res: Response): Promise
 
 export const startSecondHalf = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    console.log('🔄 startSecondHalf called for match:', req.params.id);
     const { id } = req.params;
     
     const match = await database.getMatchById(id);
     if (!match) {
+      console.log('❌ Match not found:', id);
       res.status(404).json({ error: 'Match not found' });
       return;
     }
 
+    console.log('📊 Current match status:', match.status);
     if (match.status !== 'HALFTIME') {
+      console.log('❌ Match not at halftime, cannot start second half');
       res.status(400).json({ error: 'Match must be at halftime to start second half' });
       return;
     }
 
     const now = new Date();
+    console.log('✅ Starting second half at:', now.toISOString());
     
     const updatedMatch = await database.updateMatch(id, { 
       status: 'LIVE',
@@ -318,12 +323,14 @@ export const startSecondHalf = async (req: AuthRequest, res: Response): Promise<
       second_half_start_time: now
     });
 
+    console.log('✅ Second half started successfully:', updatedMatch);
     res.json({
       match: updatedMatch,
       message: 'Second half started successfully',
     });
   } catch (error) {
-    console.error('Start second half error:', error);
+    console.error('❌ Start second half error:', error);
+    console.error('❌ Error stack:', error instanceof Error ? error.stack : error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

@@ -821,14 +821,24 @@ export class PostgresDatabase {
   }
 
   async updateMatch(id: string, updates: any): Promise<Match | null> {
-    const fields = Object.keys(updates).map((key, index) => `${key} = $${index + 2}`).join(', ');
-    const values = Object.values(updates);
-    
-    const result = await this.pool.query(
-      `UPDATE matches SET ${fields} WHERE id = $1 RETURNING *`,
-      [id, ...values]
-    );
-    return result.rows[0] || null;
+    try {
+      console.log('🗃️ DATABASE: updateMatch called with:', { id, updates });
+      
+      const fields = Object.keys(updates).map((key, index) => `${key} = $${index + 2}`).join(', ');
+      const values = Object.values(updates);
+      
+      const query = `UPDATE matches SET ${fields} WHERE id = $1 RETURNING *`;
+      console.log('🗃️ DATABASE: Executing query:', query);
+      console.log('🗃️ DATABASE: With values:', [id, ...values]);
+      
+      const result = await this.pool.query(query, [id, ...values]);
+      
+      console.log('🗃️ DATABASE: Update successful, rows affected:', result.rowCount);
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error('🗃️ DATABASE: updateMatch error:', error);
+      throw error;
+    }
   }
 
   async createMatchEvent(event: any): Promise<MatchEvent> {
