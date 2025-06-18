@@ -1,4 +1,4 @@
-import { v2 as cloudinary, UploadApiResponse, UploadApiErrorResponse } from 'cloudinary';
+const cloudinary = require('cloudinary').v2;
 
 // Cloudinary configuration
 cloudinary.config({
@@ -19,7 +19,7 @@ export class CloudinaryService {
     imageBuffer: Buffer, 
     folder: string, 
     publicId?: string
-  ): Promise<UploadApiResponse> {
+  ): Promise<any> {
     try {
       return new Promise((resolve, reject) => {
         const uploadOptions: any = {
@@ -37,7 +37,7 @@ export class CloudinaryService {
 
         cloudinary.uploader.upload_stream(
           uploadOptions,
-          (error: UploadApiErrorResponse | undefined, result: UploadApiResponse | undefined) => {
+          (error: any, result: any) => {
             if (error) {
               console.error('Cloudinary upload error:', error);
               reject(error);
