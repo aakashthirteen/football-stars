@@ -39,6 +39,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const { user } = useAuthStore();
   const [refreshing, setRefreshing] = useState(false);
   const [playerStats, setPlayerStats] = useState<any>(null);
+  const [playerProfile, setPlayerProfile] = useState<any>(null);
   const [upcomingMatches, setUpcomingMatches] = useState<any[]>([]);
   const [allMatches, setAllMatches] = useState<any[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
@@ -124,9 +125,15 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         setAllMatches([]);
       }
       
-      // Load player stats
+      // Load player stats and profile
       try {
-        const stats = await apiService.getCurrentUserStats();
+        const [stats, profile] = await Promise.all([
+          apiService.getCurrentUserStats(),
+          apiService.getCurrentPlayerProfile()
+        ]);
+        
+        // Set player profile (including avatar)
+        setPlayerProfile(profile);
         
         if (!stats) {
           throw new Error('No stats data');
@@ -146,14 +153,14 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           goals,
           assists,
           averageRating,
-          position: stats.position || 'MID',
+          position: profile?.position || stats.position || 'MID', // Use profile position first
           yellowCards: parseInt(stats.yellowCards || stats.yellow_cards || '0'),
           redCards: parseInt(stats.redCards || stats.red_cards || '0'),
           minutesPlayed: parseInt(stats.minutesPlayed || stats.minutes_played || '0'),
         });
         
       } catch (error) {
-        console.error('Error loading stats:', error);
+        console.error('Error loading stats or profile:', error);
         setPlayerStats({
           goals: 0,
           assists: 0,
@@ -164,6 +171,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           redCards: 0,
           minutesPlayed: 0,
         });
+        setPlayerProfile(null);
       }
     } catch (error) {
       console.error('Error loading dashboard:', error);
@@ -439,6 +447,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
               <ProfessionalPlayerStats
                 playerName={user?.name || 'Player'}
                 position={playerStats?.position || 'MID'}
+                playerImage={playerProfile?.avatarUrl}
                 stats={{
                   goals: playerStats?.goals || 0,
                   assists: playerStats?.assists || 0,
