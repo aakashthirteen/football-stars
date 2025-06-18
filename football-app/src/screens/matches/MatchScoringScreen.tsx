@@ -163,17 +163,24 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     
     setCurrentMinute(actualMinute);
     
-    // Auto half-time at actual first half duration + stoppage time
-    const halfTimeMinute = firstHalfMinutes + addedTimeFirstHalf;
+    // Auto half-time at exact half of match duration + stoppage time
+    const matchDuration = match.duration || 90;
+    const halfTimeMinute = (matchDuration / 2) + addedTimeFirstHalf;
     console.log('⏱️ TIMER CHECK:', {
       actualMinute,
-      halfTimeMinute, 
+      halfTimeMinute,
+      calculatedHalftime: (match.duration || 90) / 2, 
       firstHalfMinutes,
+      secondHalfMinutes,
+      fullTimeMinute: (match.duration || 90) + addedTimeSecondHalf,
       currentHalf,
       isHalftime,
       isLive,
       duration: match.duration,
-      shouldTriggerHalftime: actualMinute >= halfTimeMinute && currentHalf === 1 && !isHalftime && isLive
+      addedTimeFirstHalf,
+      addedTimeSecondHalf,
+      shouldTriggerHalftime: actualMinute >= halfTimeMinute && currentHalf === 1 && !isHalftime && isLive,
+      shouldTriggerFulltime: actualMinute >= ((match.duration || 90) + addedTimeSecondHalf) && currentHalf === 2 && isLive
     });
     
     if (actualMinute >= halfTimeMinute && currentHalf === 1 && !isHalftime && isLive) {
@@ -181,10 +188,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       handleHalftime();
     }
     
-    // Auto full-time at total match duration + stoppage time
-    const fullTimeMinute = firstHalfMinutes + secondHalfMinutes + addedTimeSecondHalf;
+    // Auto full-time at exact match duration + stoppage time
+    const matchDuration = match.duration || 90;
+    const fullTimeMinute = matchDuration + addedTimeSecondHalf;
     if (actualMinute >= fullTimeMinute && currentHalf === 2 && isLive) {
-      console.log('🔴 TIMER: Triggering fulltime at minute', actualMinute);
+      console.log('🔴 TIMER: Triggering fulltime at minute', actualMinute, 'of', fullTimeMinute);
       handleFullTime();
     }
   };
