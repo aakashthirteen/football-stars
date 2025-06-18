@@ -19,11 +19,12 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const register = useAuthStore((state) => state.register);
 
   const handleRegister = async () => {
-    if (!name || !email || !password) {
+    if (!name || !email || !password || !phoneNumber) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
@@ -33,9 +34,16 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
       return;
     }
 
+    // Basic phone number validation
+    const phoneRegex = /^[+]?[\d\s-()]+$/;
+    if (!phoneRegex.test(phoneNumber) || phoneNumber.length < 10) {
+      Alert.alert('Error', 'Please provide a valid phone number');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await register(name, email, password);
+      await register(name, email, password, phoneNumber);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Registration failed');
     } finally {
@@ -79,6 +87,15 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             onChangeText={setPassword}
             secureTextEntry
             autoCapitalize="none"
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Phone Number"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            keyboardType="phone-pad"
+            autoCorrect={false}
           />
 
           <TouchableOpacity

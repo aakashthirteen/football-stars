@@ -23,6 +23,7 @@ interface Player {
   position: 'GK' | 'DEF' | 'MID' | 'FWD';
   bio?: string;
   location?: string;
+  phoneNumber?: string;
 }
 
 export default function AddPlayerScreen({ navigation, route }: AddPlayerScreenProps) {
@@ -31,6 +32,8 @@ export default function AddPlayerScreen({ navigation, route }: AddPlayerScreenPr
   const [filteredPlayers, setFilteredPlayers] = useState<Player[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [phoneSearchQuery, setPhoneSearchQuery] = useState('');
+  const [searchMode, setSearchMode] = useState<'name' | 'phone'>('name');
   const [selectedPosition, setSelectedPosition] = useState<string>('ALL');
   const [addingPlayer, setAddingPlayer] = useState<string | null>(null);
 
@@ -40,7 +43,7 @@ export default function AddPlayerScreen({ navigation, route }: AddPlayerScreenPr
 
   useEffect(() => {
     filterPlayers();
-  }, [players, searchQuery, selectedPosition]);
+  }, [players, searchQuery, phoneSearchQuery, selectedPosition, searchMode]);
 
   const loadAvailablePlayers = async () => {
     try {
@@ -58,10 +61,14 @@ export default function AddPlayerScreen({ navigation, route }: AddPlayerScreenPr
   const filterPlayers = () => {
     let filtered = players;
 
-    if (searchQuery) {
+    if (searchMode === 'name' && searchQuery) {
       filtered = filtered.filter(player =>
         player.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (player.location && player.location.toLowerCase().includes(searchQuery.toLowerCase()))
+      );
+    } else if (searchMode === 'phone' && phoneSearchQuery) {
+      filtered = filtered.filter(player =>
+        player.phoneNumber && player.phoneNumber.includes(phoneSearchQuery)
       );
     }
 
@@ -124,6 +131,13 @@ export default function AddPlayerScreen({ navigation, route }: AddPlayerScreenPr
           </View>
         )}
         
+        {item.phoneNumber && (
+          <View style={styles.locationContainer}>
+            <Ionicons name="call-outline" size={14} color="#666" />
+            <Text style={styles.locationText}>{item.phoneNumber}</Text>
+          </View>
+        )}
+        
         {item.bio && (
           <Text style={styles.playerBio} numberOfLines={2}>{item.bio}</Text>
         )}
@@ -159,13 +173,42 @@ export default function AddPlayerScreen({ navigation, route }: AddPlayerScreenPr
       </View>
 
       <View style={styles.searchContainer}>
+        <View style={styles.searchModeContainer}>
+          <TouchableOpacity
+            style={[
+              styles.searchModeButton,
+              searchMode === 'name' && styles.searchModeButtonActive
+            ]}
+            onPress={() => setSearchMode('name')}
+          >
+            <Ionicons name="person-outline" size={16} color={searchMode === 'name' ? '#fff' : '#666'} />
+            <Text style={[
+              styles.searchModeText,
+              searchMode === 'name' && styles.searchModeTextActive
+            ]}>Name/Location</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.searchModeButton,
+              searchMode === 'phone' && styles.searchModeButtonActive
+            ]}
+            onPress={() => setSearchMode('phone')}
+          >
+            <Ionicons name="call-outline" size={16} color={searchMode === 'phone' ? '#fff' : '#666'} />
+            <Text style={[
+              styles.searchModeText,
+              searchMode === 'phone' && styles.searchModeTextActive
+            ]}>Phone Number</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.searchInputContainer}>
-          <Ionicons name="search" size={20} color="#666" />
+          <Ionicons name={searchMode === 'phone' ? 'call' : 'search'} size={20} color="#666" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search players by name or location..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+            placeholder={searchMode === 'phone' ? 'Search by phone number...' : 'Search players by name or location...'}
+            value={searchMode === 'phone' ? phoneSearchQuery : searchQuery}
+            onChangeText={searchMode === 'phone' ? setPhoneSearchQuery : setSearchQuery}
+            keyboardType={searchMode === 'phone' ? 'phone-pad' : 'default'}
           />
         </View>
       </View>
@@ -255,6 +298,34 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     padding: 20,
+  },
+  searchModeContainer: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    padding: 4,
+  },
+  searchModeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  searchModeButtonActive: {
+    backgroundColor: '#2E7D32',
+  },
+  searchModeText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+    marginLeft: 6,
+  },
+  searchModeTextActive: {
+    color: '#fff',
   },
   searchInputContainer: {
     flexDirection: 'row',

@@ -21,6 +21,7 @@ export interface Player {
   avatarUrl?: string;
   bio?: string;
   location?: string;
+  phoneNumber?: string;
   createdAt: Date;
 }
 
@@ -138,6 +139,7 @@ export interface RegisterRequest {
   name: string;
   email: string;
   password: string;
+  phoneNumber: string;
 }
 
 export interface CreateTeamRequest {

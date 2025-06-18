@@ -59,9 +59,9 @@ export const ProfessionalMatchAction: React.FC<ProfessionalMatchActionProps> = (
     <View style={styles.container}>
       {/* Team Headers */}
       <View style={styles.teamHeaders}>
-        <Text style={styles.teamHeader}>{homeTeamName}</Text>
+        <Text style={styles.teamHeader} numberOfLines={1}>{homeTeamName}</Text>
         <View style={styles.centerDivider} />
-        <Text style={styles.teamHeader}>{awayTeamName}</Text>
+        <Text style={styles.teamHeader} numberOfLines={1}>{awayTeamName}</Text>
       </View>
 
       {/* Action Grid */}
@@ -194,7 +194,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background.secondary,
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
-    margin: spacing.screenPadding,
+    marginHorizontal: spacing.xs,
+    marginVertical: spacing.md,
     ...shadows.md,
   },
   teamHeaders: {
@@ -209,13 +210,13 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     textAlign: 'center',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   centerDivider: {
     width: 1,
     height: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    marginHorizontal: spacing.md,
+    marginHorizontal: spacing.xs,
   },
   actionGrid: {
     gap: spacing.md,

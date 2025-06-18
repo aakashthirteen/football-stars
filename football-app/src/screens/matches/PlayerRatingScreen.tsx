@@ -23,6 +23,7 @@ interface Player {
   position: string;
   jerseyNumber?: number;
   role?: string;
+  teamName?: string;
 }
 
 interface Team {
@@ -32,7 +33,7 @@ interface Team {
 }
 
 export default function PlayerRatingScreen({ navigation, route }: PlayerRatingScreenProps) {
-  const { matchId, teamId, teamName } = route.params || {};
+  const { matchId, teamId, teamName, homeTeamId, homeTeamName, awayTeamId, awayTeamName } = route.params || {};
   const { user } = useAuthStore();
   const [players, setPlayers] = useState<Player[]>([]);
   const [ratings, setRatings] = useState<{ [playerId: string]: number }>({});
@@ -83,9 +84,55 @@ export default function PlayerRatingScreen({ navigation, route }: PlayerRatingSc
   const loadTeamPlayers = async () => {
     try {
       setIsLoading(true);
-      console.log('🔄 Loading team players...', { teamId, matchId });
+      console.log('🔄 Loading team players...', { teamId, homeTeamId, awayTeamId, matchId });
       
-      if (teamId) {
+      if (homeTeamId && awayTeamId) {
+        // Load both teams for match rating
+        try {
+          console.log('📡 Loading both teams for match rating');
+          const [homeResponse, awayResponse] = await Promise.all([
+            apiService.getTeamById(homeTeamId),
+            apiService.getTeamById(awayTeamId)
+          ]);
+          
+          console.log('✅ Both teams response:', { homeResponse, awayResponse });
+          
+          const allPlayers: Player[] = [];
+          
+          // Process home team players
+          if (homeResponse.team?.players) {
+            const homeProcessed = homeResponse.team.players.map((teamPlayer: any) => ({
+              id: teamPlayer.playerId || teamPlayer.id,
+              name: teamPlayer.player?.name || teamPlayer.name || 'Unknown Player',
+              position: teamPlayer.player?.position || teamPlayer.position || 'Unknown',
+              jerseyNumber: teamPlayer.jerseyNumber,
+              role: teamPlayer.role,
+              teamName: homeTeamName
+            }));
+            allPlayers.push(...homeProcessed);
+          }
+          
+          // Process away team players
+          if (awayResponse.team?.players) {
+            const awayProcessed = awayResponse.team.players.map((teamPlayer: any) => ({
+              id: teamPlayer.playerId || teamPlayer.id,
+              name: teamPlayer.player?.name || teamPlayer.name || 'Unknown Player',
+              position: teamPlayer.player?.position || teamPlayer.position || 'Unknown',
+              jerseyNumber: teamPlayer.jerseyNumber,
+              role: teamPlayer.role,
+              teamName: awayTeamName
+            }));
+            allPlayers.push(...awayProcessed);
+          }
+          
+          console.log('✅ All processed players:', allPlayers);
+          setPlayers(allPlayers);
+          
+        } catch (error) {
+          console.log('❌ Failed to load both teams:', error);
+          await loadUserTeams();
+        }
+      } else if (teamId) {
         // Load specific team if teamId is provided
         try {
           console.log('📡 Calling getTeamById with teamId:', teamId);
@@ -249,6 +296,9 @@ export default function PlayerRatingScreen({ navigation, route }: PlayerRatingSc
         </View>
         <View style={styles.playerDetails}>
           <Text style={styles.playerPosition}>{player.position}</Text>
+          {player.teamName && (
+            <Text style={styles.playerTeamName}>• {player.teamName}</Text>
+          )}
           {player.jerseyNumber && (
             <Text style={styles.jerseyNumber}>#{player.jerseyNumber}</Text>
           )}
@@ -279,7 +329,9 @@ export default function PlayerRatingScreen({ navigation, route }: PlayerRatingSc
         >
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Rate Players</Text>
+        <Text style={styles.headerTitle}>
+          {homeTeamId && awayTeamId ? 'Rate Match Players' : `Rate ${teamName || 'Players'}`}
+        </Text>
         <TouchableOpacity
           style={styles.saveButton}
           onPress={handleSaveRatings}
@@ -489,5 +541,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.5)',
     textAlign: 'center',
+  },
+  playerTeamName: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontStyle: 'italic',
   },
 });

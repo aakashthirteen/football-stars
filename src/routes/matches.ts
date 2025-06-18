@@ -6,7 +6,11 @@ import {
   startMatch, 
   addMatchEvent,
   endMatch,
-  populateTeamsWithPlayers
+  populateTeamsWithPlayers,
+  saveFormationForMatch,
+  getFormationForMatch,
+  getMatchWithFormations,
+  updateFormationDuringMatch
 } from '../controllers/matchController';
 import { authenticateToken } from '../middleware/auth';
 
@@ -22,5 +26,11 @@ router.get('/:id', getMatchById);
 router.patch('/:id/start', startMatch);
 router.patch('/:id/end', endMatch);
 router.post('/:id/events', addMatchEvent);
+
+// Formation routes
+router.post('/:matchId/teams/:teamId/formation', saveFormationForMatch);
+router.get('/:matchId/teams/:teamId/formation', getFormationForMatch);
+router.get('/:matchId/formations', getMatchWithFormations);
+router.patch('/:matchId/teams/:teamId/formation', updateFormationDuringMatch);
 
 export default router;

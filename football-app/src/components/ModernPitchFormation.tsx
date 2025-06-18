@@ -26,6 +26,10 @@ interface PitchFormationProps {
   onPlayerPress?: (player: Player) => void;
   showPlayerNames?: boolean;
   style?: any;
+  savedFormations?: {
+    home?: any;
+    away?: any;
+  };
 }
 
 // Smart Formation System
@@ -160,11 +164,45 @@ export default function ModernPitchFormation({
   awayTeam, 
   onPlayerPress, 
   showPlayerNames = true,
-  style 
+  style,
+  savedFormations
 }: PitchFormationProps) {
   
-  const { positions: homePositions, formation: homeFormation } = assignPlayerPositions(homeTeam.players || [], true);
-  const { positions: awayPositions, formation: awayFormation } = assignPlayerPositions(awayTeam.players || [], false);
+  // Use saved formations if available, otherwise auto-calculate
+  const getFormationData = (team: Team, isHome: boolean, savedFormation?: any) => {
+    if (savedFormation?.players && savedFormation.players.length > 0) {
+      // Use saved formation data
+      console.log(`🧮 Using saved formation for ${isHome ? 'home' : 'away'} team:`, savedFormation);
+      return {
+        positions: savedFormation.players.map((player: any) => ({
+          player: {
+            id: player.id,
+            name: player.name,
+            position: player.position,
+            jerseyNumber: player.jerseyNumber
+          },
+          x: player.x,
+          y: player.y
+        })),
+        formation: savedFormation.formation || '4-4-2'
+      };
+    } else {
+      // Auto-calculate formation
+      console.log(`🧮 Auto-calculating formation for ${isHome ? 'home' : 'away'} team`);
+      return assignPlayerPositions(team.players || [], isHome);
+    }
+  };
+
+  const { positions: homePositions, formation: homeFormation } = getFormationData(
+    homeTeam, 
+    true, 
+    savedFormations?.home
+  );
+  const { positions: awayPositions, formation: awayFormation } = getFormationData(
+    awayTeam, 
+    false, 
+    savedFormations?.away
+  );
   
   const renderModernPitch = () => (
     <Svg width={PITCH_WIDTH} height={PITCH_HEIGHT} style={styles.pitch}>

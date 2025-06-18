@@ -631,6 +631,72 @@ class ApiService {
       };
     }
 
+    // Formation endpoints
+    if (endpoint.includes('/formation')) {
+      const parts = endpoint.split('/');
+      const matchId = parts[2];
+      const teamId = parts[4];
+      
+      if (options.method === 'POST') {
+        // Save formation
+        const body = JSON.parse(options.body as string);
+        const formationData = {
+          id: Math.random().toString(),
+          matchId,
+          teamId,
+          ...body,
+          createdAt: new Date().toISOString()
+        };
+        
+        // Store formation in global mock data
+        if (!global.mockFormations) {
+          global.mockFormations = [];
+        }
+        global.mockFormations.push(formationData);
+        
+        return {
+          formation: formationData,
+          message: 'Formation saved successfully'
+        };
+      } else if (options.method === 'PATCH') {
+        // Update formation during match
+        const body = JSON.parse(options.body as string);
+        return {
+          formation: { id: Math.random().toString(), matchId, teamId, ...body },
+          message: 'Formation updated successfully'
+        };
+      } else {
+        // Get formation
+        const formations = global.mockFormations || [];
+        const formation = formations.find(f => f.matchId === matchId && f.teamId === teamId);
+        
+        if (formation) {
+          return { formation };
+        } else {
+          // Return default formation data
+          return {
+            formation: {
+              formation: '4-4-2',
+              gameFormat: '11v11',
+              players: [],
+              isSet: false
+            }
+          };
+        }
+      }
+    }
+
+    if (endpoint.includes('/formations')) {
+      const matchId = endpoint.split('/')[2];
+      const formations = global.mockFormations || [];
+      const matchFormations = formations.filter(f => f.matchId === matchId);
+      
+      return {
+        homeFormation: matchFormations.find(f => f.teamId === 'home-team-id') || null,
+        awayFormation: matchFormations.find(f => f.teamId === 'away-team-id') || null
+      };
+    }
+
     if (endpoint.startsWith('/stats/leaderboard')) {
       return {
         type: 'goals',
@@ -1053,10 +1119,10 @@ class ApiService {
     });
   }
 
-  async register(name: string, email: string, password: string) {
+  async register(name: string, email: string, password: string, phoneNumber: string) {
     return this.request('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, phoneNumber }),
     });
   }
 
@@ -1152,6 +1218,51 @@ class ApiService {
   async endMatch(id: string) {
     return this.request(`/matches/${id}/end`, {
       method: 'PATCH',
+    });
+  }
+
+  // Formation endpoints
+  async saveFormationForMatch(matchId: string, teamId: string, formationData: {
+    formation: string;
+    gameFormat: '5v5' | '7v7' | '11v11';
+    players: Array<{
+      id: string;
+      name: string;
+      position: string;
+      x: number;
+      y: number;
+      jerseyNumber?: number;
+    }>;
+  }) {
+    return this.request(`/matches/${matchId}/teams/${teamId}/formation`, {
+      method: 'POST',
+      body: JSON.stringify(formationData),
+    });
+  }
+
+  async getFormationForMatch(matchId: string, teamId: string) {
+    return this.request(`/matches/${matchId}/teams/${teamId}/formation`);
+  }
+
+  async getMatchWithFormations(matchId: string) {
+    return this.request(`/matches/${matchId}/formations`);
+  }
+
+  async updateFormationDuringMatch(matchId: string, teamId: string, formationData: {
+    formation: string;
+    players: Array<{
+      id: string;
+      name: string;
+      position: string;
+      x: number;
+      y: number;
+      jerseyNumber?: number;
+    }>;
+    minute: number;
+  }) {
+    return this.request(`/matches/${matchId}/teams/${teamId}/formation`, {
+      method: 'PATCH',
+      body: JSON.stringify(formationData),
     });
   }
 

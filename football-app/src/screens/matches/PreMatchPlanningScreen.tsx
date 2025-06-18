@@ -135,8 +135,23 @@ export default function PreMatchPlanningScreen({ navigation, route }: PreMatchPl
         },
       };
 
-      // Save to backend (implement this API)
       console.log('💾 Saving match formations:', formationData);
+      
+      // Save formations to backend
+      const [homeResponse, awayResponse] = await Promise.all([
+        apiService.saveFormationForMatch(matchId, homeFormation.teamId, {
+          formation: homeFormation.formation,
+          gameFormat: homeFormation.gameFormat,
+          players: homeFormation.players
+        }),
+        apiService.saveFormationForMatch(matchId, awayFormation.teamId, {
+          formation: awayFormation.formation,
+          gameFormat: awayFormation.gameFormat,
+          players: awayFormation.players
+        })
+      ]);
+
+      console.log('✅ Formation data saved successfully:', { homeResponse, awayResponse });
       
       Alert.alert('Success', 'Team formations saved successfully!', [
         {

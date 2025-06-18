@@ -61,6 +61,11 @@ export class PostgresDatabase {
         )
       `);
 
+      // Add phone_number column if it doesn't exist
+      await client.query(`
+        ALTER TABLE players ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20)
+      `);
+
       // Teams table
       await client.query(`
         CREATE TABLE IF NOT EXISTS teams (
@@ -125,6 +130,23 @@ export class PostgresDatabase {
       `);
       
       console.log('✅ Added unique constraint to prevent duplicate match events');
+
+      // Match formations table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS match_formations (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          match_id UUID REFERENCES matches(id) ON DELETE CASCADE,
+          team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
+          formation VARCHAR(20) NOT NULL,
+          game_format VARCHAR(10) CHECK (game_format IN ('5v5', '7v7', '11v11')) DEFAULT '11v11',
+          formation_data JSONB NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(match_id, team_id)
+        )
+      `);
+      
+      console.log('✅ Created match_formations table');
 
       // Tournaments table
       await client.query(`
@@ -843,10 +865,10 @@ export class PostgresDatabase {
     );
   }
 
-  async createPlayer(userId: string, name: string, position: string, preferredFoot: string): Promise<any> {
+  async createPlayer(userId: string, name: string, position: string, preferredFoot: string, phoneNumber?: string): Promise<any> {
     const result = await this.pool.query(
-      'INSERT INTO players (user_id, name, position, preferred_foot, bio, location) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [userId, name, position, preferredFoot, 'Football enthusiast', 'Unknown']
+      'INSERT INTO players (user_id, name, position, preferred_foot, bio, location, phone_number) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [userId, name, position, preferredFoot, 'Football enthusiast', 'Unknown', phoneNumber || null]
     );
     return result.rows[0];
   }
@@ -1018,26 +1040,26 @@ export class PostgresDatabase {
     // Add search query filter
     if (filters.query) {
       paramCount++;
-      query += ` AND (LOWER(p.name) LIKE LOWER(${paramCount}) OR LOWER(p.bio) LIKE LOWER(${paramCount}))`;
+      query += ` AND (LOWER(p.name) LIKE LOWER($${paramCount}) OR LOWER(p.bio) LIKE LOWER($${paramCount}) OR p.phone_number LIKE $${paramCount})`;
       params.push(`%${filters.query}%`);
     }
 
     // Add position filter
     if (filters.position && filters.position !== 'All') {
       paramCount++;
-      query += ` AND p.position = ${paramCount}`;
+      query += ` AND p.position = $${paramCount}`;
       params.push(filters.position);
     }
 
     // Add location filter
     if (filters.location) {
       paramCount++;
-      query += ` AND LOWER(p.location) LIKE LOWER(${paramCount})`;
+      query += ` AND LOWER(p.location) LIKE LOWER($${paramCount})`;
       params.push(`%${filters.location}%`);
     }
 
     // Add ordering and limit
-    query += ` ORDER BY ps.goals DESC, ps.assists DESC, p.name ASC LIMIT ${paramCount + 1}`;
+    query += ` ORDER BY ps.goals DESC, ps.assists DESC, p.name ASC LIMIT $${paramCount + 1}`;
     params.push(filters.limit);
 
     const result = await this.pool.query(query, params);
@@ -1113,5 +1135,136 @@ export class PostgresDatabase {
     } finally {
       client.release();
     }
+  }
+
+  // Formation operations
+  async saveFormationForMatch(matchId: string, teamId: string, formationData: {
+    formation: string;
+    gameFormat: '5v5' | '7v7' | '11v11';
+    players: Array<{
+      id: string;
+      name: string;
+      position: string;
+      x: number;
+      y: number;
+      jerseyNumber?: number;
+    }>;
+  }): Promise<any> {
+    console.log('💾 Saving formation for match:', { matchId, teamId, formation: formationData.formation });
+    
+    const result = await this.pool.query(`
+      INSERT INTO match_formations (match_id, team_id, formation, game_format, formation_data)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (match_id, team_id) 
+      DO UPDATE SET 
+        formation = EXCLUDED.formation,
+        game_format = EXCLUDED.game_format,
+        formation_data = EXCLUDED.formation_data,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+    `, [matchId, teamId, formationData.formation, formationData.gameFormat, JSON.stringify(formationData)]);
+
+    console.log('✅ Formation saved successfully:', result.rows[0]);
+    return result.rows[0];
+  }
+
+  async getFormationForMatch(matchId: string, teamId: string): Promise<any | null> {
+    console.log('🔍 Getting formation for match:', { matchId, teamId });
+    
+    const result = await this.pool.query(`
+      SELECT * FROM match_formations 
+      WHERE match_id = $1 AND team_id = $2
+    `, [matchId, teamId]);
+
+    if (result.rows.length > 0) {
+      const formation = result.rows[0];
+      console.log('🎯 Found formation:', formation);
+      return {
+        id: formation.id,
+        matchId: formation.match_id,
+        teamId: formation.team_id,
+        formation: formation.formation,
+        gameFormat: formation.game_format,
+        players: formation.formation_data.players || [],
+        createdAt: formation.created_at,
+        updatedAt: formation.updated_at
+      };
+    }
+
+    console.log('❌ No formation found for match:', { matchId, teamId });
+    return null;
+  }
+
+  async getMatchWithFormations(matchId: string): Promise<{homeFormation?: any, awayFormation?: any}> {
+    console.log('🔍 Getting all formations for match:', matchId);
+    
+    const result = await this.pool.query(`
+      SELECT mf.*, t.name as team_name
+      FROM match_formations mf
+      JOIN teams t ON mf.team_id = t.id
+      WHERE mf.match_id = $1
+    `, [matchId]);
+
+    const formations: {homeFormation?: any, awayFormation?: any} = {};
+    
+    for (const row of result.rows) {
+      const formationData = {
+        id: row.id,
+        matchId: row.match_id,
+        teamId: row.team_id,
+        teamName: row.team_name,
+        formation: row.formation,
+        gameFormat: row.game_format,
+        players: row.formation_data.players || [],
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      };
+
+      // Determine if this is home or away team by checking match data
+      const matchResult = await this.pool.query(`
+        SELECT home_team_id, away_team_id FROM matches WHERE id = $1
+      `, [matchId]);
+      
+      if (matchResult.rows.length > 0) {
+        const match = matchResult.rows[0];
+        if (row.team_id === match.home_team_id) {
+          formations.homeFormation = formationData;
+        } else if (row.team_id === match.away_team_id) {
+          formations.awayFormation = formationData;
+        }
+      }
+    }
+
+    console.log('🎯 Found formations:', formations);
+    return formations;
+  }
+
+  async updateFormationDuringMatch(matchId: string, teamId: string, formationData: {
+    formation: string;
+    players: Array<{
+      id: string;
+      name: string;
+      position: string;
+      x: number;
+      y: number;
+      jerseyNumber?: number;
+    }>;
+    minute: number;
+  }): Promise<any> {
+    console.log('🔄 Updating formation during match:', { matchId, teamId, minute: formationData.minute });
+    
+    const result = await this.pool.query(`
+      UPDATE match_formations 
+      SET formation_data = $3, updated_at = CURRENT_TIMESTAMP
+      WHERE match_id = $1 AND team_id = $2
+      RETURNING *
+    `, [matchId, teamId, JSON.stringify(formationData)]);
+
+    if (result.rows.length > 0) {
+      console.log('✅ Formation updated successfully');
+      return result.rows[0];
+    }
+
+    throw new Error('Formation not found to update');
   }
 }

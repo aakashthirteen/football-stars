@@ -6,16 +6,23 @@ import { LoginRequest, RegisterRequest, User, Player } from '../types';
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, password }: RegisterRequest = req.body;
+    const { name, email, password, phoneNumber }: RegisterRequest = req.body;
 
     // Validation
-    if (!name || !email || !password) {
-      res.status(400).json({ error: 'Name, email, and password are required' });
+    if (!name || !email || !password || !phoneNumber) {
+      res.status(400).json({ error: 'Name, email, password, and phone number are required' });
       return;
     }
 
     if (password.length < 6) {
       res.status(400).json({ error: 'Password must be at least 6 characters' });
+      return;
+    }
+
+    // Validate phone number format (basic validation)
+    const phoneRegex = /^[+]?[\d\s-()]+$/;
+    if (!phoneRegex.test(phoneNumber) || phoneNumber.length < 10) {
+      res.status(400).json({ error: 'Please provide a valid phone number' });
       return;
     }
 
@@ -34,7 +41,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     // Create player profile for the user
     try {
-      await database.createPlayer(createdUser.id, name, 'MID', 'RIGHT');
+      await database.createPlayer(createdUser.id, name, 'MID', 'RIGHT', phoneNumber);
     } catch (error) {
       console.error('Error creating player profile:', error);
       // Continue with registration even if player creation fails

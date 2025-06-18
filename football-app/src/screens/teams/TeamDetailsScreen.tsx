@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -67,6 +68,7 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
   const [teamStats, setTeamStats] = useState<TeamPlayerStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState<'overview' | 'squad' | 'stats'>('overview');
+  const [selectedPosition, setSelectedPosition] = useState<string>('ALL');
   
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -77,6 +79,13 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
     loadTeamDetails();
     animateEntrance();
   }, []);
+
+  // Reload data when screen comes into focus (e.g., returning from AddPlayerScreen)
+  useFocusEffect(
+    React.useCallback(() => {
+      loadTeamDetails();
+    }, [teamId])
+  );
 
   const animateEntrance = () => {
     Animated.parallel([
@@ -106,9 +115,6 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
       
       const response = await apiService.getTeamById(teamId);
       
-      console.log('Debug - Full API response:', JSON.stringify(response, null, 2));
-      console.log('Debug - Team object:', JSON.stringify(response.team, null, 2));
-      
       if (response.team && response.team.players) {
         const transformedPlayers = response.team.players.map((tp: any) => ({
           id: tp.player_id || tp.playerId || tp.player?.id,
@@ -121,11 +127,10 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
         const teamData = {
           ...response.team,
           players: transformedPlayers,
-          // Try different possible field names for creator
+          // Handle different possible field names for creator
           createdBy: response.team.createdBy || response.team.created_by || response.team.ownerId || response.team.owner_id || response.team.creator_id
         };
         
-        console.log('Debug - Final team data:', JSON.stringify(teamData, null, 2));
         setTeam(teamData);
         
         await loadTeamStats();
@@ -158,18 +163,7 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
 
   // Check if current user is team admin
   const isTeamAdmin = () => {
-    console.log('Debug - User ID:', user?.id);
-    console.log('Debug - Team Created By:', team?.createdBy);
-    const isAdmin = user?.id === team?.createdBy;
-    console.log('Debug - Is Admin:', isAdmin);
-    
-    // TEMPORARY: If createdBy is undefined, allow admin access for testing
-    if (!team?.createdBy) {
-      console.log('Debug - createdBy is undefined, allowing admin access for testing');
-      return true;
-    }
-    
-    return isAdmin;
+    return user?.id === team?.createdBy;
   };
 
   // Remove player from team (admin only)
@@ -211,35 +205,12 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
       return;
     }
     
-    // For now, show a simple alert with input. Later we can create a dedicated screen.
-    Alert.prompt(
-      'Add Player',
-      'Enter the player ID to add them to the team:\n(This will be improved with player search in future updates)',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Add', 
-          onPress: (playerId) => {
-            if (playerId && playerId.trim()) {
-              addPlayerToTeam(playerId.trim());
-            }
-          }
-        }
-      ],
-      'plain-text'
-    );
+    navigation.navigate('AddPlayer', {
+      teamId: team.id,
+      teamName: team.name
+    });
   };
 
-  const addPlayerToTeam = async (playerId: string) => {
-    try {
-      await apiService.addPlayerToTeam(teamId, playerId);
-      Alert.alert('Success', 'Player added to team successfully!');
-      loadTeamDetails(); // Reload team data
-    } catch (error: any) {
-      console.error('Error adding player:', error);
-      Alert.alert('Error', error.message || 'Failed to add player to team');
-    }
-  };
 
   const getPlayerStats = (playerId: string) => {
     const stats = teamStats.find(s => s.playerId === playerId || s.player_id === playerId);
@@ -284,9 +255,35 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
       (parseInt(player.goals) || 0) > (parseInt(top?.goals) || 0) ? player : top, null);
     const topAssister = teamStats.reduce((top, player) => 
       (parseInt(player.assists) || 0) > (parseInt(top?.assists) || 0) ? player : top, null);
+    const hasPlayers = team?.players && team.players.length > 0;
 
     return (
       <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+        {/* Formation Card - Highlighted at Top */}
+        <TouchableOpacity 
+          style={styles.formationHighlight}
+          onPress={() => navigation.navigate('TeamFormation', {
+            teamId: team?.id,
+            teamName: team?.name
+          })}
+        >
+          <LinearGradient
+            colors={gradients.primary}
+            style={styles.formationGradient}
+          >
+            <View style={styles.formationContent}>
+              <View style={styles.formationIcon}>
+                <Ionicons name="football-outline" size={40} color="#FFFFFF" />
+              </View>
+              <View style={styles.formationInfo}>
+                <Text style={styles.formationTitle}>Team Formation</Text>
+                <Text style={styles.formationSubtitle}>Set up your tactics and player positions</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#FFFFFF" />
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+
         {/* Team Stats Grid */}
         <View style={styles.statsGrid}>
           <Animated.View style={[styles.statGridItem, { opacity: fadeAnim }]}>
@@ -338,75 +335,53 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
         <View style={styles.topPerformers}>
           <Text style={styles.sectionTitle}>Top Performers</Text>
           
-          {topScorer && (
-            <TouchableOpacity style={styles.performerCard}>
-              <LinearGradient
-                colors={[colors.accent.gold + '20', colors.accent.gold + '10']}
-                style={styles.performerGradient}
-              >
-                <View style={styles.performerIcon}>
-                  <Ionicons name="football" size={20} color={colors.accent.gold} />
-                </View>
-                <View style={styles.performerInfo}>
-                  <Text style={styles.performerName}>{topScorer.playerName || topScorer.player_name}</Text>
-                  <Text style={styles.performerRole}>Top Scorer</Text>
-                </View>
-                <Text style={styles.performerStat}>{topScorer.goals} goals</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+          {!hasPlayers ? (
+            <View style={styles.emptyPerformers}>
+              <Ionicons name="people-outline" size={48} color={colors.text.tertiary} />
+              <Text style={styles.emptyPerformersText}>No players in squad yet</Text>
+              <Text style={styles.emptyPerformersSubtext}>
+                Add players to your team to see top performers here
+              </Text>
+            </View>
+          ) : (
+            <>
+              {topScorer && (
+                <TouchableOpacity style={styles.performerCard}>
+                  <LinearGradient
+                    colors={[colors.accent.gold + '20', colors.accent.gold + '10']}
+                    style={styles.performerGradient}
+                  >
+                    <View style={styles.performerIcon}>
+                      <Ionicons name="football" size={20} color={colors.accent.gold} />
+                    </View>
+                    <View style={styles.performerInfo}>
+                      <Text style={styles.performerName}>{topScorer.playerName || topScorer.player_name}</Text>
+                      <Text style={styles.performerRole}>Top Scorer</Text>
+                    </View>
+                    <Text style={styles.performerStat}>{topScorer.goals} goals</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
+
+              {topAssister && (
+                <TouchableOpacity style={styles.performerCard}>
+                  <LinearGradient
+                    colors={[colors.accent.purple + '20', colors.accent.purple + '10']}
+                    style={styles.performerGradient}
+                  >
+                    <View style={styles.performerIcon}>
+                      <Ionicons name="trending-up" size={20} color={colors.accent.purple} />
+                    </View>
+                    <View style={styles.performerInfo}>
+                      <Text style={styles.performerName}>{topAssister.playerName || topAssister.player_name}</Text>
+                      <Text style={styles.performerRole}>Top Assists</Text>
+                    </View>
+                    <Text style={styles.performerStat}>{topAssister.assists} assists</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
+            </>
           )}
-
-          {topAssister && (
-            <TouchableOpacity style={styles.performerCard}>
-              <LinearGradient
-                colors={[colors.accent.purple + '20', colors.accent.purple + '10']}
-                style={styles.performerGradient}
-              >
-                <View style={styles.performerIcon}>
-                  <Ionicons name="trending-up" size={20} color={colors.accent.purple} />
-                </View>
-                <View style={styles.performerInfo}>
-                  <Text style={styles.performerName}>{topAssister.playerName || topAssister.player_name}</Text>
-                  <Text style={styles.performerRole}>Top Assists</Text>
-                </View>
-                <Text style={styles.performerStat}>{topAssister.assists} assists</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Quick Actions */}
-        <View style={styles.quickActions}>
-          <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={() => navigation.navigate('TeamFormation', {
-              teamId: team?.id,
-              teamName: team?.name
-            })}
-          >
-            <LinearGradient
-              colors={gradients.primary}
-              style={styles.actionGradient}
-            >
-              <Ionicons name="football-outline" size={32} color="#FFFFFF" />
-              <Text style={styles.actionTitle}>Formation</Text>
-              <Text style={styles.actionSubtitle}>Set up tactics</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={() => Alert.alert('Coming Soon', 'Training feature will be available soon!')}
-          >
-            <LinearGradient
-              colors={[colors.accent.blue, colors.accent.purple]}
-              style={styles.actionGradient}
-            >
-              <Ionicons name="fitness-outline" size={32} color="#FFFFFF" />
-              <Text style={styles.actionTitle}>Training</Text>
-              <Text style={styles.actionSubtitle}>Coming soon</Text>
-            </LinearGradient>
-          </TouchableOpacity>
         </View>
       </ScrollView>
     );
@@ -419,26 +394,18 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
       return acc;
     }, {} as Record<string, Player[]>);
 
+    // Filter players based on selected position
+    const displayedPlayers = selectedPosition === 'ALL' 
+      ? team?.players || []
+      : team?.players.filter(p => p.position === selectedPosition) || [];
+
     return (
       <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-        {/* DEBUG: Always visible test button */}
-        <View style={styles.adminSection}>
-          <ProfessionalButton
-            title="TEST: Add Player (Always Visible)"
-            icon="person-add"
-            onPress={() => {
-              console.log('Test button pressed');
-              Alert.alert('Debug', `User ID: ${user?.id}\nTeam Creator: ${team?.createdBy}\nIs Admin: ${isTeamAdmin()}`);
-            }}
-            style={styles.addPlayerButton}
-          />
-        </View>
-
         {/* Add Player Button (Admin Only) */}
         {isTeamAdmin() && (
           <View style={styles.adminSection}>
             <ProfessionalButton
-              title="Add Player (Admin Only)"
+              title="Add Player"
               icon="person-add"
               onPress={handleAddPlayer}
               style={styles.addPlayerButton}
@@ -447,53 +414,67 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
         )}
 
         {/* Position Filter */}
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          style={styles.positionFilter}
-        >
+        <View style={styles.positionFilterRow}>
+          <TouchableOpacity
+            style={[
+              styles.positionChip,
+              selectedPosition === 'ALL' && styles.positionChipActive
+            ]}
+            onPress={() => setSelectedPosition('ALL')}
+          >
+            <Text style={[
+              styles.positionChipText,
+              selectedPosition === 'ALL' && styles.positionChipTextActive
+            ]}>
+              All
+            </Text>
+          </TouchableOpacity>
+          
           {positions.map(position => (
             <TouchableOpacity
               key={position}
               style={[
                 styles.positionChip,
+                selectedPosition === position && styles.positionChipActive,
                 { backgroundColor: POSITION_COLORS[position as keyof typeof POSITION_COLORS] + '20' }
               ]}
+              onPress={() => setSelectedPosition(position)}
             >
               <Text style={[
                 styles.positionChipText,
+                selectedPosition === position && styles.positionChipTextActive,
                 { color: POSITION_COLORS[position as keyof typeof POSITION_COLORS] }
               ]}>
-                {position} ({playersByPosition[position].length})
+                {position}
               </Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
 
-        {/* Players Grid */}
-        <View style={styles.playersGrid}>
-          {/* Empty State for No Players */}
-          {(!team?.players || team.players.length === 0) && (
-            <View style={styles.emptyPlayersState}>
-              <Ionicons name="people-outline" size={64} color={colors.text.tertiary} />
-              <Text style={styles.emptyPlayersTitle}>No Players Yet</Text>
-              <Text style={styles.emptyPlayersSubtitle}>
-                {isTeamAdmin() 
-                  ? 'Add players to build your squad' 
-                  : 'This team has no players yet'}
-              </Text>
-              {isTeamAdmin() && (
-                <ProfessionalButton
-                  title="Add First Player"
-                  icon="person-add"
-                  onPress={handleAddPlayer}
-                  style={styles.emptyStateButton}
-                />
-              )}
-            </View>
-          )}
+        {/* Empty State for No Players */}
+        {(!team?.players || team.players.length === 0) ? (
+          <View style={styles.emptyPlayersState}>
+            <Ionicons name="people-outline" size={64} color={colors.text.tertiary} />
+            <Text style={styles.emptyPlayersTitle}>No Players Yet</Text>
+            <Text style={styles.emptyPlayersSubtitle}>
+              {isTeamAdmin() 
+                ? 'Add players to build your squad' 
+                : 'This team has no players yet'}
+            </Text>
+            {isTeamAdmin() && (
+              <ProfessionalButton
+                title="Add First Player"
+                icon="person-add"
+                onPress={handleAddPlayer}
+                style={styles.emptyStateButton}
+              />
+            )}
+          </View>
+        ) : (
+          /* Players Grid */
+          <View style={styles.playersGrid}>
 
-          {team?.players.map((player, index) => {
+          {displayedPlayers.map((player, index) => {
             const stats = getPlayerStats(player.id);
             const positionColor = POSITION_COLORS[player.position as keyof typeof POSITION_COLORS] || colors.primary.main;
             
@@ -533,20 +514,21 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
                       <Text style={styles.positionBadgeText}>{player.position}</Text>
                     </View>
                     
-                    {/* Jersey Number */}
-                    {player.jerseyNumber && (
-                      <View style={styles.jerseyNumber}>
-                        <Text style={styles.jerseyNumberText}>{player.jerseyNumber}</Text>
-                      </View>
-                    )}
-                    
                     {/* Player Avatar */}
-                    <View style={styles.playerAvatar}>
-                      <Ionicons name="person" size={40} color={colors.text.tertiary} />
+                    <View style={styles.playerAvatarContainer}>
+                      <View style={styles.playerAvatar}>
+                        <Ionicons name="person" size={40} color={colors.text.tertiary} />
+                      </View>
+                      {/* Jersey Number Badge */}
+                      {player.jerseyNumber && (
+                        <View style={styles.jerseyNumberBadge}>
+                          <Text style={styles.jerseyNumberText}>{player.jerseyNumber}</Text>
+                        </View>
+                      )}
                     </View>
                     
                     {/* Player Info */}
-                    <Text style={styles.playerName} numberOfLines={1}>{player.name}</Text>
+                    <Text style={styles.playerName} numberOfLines={1}>{player.name.split(' ')[0]}</Text>
                     
                     {/* Stats Row */}
                     {stats && (
@@ -579,7 +561,8 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
               </Animated.View>
             );
           })}
-        </View>
+          </View>
+        )}
       </ScrollView>
     );
   };
@@ -632,50 +615,48 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       
-      {/* Team Header */}
-      <Animated.View 
-        style={[
-          styles.header,
-          {
-            transform: [{ scale: headerScale }],
-          },
-        ]}
+      <ScrollView 
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
       >
-        <LinearGradient
-          colors={teamColors}
-          style={styles.headerGradient}
-        >
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
+        {/* Professional Header - Simple like TeamsScreen */}
+        <ProfessionalHeader
+          title={team?.name || 'Team Details'}
+          subtitle={team?.description || 'Manage your team'}
+          showBack
+          onBack={() => navigation.goBack()}
+        />
+        
+        {/* Team Info Section - Outside Header */}
+        <View style={styles.teamInfoSection}>
+          <Animated.View
+            style={[
+              styles.teamInfoContent,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              }
+            ]}
           >
-            <View style={styles.backButtonBackground}>
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <View style={styles.teamHeaderInfo}>
+              <ProfessionalTeamBadge
+                teamName={team?.name || ''}
+                size="large"
+                variant="detailed"
+                teamColor={team?.primaryColor}
+              />
+              
+              {/* Admin Badge */}
+              {isTeamAdmin() && (
+                <View style={styles.adminBadge}>
+                  <Ionicons name="shield-checkmark" size={16} color={colors.primary.main} />
+                  <Text style={styles.adminBadgeText}>TEAM ADMIN</Text>
+                </View>
+              )}
             </View>
-          </TouchableOpacity>
-          
-          <View style={styles.headerContent}>
-            <ProfessionalTeamBadge
-              teamName={team.name}
-              size="large"
-              variant="detailed"
-              teamColor={team.primaryColor}
-            />
             
-            <Text style={styles.teamName}>{team.name}</Text>
-            {team.description && (
-              <Text style={styles.teamDescription}>{team.description}</Text>
-            )}
-            
-            {/* Admin Badge */}
-            {isTeamAdmin() && (
-              <View style={styles.adminBadge}>
-                <Ionicons name="shield-checkmark" size={16} color="#FFFFFF" />
-                <Text style={styles.adminBadgeText}>TEAM ADMIN</Text>
-              </View>
-            )}
-            
-            {/* Compact Stats Row */}
+            {/* Stats Row */}
             <View style={styles.headerStats}>
               <View style={styles.headerStatItem}>
                 <Text style={styles.headerStatValue}>{totals.totalPlayers}</Text>
@@ -692,52 +673,60 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
                 <Text style={styles.headerStatLabel}>Matches</Text>
               </View>
             </View>
-          </View>
-        </LinearGradient>
-      </Animated.View>
-
-      {/* Modern Tabs */}
-      <View style={styles.modernTabs}>
-        {['overview', 'squad', 'stats'].map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[
-              styles.modernTab,
-              selectedTab === tab && styles.activeModernTab
-            ]}
-            onPress={() => setSelectedTab(tab as any)}
-          >
-            <Text style={[
-              styles.modernTabText,
-              selectedTab === tab && styles.activeModernTabText
-            ]}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Text>
-            {selectedTab === tab && (
-              <View style={styles.tabIndicator} />
-            )}
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Tab Content */}
-      {selectedTab === 'overview' && renderOverviewTab()}
-      {selectedTab === 'squad' && renderSquadTab()}
-      
-      {selectedTab === 'stats' && (
-        <View style={styles.comingSoon}>
-          <LinearGradient
-            colors={[colors.primary.main + '20', colors.primary.dark + '10']}
-            style={styles.comingSoonGradient}
-          >
-            <Ionicons name="stats-chart" size={64} color={colors.primary.main} />
-            <Text style={styles.comingSoonText}>Team Analytics</Text>
-            <Text style={styles.comingSoonSubtext}>
-              Detailed performance metrics coming soon
-            </Text>
-          </LinearGradient>
+          </Animated.View>
         </View>
-      )}
+
+        {/* Tab Section */}
+        <View style={styles.tabSection}>
+          {/* Modern Tabs */}
+          <View style={styles.modernTabs}>
+            {['overview', 'squad', 'stats'].map((tab) => (
+              <TouchableOpacity
+                key={tab}
+                style={[
+                  styles.modernTab,
+                  selectedTab === tab && styles.activeModernTab
+                ]}
+                onPress={() => setSelectedTab(tab as any)}
+              >
+                <Text style={[
+                  styles.modernTabText,
+                  selectedTab === tab && styles.activeModernTabText
+                ]}>
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </Text>
+                {selectedTab === tab && (
+                  <View style={styles.tabIndicator} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Content Section */}
+        <View style={styles.contentSection}>
+          {/* Tab Content */}
+          {selectedTab === 'overview' && renderOverviewTab()}
+          {selectedTab === 'squad' && renderSquadTab()}
+          
+          {selectedTab === 'stats' && (
+            <View style={styles.comingSoon}>
+              <LinearGradient
+                colors={[colors.primary.main + '20', colors.primary.dark + '10']}
+                style={styles.comingSoonGradient}
+              >
+                <Ionicons name="stats-chart" size={64} color={colors.primary.main} />
+                <Text style={styles.comingSoonText}>Team Analytics</Text>
+                <Text style={styles.comingSoonSubtext}>
+                  Detailed performance metrics coming soon
+                </Text>
+              </LinearGradient>
+            </View>
+          )}
+
+          <View style={styles.bottomSpacing} />
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -746,6 +735,32 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background.primary,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: spacing.xxl,
+  },
+  content: {
+    paddingHorizontal: spacing.screenPadding,
+  },
+  tabSection: {
+    paddingHorizontal: spacing.screenPadding,
+    marginTop: spacing.xl,
+    marginBottom: spacing.lg,
+  },
+  contentSection: {
+    paddingHorizontal: spacing.screenPadding,
+  },
+  teamInfoSection: {
+    paddingHorizontal: spacing.screenPadding,
+    marginTop: spacing.xl,
+    marginBottom: 0,
+  },
+  teamInfoContent: {
+    alignItems: 'center',
   },
   loadingContainer: {
     flex: 1,
@@ -771,55 +786,36 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     textAlign: 'center',
   },
-  header: {
-    overflow: 'hidden',
-    ...shadows.lg,
-  },
-  headerGradient: {
-    paddingTop: 50,
-    paddingBottom: spacing.md,
-  },
-  backButton: {
-    position: 'absolute',
-    top: 50,
-    left: spacing.screenPadding,
-    zIndex: 1,
-    padding: spacing.sm,
-  },
-  backButtonBackground: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   headerContent: {
+    marginTop: -20,
+  },
+  teamHeaderInfo: {
     alignItems: 'center',
-    paddingHorizontal: spacing.screenPadding,
-    marginTop: spacing.xl,
+    marginBottom: spacing.md,
+  },
+  teamTitleSection: {
+    flex: 1,
+    marginLeft: spacing.md,
   },
   teamName: {
     fontSize: typography.fontSize.title2,
     fontWeight: typography.fontWeight.bold,
-    color: '#FFFFFF',
-    marginTop: spacing.sm,
-    textAlign: 'center',
+    color: colors.text.primary,
+    marginBottom: spacing.xxs,
   },
   teamDescription: {
     fontSize: typography.fontSize.small,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: spacing.xxs,
-    textAlign: 'center',
-    paddingHorizontal: spacing.xl,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
   },
   headerStats: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: spacing.lg,
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    marginTop: spacing.md,
+    backgroundColor: colors.background.secondary,
     borderRadius: borderRadius.lg,
     padding: spacing.md,
+    ...shadows.sm,
   },
   headerStatItem: {
     flex: 1,
@@ -828,24 +824,24 @@ const styles = StyleSheet.create({
   headerStatValue: {
     fontSize: typography.fontSize.title3,
     fontWeight: typography.fontWeight.bold,
-    color: '#FFFFFF',
+    color: colors.text.primary,
   },
   headerStatLabel: {
     fontSize: typography.fontSize.caption,
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.text.secondary,
     marginTop: spacing.xxs,
   },
   headerStatDivider: {
     width: 1,
     height: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: colors.surface.border,
   },
   modernTabs: {
     flexDirection: 'row',
     backgroundColor: colors.background.secondary,
-    paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing.sm,
-    marginBottom: spacing.sm,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xs,
+    ...shadows.sm,
   },
   modernTab: {
     flex: 1,
@@ -956,6 +952,64 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
     marginHorizontal: -spacing.xs,
   },
+  
+  // Formation Highlight
+  formationHighlight: {
+    marginHorizontal: spacing.screenPadding,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    ...shadows.md,
+  },
+  formationGradient: {
+    padding: spacing.lg,
+  },
+  formationContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  formationIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  formationInfo: {
+    flex: 1,
+  },
+  formationTitle: {
+    fontSize: typography.fontSize.large,
+    fontWeight: typography.fontWeight.bold,
+    color: '#FFFFFF',
+    marginBottom: spacing.xxs,
+  },
+  formationSubtitle: {
+    fontSize: typography.fontSize.small,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  
+  // Empty Performers
+  emptyPerformers: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  emptyPerformersText: {
+    fontSize: typography.fontSize.regular,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.secondary,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  emptyPerformersSubtext: {
+    fontSize: typography.fontSize.small,
+    color: colors.text.tertiary,
+    textAlign: 'center',
+  },
   actionCard: {
     flex: 1,
     marginHorizontal: spacing.xs,
@@ -980,19 +1034,31 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
     marginTop: spacing.xxs,
   },
-  positionFilter: {
+  positionFilterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.screenPadding,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
+    gap: spacing.xs,
   },
   positionChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    flex: 1,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xs,
     borderRadius: borderRadius.badge,
-    marginRight: spacing.sm,
+    backgroundColor: colors.background.secondary,
+    alignItems: 'center',
+  },
+  positionChipActive: {
+    backgroundColor: colors.primary.main,
   },
   positionChipText: {
-    fontSize: typography.fontSize.small,
+    fontSize: typography.fontSize.caption,
     fontWeight: typography.fontWeight.semibold,
+    color: colors.text.secondary,
+  },
+  positionChipTextActive: {
+    color: '#FFFFFF',
   },
   playersGrid: {
     flexDirection: 'row',
@@ -1028,15 +1094,28 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: '#FFFFFF',
   },
-  jerseyNumber: {
+  playerAvatarContainer: {
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+    position: 'relative',
+  },
+  jerseyNumberBadge: {
     position: 'absolute',
-    top: spacing.sm,
-    right: spacing.sm,
+    bottom: -5,
+    right: -5,
+    backgroundColor: colors.background.primary,
+    borderRadius: borderRadius.full,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary.main,
   },
   jerseyNumberText: {
-    fontSize: typography.fontSize.title3,
+    fontSize: typography.fontSize.small,
     fontWeight: typography.fontWeight.bold,
-    color: colors.text.tertiary,
+    color: colors.primary.main,
   },
   playerAvatar: {
     width: 80,
@@ -1141,7 +1220,9 @@ const styles = StyleSheet.create({
   
   // Empty Players State
   emptyPlayersState: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: spacing.xxxl * 2,
     paddingHorizontal: spacing.xl,
   },
@@ -1168,19 +1249,20 @@ const styles = StyleSheet.create({
   adminBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    backgroundColor: colors.primary.main + '20',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
     borderRadius: borderRadius.badge,
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-    gap: spacing.xs,
+    marginTop: spacing.xs,
+    gap: spacing.xxs,
   },
   adminBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.primary.main,
     letterSpacing: 0.5,
+  },
+  bottomSpacing: {
+    height: spacing.xxl,
   },
 });

@@ -19,6 +19,7 @@ export interface Player {
   avatarUrl?: string;
   bio?: string;
   location?: string;
+  phoneNumber?: string;
 }
 
 // Team types

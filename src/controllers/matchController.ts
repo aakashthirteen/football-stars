@@ -536,3 +536,96 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
     console.log(`🔄 [${requestId}] Database client released`);
   }
 };
+
+// Formation endpoints
+export const saveFormationForMatch = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { matchId, teamId } = req.params;
+    const formationData = req.body;
+
+    console.log('💾 Saving formation:', { matchId, teamId, formation: formationData.formation });
+
+    const result = await database.saveFormationForMatch(matchId, teamId, formationData);
+
+    res.status(201).json({
+      formation: result,
+      message: 'Formation saved successfully'
+    });
+  } catch (error) {
+    console.error('❌ Save formation error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getFormationForMatch = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { matchId, teamId } = req.params;
+
+    console.log('🔍 Getting formation:', { matchId, teamId });
+
+    const formation = await database.getFormationForMatch(matchId, teamId);
+
+    if (formation) {
+      res.json({ formation });
+    } else {
+      res.status(404).json({ error: 'Formation not found' });
+    }
+  } catch (error) {
+    console.error('❌ Get formation error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getMatchWithFormations = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { matchId } = req.params;
+
+    console.log('🔍 Getting match formations:', matchId);
+
+    const formations = await database.getMatchWithFormations(matchId);
+
+    res.json(formations);
+  } catch (error) {
+    console.error('❌ Get match formations error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateFormationDuringMatch = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { matchId, teamId } = req.params;
+    const formationData = req.body;
+
+    console.log('🔄 Updating formation during match:', { matchId, teamId, minute: formationData.minute });
+
+    const result = await database.updateFormationDuringMatch(matchId, teamId, formationData);
+
+    res.json({
+      formation: result,
+      message: 'Formation updated successfully'
+    });
+  } catch (error) {
+    console.error('❌ Update formation error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

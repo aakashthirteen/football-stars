@@ -9,7 +9,7 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, phoneNumber: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuthState: () => Promise<void>;
   clearAuth: () => Promise<void>;
@@ -40,9 +40,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  register: async (name: string, email: string, password: string) => {
+  register: async (name: string, email: string, password: string, phoneNumber: string) => {
     try {
-      const response = await apiService.register(name, email, password);
+      const response = await apiService.register(name, email, password, phoneNumber);
       
       await AsyncStorage.setItem('token', response.token);
       await AsyncStorage.setItem('user', JSON.stringify(response.user));

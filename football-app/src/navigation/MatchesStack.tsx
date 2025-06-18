@@ -14,7 +14,15 @@ export type MatchesStackParamList = {
   CreateMatch: undefined;
   MatchScoring: { matchId: string; isNewMatch?: boolean; hasFormations?: boolean };
   MatchOverview: { matchId: string };
-  PlayerRating: { matchId: string; teamId: string; teamName: string };
+  PlayerRating: { 
+    matchId: string; 
+    teamId?: string; 
+    teamName?: string;
+    homeTeamId?: string;
+    homeTeamName?: string;
+    awayTeamId?: string;
+    awayTeamName?: string;
+  };
   MatchSummary: { 
     matchId: string; 
     teamId?: string; 
