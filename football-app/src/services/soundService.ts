@@ -24,67 +24,31 @@ class SoundService {
         playThroughEarpieceAndroid: false,
       });
 
-      // Load whistle sound - using a public URL for now since we don't have the actual file
-      // In production, you would bundle the sound file in assets/sounds/
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: 'https://www.soundjay.com/misc/sounds/whistle-blow-1.mp3' },
-        { shouldPlay: false }
-      );
-      
-      this.whistleSound = sound;
-      console.log('🎵 Whistle sound loaded successfully');
+      console.log('🎵 Sound service initialized (whistles will use vibration patterns)');
+      // For now, we'll use vibration patterns instead of actual audio
+      // This ensures the feature works immediately without external dependencies
     } catch (error) {
-      console.error('❌ Failed to load whistle sound:', error);
-      // Create a backup beep sound if whistle fails to load
-      try {
-        const { sound } = await Audio.Sound.createAsync(
-          require('expo-av/build/default-sounds/beep.mp3'),
-          { shouldPlay: false }
-        );
-        this.whistleSound = sound;
-        console.log('🎵 Backup beep sound loaded');
-      } catch (backupError) {
-        console.error('❌ Failed to load backup sound:', backupError);
-      }
+      console.error('❌ Failed to initialize audio:', error);
     }
   }
 
   public async playWhistle(): Promise<void> {
     try {
-      if (!this.whistleSound) {
-        await this.initializeSounds();
-      }
-
-      if (this.whistleSound) {
-        // Reset position to beginning
-        await this.whistleSound.setPositionAsync(0);
-        await this.whistleSound.playAsync();
-        console.log('🎵 Playing referee whistle sound');
-      } else {
-        console.warn('⚠️ Whistle sound not available, using vibration instead');
-        // Fallback to vibration pattern that mimics a whistle
-        const { Vibration } = require('react-native');
-        Vibration.vibrate([0, 200, 100, 200, 100, 400]); // Quick-quick-long pattern
-      }
-    } catch (error) {
-      console.error('❌ Failed to play whistle sound:', error);
-      // Fallback to vibration
+      console.log('🎵 Playing referee whistle (vibration)');
+      // Use vibration pattern that mimics a whistle
       const { Vibration } = require('react-native');
-      Vibration.vibrate([0, 200, 100, 200, 100, 400]);
+      Vibration.vibrate([0, 200, 100, 200]); // Short-short pattern
+    } catch (error) {
+      console.error('❌ Failed to play whistle:', error);
     }
   }
 
   public async playGoalWhistle(): Promise<void> {
     try {
-      // Three short whistle blows for goal celebration
-      if (this.whistleSound) {
-        for (let i = 0; i < 3; i++) {
-          await this.whistleSound.setPositionAsync(0);
-          await this.whistleSound.playAsync();
-          await new Promise(resolve => setTimeout(resolve, 300)); // Short pause between whistles
-        }
-        console.log('🎵 Playing goal celebration whistles');
-      }
+      console.log('🎵 Playing goal celebration whistles (vibration)');
+      // Three short vibration bursts for goal celebration
+      const { Vibration } = require('react-native');
+      Vibration.vibrate([0, 150, 100, 150, 100, 150]); // Three quick bursts
     } catch (error) {
       console.error('❌ Failed to play goal whistle:', error);
     }
@@ -92,12 +56,10 @@ class SoundService {
 
   public async playHalftimeWhistle(): Promise<void> {
     try {
-      // Single long whistle blow for halftime
-      if (this.whistleSound) {
-        await this.whistleSound.setPositionAsync(0);
-        await this.whistleSound.playAsync();
-        console.log('🎵 Playing halftime whistle');
-      }
+      console.log('🎵 Playing halftime whistle (vibration)');
+      // Single long vibration for halftime
+      const { Vibration } = require('react-native');
+      Vibration.vibrate([0, 500]); // One long burst
     } catch (error) {
       console.error('❌ Failed to play halftime whistle:', error);
     }
@@ -105,12 +67,10 @@ class SoundService {
 
   public async playMatchStartWhistle(): Promise<void> {
     try {
-      // Single sharp whistle blow for match start
-      if (this.whistleSound) {
-        await this.whistleSound.setPositionAsync(0);
-        await this.whistleSound.playAsync();
-        console.log('🎵 Playing match start whistle');
-      }
+      console.log('🎵 Playing match start whistle (vibration)');
+      // Single sharp vibration for match start
+      const { Vibration } = require('react-native');
+      Vibration.vibrate([0, 300]); // One sharp burst
     } catch (error) {
       console.error('❌ Failed to play match start whistle:', error);
     }
@@ -118,12 +78,10 @@ class SoundService {
 
   public async playSecondHalfWhistle(): Promise<void> {
     try {
-      // Single whistle blow for second half start
-      if (this.whistleSound) {
-        await this.whistleSound.setPositionAsync(0);
-        await this.whistleSound.playAsync();
-        console.log('🎵 Playing second half start whistle');
-      }
+      console.log('🎵 Playing second half start whistle (vibration)');
+      // Single vibration for second half start
+      const { Vibration } = require('react-native');
+      Vibration.vibrate([0, 300]); // One sharp burst
     } catch (error) {
       console.error('❌ Failed to play second half whistle:', error);
     }
@@ -131,15 +89,10 @@ class SoundService {
 
   public async playFullTimeWhistle(): Promise<void> {
     try {
-      // Three long whistle blows for full-time
-      if (this.whistleSound) {
-        for (let i = 0; i < 3; i++) {
-          await this.whistleSound.setPositionAsync(0);
-          await this.whistleSound.playAsync();
-          await new Promise(resolve => setTimeout(resolve, 500)); // Longer pause between whistles
-        }
-        console.log('🎵 Playing full-time whistle sequence');
-      }
+      console.log('🎵 Playing full-time whistle sequence (vibration)');
+      // Three long vibrations for full-time
+      const { Vibration } = require('react-native');
+      Vibration.vibrate([0, 400, 200, 400, 200, 400]); // Three long bursts
     } catch (error) {
       console.error('❌ Failed to play full-time whistle:', error);
     }
@@ -147,11 +100,8 @@ class SoundService {
 
   public async unloadSounds(): Promise<void> {
     try {
-      if (this.whistleSound) {
-        await this.whistleSound.unloadAsync();
-        this.whistleSound = null;
-        console.log('🎵 Sounds unloaded');
-      }
+      console.log('🎵 Sound service cleaned up');
+      // Nothing to unload for vibration-based implementation
     } catch (error) {
       console.error('❌ Failed to unload sounds:', error);
     }

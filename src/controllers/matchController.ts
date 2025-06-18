@@ -244,9 +244,7 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
     
     const updatedMatch = await database.updateMatch(id, { 
       status: 'LIVE',
-      match_date: now,
-      current_half: 1,
-      first_half_start_time: now
+      match_date: now
     });
 
     res.json({
