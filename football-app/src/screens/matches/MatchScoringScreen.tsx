@@ -127,7 +127,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     if (isLive && !isHalftime) {
       interval = setInterval(() => {
         updateMatchTimer();
-      }, 60000); // Update every minute
+      }, 10000); // Update every 10 seconds for testing
     }
     return () => clearInterval(interval);
   }, [isLive, isHalftime, match]);
@@ -136,45 +136,25 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     if (!match) return;
 
     const now = new Date();
-    const matchData = match as any;
+    const matchStart = new Date(match.matchDate || match.match_date);
+    const elapsedSeconds = Math.max(1, Math.floor((now.getTime() - matchStart.getTime()) / 1000));
+    const elapsed = Math.floor(elapsedSeconds / 60); // Convert to minutes
     
-    if (currentHalf === 1 && matchData.first_half_start_time) {
-      const firstHalfStart = new Date(matchData.first_half_start_time);
-      const elapsed = Math.floor((now.getTime() - firstHalfStart.getTime()) / 60000);
-      const totalFirstHalfTime = (matchData.first_half_minutes || 45) + addedTimeFirstHalf;
-      
-      if (elapsed >= totalFirstHalfTime) {
-        // Automatically pause for halftime
-        handleHalftime();
-      } else {
-        setCurrentMinute(elapsed);
-      }
-    } else if (currentHalf === 2 && matchData.second_half_start_time) {
-      const secondHalfStart = new Date(matchData.second_half_start_time);
-      const elapsed = Math.floor((now.getTime() - secondHalfStart.getTime()) / 60000);
-      const totalSecondHalfTime = (matchData.second_half_minutes || 45) + addedTimeSecondHalf;
-      
-      if (elapsed >= totalSecondHalfTime) {
-        // Match should end
-        setCurrentMinute((matchData.first_half_minutes || 45) + addedTimeFirstHalf + elapsed);
-      } else {
-        setCurrentMinute((matchData.first_half_minutes || 45) + addedTimeFirstHalf + elapsed);
-      }
+    // Simple timer - just count elapsed minutes from match start
+    setCurrentMinute(elapsed);
+    
+    // Auto half-time at 45 minutes (will enhance this later)
+    if (elapsed >= 45 && currentHalf === 1 && !isHalftime) {
+      handleHalftime();
     }
   };
 
   const updateCurrentMinute = (matchData: any) => {
-    const now = new Date();
-    
-    if (currentHalf === 1 && matchData.first_half_start_time) {
-      const firstHalfStart = new Date(matchData.first_half_start_time);
-      const elapsed = Math.max(1, Math.floor((now.getTime() - firstHalfStart.getTime()) / 60000));
+    if (matchData.status === 'LIVE') {
+      const now = new Date();
+      const matchStart = new Date(matchData.matchDate || matchData.match_date);
+      const elapsed = Math.max(1, Math.floor((now.getTime() - matchStart.getTime()) / 60000));
       setCurrentMinute(elapsed);
-    } else if (currentHalf === 2 && matchData.second_half_start_time) {
-      const secondHalfStart = new Date(matchData.second_half_start_time);
-      const elapsed = Math.max(1, Math.floor((now.getTime() - secondHalfStart.getTime()) / 60000));
-      const firstHalfTotal = (matchData.first_half_minutes || 45) + (matchData.added_time_first_half || 0);
-      setCurrentMinute(firstHalfTotal + elapsed);
     }
   };
 
@@ -504,6 +484,52 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
           <View style={styles.tabContent}>
             {(isLive || isHalftime) ? (
               <View style={styles.sectionContainer}>
+                {/* Time Controls Bar */}
+                <View style={styles.timeControlsBar}>
+                  <LinearGradient
+                    colors={[colors.accent.blue + '15', colors.accent.teal + '05']}
+                    style={styles.timeControlsGradient}
+                  >
+                    <View style={styles.timeControlsContent}>
+                      <View style={styles.timeInfo}>
+                        <Text style={styles.timeInfoText}>
+                          Half {currentHalf} | +{currentHalf === 1 ? addedTimeFirstHalf : addedTimeSecondHalf} min
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.timeControlButtons}>
+                        <TouchableOpacity
+                          style={styles.quickButton}
+                          onPress={handleAddStoppageTime}
+                        >
+                          <Ionicons name="add" size={16} color={colors.accent.blue} />
+                          <Text style={styles.quickButtonText}>+1</Text>
+                        </TouchableOpacity>
+                        
+                        {currentHalf === 1 && !isHalftime && (
+                          <TouchableOpacity
+                            style={[styles.quickButton, styles.halftimeQuickButton]}
+                            onPress={handleHalftime}
+                          >
+                            <Ionicons name="pause" size={16} color="#FFFFFF" />
+                            <Text style={[styles.quickButtonText, { color: '#FFFFFF' }]}>HT</Text>
+                          </TouchableOpacity>
+                        )}
+                        
+                        {isHalftime && (
+                          <TouchableOpacity
+                            style={[styles.quickButton, styles.secondHalfQuickButton]}
+                            onPress={handleStartSecondHalf}
+                          >
+                            <Ionicons name="play" size={16} color="#FFFFFF" />
+                            <Text style={[styles.quickButtonText, { color: '#FFFFFF' }]}>2nd</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  </LinearGradient>
+                </View>
+
                 {/* Match Actions Card */}
                 <View style={styles.cardSection}>
                   <LinearGradient
@@ -518,75 +544,6 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                       onAction={handleAction}
                       onQuickEvent={handleQuickEvent}
                     />
-                  </LinearGradient>
-                </View>
-                
-                {/* Half-time Controls Card */}
-                <View style={styles.cardSection}>
-                  <LinearGradient
-                    colors={[colors.accent.blue + '20', colors.accent.teal + '10']}
-                    style={styles.cardGradient}
-                  >
-                    <View style={styles.halftimeCard}>
-                      <View style={styles.halftimeHeader}>
-                        <Ionicons name="timer" size={24} color={colors.accent.blue} />
-                        <Text style={styles.halftimeTitle}>Match Time Control</Text>
-                      </View>
-                      <Text style={styles.halftimeSubtitle}>
-                        Current Half: {currentHalf} | Added Time: {currentHalf === 1 ? addedTimeFirstHalf : addedTimeSecondHalf} min
-                      </Text>
-                      
-                      <View style={styles.halftimeButtons}>
-                        <ProfessionalButton
-                          title="+1 Min"
-                          icon="add-circle"
-                          variant="secondary"
-                          onPress={handleAddStoppageTime}
-                          style={styles.addTimeButton}
-                        />
-                        
-                        {currentHalf === 1 && !isHalftime && (
-                          <ProfessionalButton
-                            title="Half-Time"
-                            icon="pause-circle"
-                            variant="primary"
-                            onPress={handleHalftime}
-                            style={styles.halftimeButton}
-                          />
-                        )}
-                        
-                        {isHalftime && (
-                          <ProfessionalButton
-                            title="Start 2nd Half"
-                            icon="play-circle"
-                            variant="primary"
-                            onPress={handleStartSecondHalf}
-                            style={styles.secondHalfButton}
-                          />
-                        )}
-                      </View>
-                    </View>
-                  </LinearGradient>
-                </View>
-                
-                {/* End Match Card */}
-                <View style={styles.cardSection}>
-                  <LinearGradient
-                    colors={[colors.accent.coral + '20', colors.accent.orange + '10']}
-                    style={styles.cardGradient}
-                  >
-                    <View style={styles.endMatchCard}>
-                      <Ionicons name="stop-circle" size={32} color={colors.accent.coral} />
-                      <Text style={styles.endMatchTitle}>End Match</Text>
-                      <Text style={styles.endMatchSubtitle}>Finish and rate players</Text>
-                      <ProfessionalButton
-                        title="End Match"
-                        icon="stop"
-                        variant="primary"
-                        onPress={endMatch}
-                        style={styles.endMatchButton}
-                      />
-                    </View>
                   </LinearGradient>
                 </View>
               </View>
@@ -1074,6 +1031,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             currentMinute={currentMinute}
             venue={match.venue}
             onBack={() => navigation.goBack()}
+            onEndMatch={endMatch}
           />
         </Animated.View>
         
@@ -1919,44 +1877,56 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   
-  // Half-time Controls Styles
-  halftimeCard: {
-    alignItems: 'center',
-    paddingVertical: spacing.lg,
+  // Compact Time Controls Styles
+  timeControlsBar: {
+    marginBottom: spacing.sm,
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+    ...shadows.sm,
   },
-  halftimeHeader: {
+  timeControlsGradient: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  timeControlsContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    justifyContent: 'space-between',
   },
-  halftimeTitle: {
-    fontSize: typography.fontSize.title4,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-    marginLeft: spacing.sm,
+  timeInfo: {
+    flex: 1,
   },
-  halftimeSubtitle: {
+  timeInfoText: {
     fontSize: typography.fontSize.small,
     color: colors.text.secondary,
-    marginBottom: spacing.lg,
-    textAlign: 'center',
+    fontWeight: typography.fontWeight.medium,
   },
-  halftimeButtons: {
+  timeControlButtons: {
     flexDirection: 'row',
-    gap: spacing.md,
-    flexWrap: 'wrap',
-    justifyContent: 'center',
+    gap: spacing.sm,
   },
-  addTimeButton: {
-    minWidth: 100,
-    backgroundColor: colors.accent.blue,
+  quickButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.accent,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    gap: spacing.xxs,
+    borderWidth: 1,
+    borderColor: colors.accent.blue + '30',
   },
-  halftimeButton: {
-    minWidth: 120,
+  quickButtonText: {
+    fontSize: typography.fontSize.caption,
+    color: colors.accent.blue,
+    fontWeight: typography.fontWeight.bold,
+  },
+  halftimeQuickButton: {
     backgroundColor: colors.accent.orange,
+    borderColor: colors.accent.orange,
   },
-  secondHalfButton: {
-    minWidth: 140,
+  secondHalfQuickButton: {
     backgroundColor: colors.primary.main,
+    borderColor: colors.primary.main,
   },
 });
