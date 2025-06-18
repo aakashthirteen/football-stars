@@ -44,62 +44,41 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
   onEndMatch,
 }) => {
   const isLive = status === 'LIVE' || status === 'HALFTIME';
-  const wavePositionAnim = useRef(new Animated.Value(0)).current;
-  const waveOpacityAnim = useRef(new Animated.Value(1)).current;
+  const wavePositionAnim = useRef(new Animated.Value(-0.5)).current;
 
   useEffect(() => {
     if (status === 'LIVE') {
-      // Wave animation with fade in/out at edges
+      // Wave animation that slides completely off screen
       Animated.loop(
         Animated.sequence([
-          // Left to right movement with fade out at end
-          Animated.parallel([
-            Animated.timing(wavePositionAnim, {
-              toValue: 1,
-              duration: 1200,
-              useNativeDriver: true,
-            }),
-            Animated.sequence([
-              Animated.delay(800), // Stay visible for most of the journey
-              Animated.timing(waveOpacityAnim, {
-                toValue: 0,
-                duration: 400,
-                useNativeDriver: true,
-              }),
-            ]),
-          ]),
-          // Reset position to right and fade in, then move to left
-          Animated.parallel([
-            Animated.timing(wavePositionAnim, {
-              toValue: 0,
-              duration: 1200,
-              useNativeDriver: true,
-            }),
-            Animated.sequence([
-              Animated.timing(waveOpacityAnim, {
-                toValue: 1,
-                duration: 400,
-                useNativeDriver: true,
-              }),
-              Animated.delay(400), // Stay visible for most of the journey
-              Animated.timing(waveOpacityAnim, {
-                toValue: 0,
-                duration: 400,
-                useNativeDriver: true,
-              }),
-            ]),
-          ]),
-          // Small pause and reset opacity for next cycle
-          Animated.timing(waveOpacityAnim, {
-            toValue: 1,
-            duration: 100,
+          // Move from left to completely off the right side
+          Animated.timing(wavePositionAnim, {
+            toValue: 1.5, // Go beyond the container to disappear
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          // Reset to right side and move back to left
+          Animated.timing(wavePositionAnim, {
+            toValue: -0.5, // Start from beyond the left side
+            duration: 0,
+            useNativeDriver: true,
+          }),
+          // Move from right to left
+          Animated.timing(wavePositionAnim, {
+            toValue: 1.5, // Go beyond right side again
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          // Reset to left for next cycle
+          Animated.timing(wavePositionAnim, {
+            toValue: -0.5,
+            duration: 0,
             useNativeDriver: true,
           }),
         ])
       ).start();
     } else {
-      wavePositionAnim.setValue(0);
-      waveOpacityAnim.setValue(1);
+      wavePositionAnim.setValue(-0.5);
     }
   }, [status]);
   
@@ -161,12 +140,11 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
                           transform: [
                             {
                               translateX: wavePositionAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [-20, 20],
+                                inputRange: [-0.5, 1.5],
+                                outputRange: [-30, 50],
                               }),
                             },
                           ],
-                          opacity: waveOpacityAnim,
                         }
                       ]} 
                     />
