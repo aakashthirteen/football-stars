@@ -132,6 +132,20 @@ export class PostgresDatabase {
         ALTER TABLE matches ADD COLUMN IF NOT EXISTS added_time_second_half INTEGER DEFAULT 0
       `);
 
+      // Update the status check constraint to include HALFTIME if it doesn't already
+      try {
+        await client.query(`
+          ALTER TABLE matches DROP CONSTRAINT IF EXISTS matches_status_check
+        `);
+        await client.query(`
+          ALTER TABLE matches ADD CONSTRAINT matches_status_check 
+          CHECK (status IN ('SCHEDULED', 'LIVE', 'COMPLETED', 'CANCELLED', 'HALFTIME'))
+        `);
+        console.log('✅ Updated matches status constraint to include HALFTIME');
+      } catch (error) {
+        console.log('⚠️ Status constraint update failed (might already be correct):', error.message);
+      }
+
       // Match events table
       await client.query(`
         CREATE TABLE IF NOT EXISTS match_events (
