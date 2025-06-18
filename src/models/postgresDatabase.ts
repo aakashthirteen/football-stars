@@ -442,9 +442,13 @@ export class PostgresDatabase {
       homeTeamId, awayTeamId, venue, matchDate, duration, createdBy
     });
     
+    // Calculate half durations based on total duration
+    const firstHalfMinutes = Math.floor(duration / 2);
+    const secondHalfMinutes = duration - firstHalfMinutes;
+    
     const result = await this.pool.query(
-      'INSERT INTO matches (home_team_id, away_team_id, venue, match_date, duration, created_by, home_score, away_score, status) VALUES ($1, $2, $3, $4, $5, $6, 0, 0, $7) RETURNING *',
-      [homeTeamId, awayTeamId, venue, matchDate, duration, createdBy, 'SCHEDULED']
+      'INSERT INTO matches (home_team_id, away_team_id, venue, match_date, duration, created_by, home_score, away_score, status, first_half_minutes, second_half_minutes) VALUES ($1, $2, $3, $4, $5, $6, 0, 0, $7, $8, $9) RETURNING *',
+      [homeTeamId, awayTeamId, venue, matchDate, duration, createdBy, 'SCHEDULED', firstHalfMinutes, secondHalfMinutes]
     );
     
     const createdMatch = result.rows[0];

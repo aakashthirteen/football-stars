@@ -141,11 +141,16 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     const now = new Date();
     let actualMinute;
     
+    // Get actual match duration settings
+    const halfDuration = (match.duration || 90) / 2;
+    const firstHalfMinutes = match.first_half_minutes || halfDuration;
+    const secondHalfMinutes = match.second_half_minutes || halfDuration;
+    
     if (currentHalf === 2 && match.second_half_start_time) {
-      // In second half, calculate from second half start time + 45
+      // In second half, calculate from second half start time + first half minutes
       const secondHalfStart = new Date(match.second_half_start_time);
       const elapsedInSecondHalf = Math.floor((now.getTime() - secondHalfStart.getTime()) / 60000);
-      actualMinute = 45 + elapsedInSecondHalf;
+      actualMinute = firstHalfMinutes + elapsedInSecondHalf;
     } else {
       // In first half, calculate from match start
       const matchStart = new Date(match.matchDate || match.match_date);
@@ -154,14 +159,14 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     
     setCurrentMinute(actualMinute);
     
-    // Auto half-time at 45 minutes + stoppage time
-    const halfTimeMinute = 45 + addedTimeFirstHalf;
+    // Auto half-time at actual first half duration + stoppage time
+    const halfTimeMinute = firstHalfMinutes + addedTimeFirstHalf;
     if (actualMinute >= halfTimeMinute && currentHalf === 1 && !isHalftime && isLive) {
       handleHalftime();
     }
     
-    // Auto full-time at 90 minutes + stoppage time
-    const fullTimeMinute = 90 + addedTimeSecondHalf;
+    // Auto full-time at total match duration + stoppage time
+    const fullTimeMinute = firstHalfMinutes + secondHalfMinutes + addedTimeSecondHalf;
     if (actualMinute >= fullTimeMinute && currentHalf === 2 && isLive) {
       handleFullTime();
     }
@@ -171,11 +176,15 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     if (matchData.status === 'LIVE') {
       const now = new Date();
       
+      // Get actual match duration settings
+      const halfDuration = (matchData.duration || 90) / 2;
+      const firstHalfMinutes = matchData.first_half_minutes || halfDuration;
+      
       if (matchData.current_half === 2 && matchData.second_half_start_time) {
-        // In second half, calculate from second half start time + 45
+        // In second half, calculate from second half start time + first half minutes
         const secondHalfStart = new Date(matchData.second_half_start_time);
         const elapsedInSecondHalf = Math.floor((now.getTime() - secondHalfStart.getTime()) / 60000);
-        setCurrentMinute(45 + elapsedInSecondHalf);
+        setCurrentMinute(firstHalfMinutes + elapsedInSecondHalf);
       } else {
         // In first half, calculate from match start
         const matchStart = new Date(matchData.matchDate || matchData.match_date);
@@ -204,7 +213,8 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       setShowHalftimeModal(false);
       await apiService.startSecondHalf(matchId);
       await soundService.playSecondHalfWhistle();
-      showCommentary("⚽ SECOND HALF! The match resumes for the final 45 minutes!");
+      const secondHalfMinutes = match.second_half_minutes || (match.duration || 90) / 2;
+      showCommentary(`⚽ SECOND HALF! The match resumes for the final ${secondHalfMinutes} minutes!`);
       await loadMatchDetails();
     } catch (error) {
       Alert.alert('Error', 'Failed to start second half');
@@ -1290,7 +1300,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
               
               <Text style={styles.halftimeTitle}>HALF TIME</Text>
               <Text style={styles.halftimeSubtitle}>
-                First half has ended at {45 + addedTimeFirstHalf} minutes
+                First half has ended at {(match?.first_half_minutes || (match?.duration || 90) / 2) + addedTimeFirstHalf} minutes
               </Text>
               
               <View style={styles.halftimeStats}>
