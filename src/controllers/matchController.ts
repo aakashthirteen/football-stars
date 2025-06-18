@@ -271,16 +271,19 @@ export const pauseForHalftime = async (req: AuthRequest, res: Response): Promise
     }
 
     console.log('📊 Current match status:', match.status);
+    console.log('📊 Current match current_half:', match.current_half);
+    
     if (match.status !== 'LIVE') {
       console.log('❌ Match not live, cannot pause for halftime');
       res.status(400).json({ error: 'Match must be live to pause for halftime' });
       return;
     }
 
-    console.log('✅ Updating match to HALFTIME status');
+    console.log('✅ Updating match to HALFTIME status only (testing)');
+    
+    // Try updating just the status first to isolate the issue
     const updatedMatch = await database.updateMatch(id, { 
-      status: 'HALFTIME',
-      current_half: 1 // Ensure we're ending first half
+      status: 'HALFTIME'
     });
 
     console.log('✅ Match updated successfully:', updatedMatch);
@@ -290,8 +293,15 @@ export const pauseForHalftime = async (req: AuthRequest, res: Response): Promise
     });
   } catch (error) {
     console.error('❌ Pause for halftime error:', error);
-    console.error('❌ Error stack:', error instanceof Error ? error.stack : error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('❌ Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : 'No stack',
+      name: error instanceof Error ? error.name : 'Unknown error type'
+    });
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : String(error)
+    });
   }
 };
 

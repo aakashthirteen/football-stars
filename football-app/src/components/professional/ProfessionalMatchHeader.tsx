@@ -48,28 +48,28 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
 
   useEffect(() => {
     if (status === 'LIVE') {
-      // Wave animation that slides completely off screen
+      // Wave animation that alternates directions
       Animated.loop(
         Animated.sequence([
-          // Move from left to completely off the right side
+          // Start from left, move to right and disappear
           Animated.timing(wavePositionAnim, {
-            toValue: 1.5, // Go beyond the container to disappear
+            toValue: 1.5, // Go beyond the right container edge
             duration: 1500,
             useNativeDriver: true,
           }),
-          // Reset to right side and move back to left
+          // Reset to right side (off screen)
           Animated.timing(wavePositionAnim, {
-            toValue: -0.5, // Start from beyond the left side
+            toValue: 1.5,
             duration: 0,
             useNativeDriver: true,
           }),
-          // Move from right to left
+          // Move from right to left and disappear
           Animated.timing(wavePositionAnim, {
-            toValue: 1.5, // Go beyond right side again
+            toValue: -0.5, // Go beyond the left container edge
             duration: 1500,
             useNativeDriver: true,
           }),
-          // Reset to left for next cycle
+          // Reset to left side (off screen) for next cycle
           Animated.timing(wavePositionAnim, {
             toValue: -0.5,
             duration: 0,
