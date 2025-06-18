@@ -133,6 +133,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         ]);
         
         // Set player profile (including avatar)
+        console.log('🏠 HomeScreen: Player profile received:', profile);
+        console.log('🖼️ HomeScreen: Avatar URL:', profile?.avatarUrl || profile?.avatar_url);
         setPlayerProfile(profile);
         
         if (!stats) {

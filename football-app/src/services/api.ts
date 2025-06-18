@@ -1319,7 +1319,20 @@ class ApiService {
 
   // Player profile endpoints
   async getCurrentPlayerProfile() {
-    return this.request('/players/me');
+    const response = await this.request('/players/me');
+    console.log('🔧 API: getCurrentPlayerProfile raw response:', response);
+    
+    // Map snake_case to camelCase for avatar URL
+    if (response?.player) {
+      const player = response.player;
+      if (player.avatar_url) {
+        player.avatarUrl = player.avatar_url;
+      }
+      console.log('🔧 API: Mapped player data:', player);
+      return player;
+    }
+    
+    return response;
   }
 
   async updateCurrentPlayerProfile(playerData: {
@@ -1331,11 +1344,24 @@ class ApiService {
     height?: string;
     weight?: string;
     dateOfBirth?: string;
+    profileImage?: string;
+    avatarUrl?: string;
   }) {
-    return this.request('/players/me', {
+    const response = await this.request('/players/me', {
       method: 'PUT',
       body: JSON.stringify(playerData),
     });
+    
+    // Map snake_case to camelCase for avatar URL
+    if (response?.player) {
+      const player = response.player;
+      if (player.avatar_url) {
+        player.avatarUrl = player.avatar_url;
+      }
+      return { player };
+    }
+    
+    return response;
   }
 
   async getPlayerById(playerId: string) {

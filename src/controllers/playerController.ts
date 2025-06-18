@@ -59,7 +59,9 @@ export const updateCurrentPlayer = async (req: AuthRequest, res: Response): Prom
       height,
       weight,
       bio,
-      location
+      location,
+      profileImage,
+      avatarUrl
     } = req.body as any;
 
     // Validate position if provided
@@ -83,6 +85,10 @@ export const updateCurrentPlayer = async (req: AuthRequest, res: Response): Prom
     if (weight !== undefined) updates.weight = weight ? parseInt(weight, 10) : null;
     if (bio !== undefined) updates.bio = bio;
     if (location !== undefined) updates.location = location;
+    
+    // Handle profile image (support both field names for compatibility)
+    const imageUrl = profileImage || avatarUrl;
+    if (imageUrl !== undefined) updates.avatar_url = imageUrl;
 
     const updatedPlayer = await database.updatePlayer(player.id, updates);
 
