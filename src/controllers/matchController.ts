@@ -240,13 +240,13 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    // Simple solution: Update match_date to current time when starting
-    // This serves as our "live start time" using existing column
     const now = new Date();
     
     const updatedMatch = await database.updateMatch(id, { 
       status: 'LIVE',
-      match_date: now  // Use existing column as start time
+      match_date: now,
+      current_half: 1,
+      first_half_start_time: now
     });
 
     res.json({
@@ -255,6 +255,103 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
     });
   } catch (error) {
     console.error('Start match error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Half-time control endpoints
+export const pauseForHalftime = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    
+    const match = await database.getMatchById(id);
+    if (!match) {
+      res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+
+    if (match.status !== 'LIVE') {
+      res.status(400).json({ error: 'Match must be live to pause for halftime' });
+      return;
+    }
+
+    const updatedMatch = await database.updateMatch(id, { 
+      status: 'HALFTIME'
+    });
+
+    res.json({
+      match: updatedMatch,
+      message: 'Match paused for halftime',
+    });
+  } catch (error) {
+    console.error('Pause for halftime error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const startSecondHalf = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    
+    const match = await database.getMatchById(id);
+    if (!match) {
+      res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+
+    if (match.status !== 'HALFTIME') {
+      res.status(400).json({ error: 'Match must be at halftime to start second half' });
+      return;
+    }
+
+    const now = new Date();
+    
+    const updatedMatch = await database.updateMatch(id, { 
+      status: 'LIVE',
+      current_half: 2,
+      second_half_start_time: now
+    });
+
+    res.json({
+      match: updatedMatch,
+      message: 'Second half started successfully',
+    });
+  } catch (error) {
+    console.error('Start second half error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const addStoppageTime = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { minutes = 1 } = req.body; // Default to 1 minute
+    
+    const match = await database.getMatchById(id);
+    if (!match) {
+      res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+
+    if (match.status !== 'LIVE') {
+      res.status(400).json({ error: 'Match must be live to add stoppage time' });
+      return;
+    }
+
+    const currentHalf = (match as any).current_half || 1;
+    const updateField = currentHalf === 1 ? 'added_time_first_half' : 'added_time_second_half';
+    const currentAddedTime = (match as any)[updateField] || 0;
+    
+    const updatedMatch = await database.updateMatch(id, { 
+      [updateField]: currentAddedTime + minutes
+    });
+
+    res.json({
+      match: updatedMatch,
+      message: `Added ${minutes} minute(s) of stoppage time to ${currentHalf === 1 ? 'first' : 'second'} half`,
+    });
+  } catch (error) {
+    console.error('Add stoppage time error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

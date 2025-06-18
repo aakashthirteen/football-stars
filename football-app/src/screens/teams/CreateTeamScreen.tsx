@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { apiService } from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
+import { ImagePickerComponent } from '../../components';
 
 interface CreateTeamScreenProps {
   navigation: any;
@@ -21,7 +22,12 @@ interface CreateTeamScreenProps {
 export default function CreateTeamScreen({ navigation }: CreateTeamScreenProps) {
   const [teamName, setTeamName] = useState('');
   const [description, setDescription] = useState('');
+  const [teamBadge, setTeamBadge] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleBadgeSelected = (imageUri: string) => {
+    setTeamBadge(imageUri);
+  };
 
   const handleCreateTeam = async () => {
     if (!teamName.trim()) {
@@ -123,6 +129,24 @@ export default function CreateTeamScreen({ navigation }: CreateTeamScreenProps) 
               editable={!isLoading}
             />
             <Text style={styles.charCount}>{description.length}/200</Text>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Team Badge (Optional)</Text>
+            <View style={styles.badgePickerContainer}>
+              <ImagePickerComponent
+                onImageSelected={handleBadgeSelected}
+                currentImage={teamBadge}
+                placeholder="Add Badge"
+                size="medium"
+                type="badge"
+                style={styles.teamBadgePicker}
+              />
+              <View style={styles.badgeInfo}>
+                <Text style={styles.badgeInfoTitle}>Add your team logo</Text>
+                <Text style={styles.badgeInfoText}>Upload a square image that represents your team</Text>
+              </View>
+            </View>
           </View>
 
           <View style={styles.infoBox}>
@@ -323,5 +347,36 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 16,
     fontWeight: '500',
+  },
+  badgePickerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  teamBadgePicker: {
+    marginRight: 16,
+  },
+  badgeInfo: {
+    flex: 1,
+  },
+  badgeInfoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  badgeInfoText: {
+    fontSize: 12,
+    color: '#666',
+    lineHeight: 16,
   },
 });

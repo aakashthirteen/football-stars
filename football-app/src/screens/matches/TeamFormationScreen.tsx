@@ -24,6 +24,7 @@ import Svg, {
   Pattern 
 } from 'react-native-svg';
 import { MatchesStackParamList } from '../../navigation/MatchesStack';
+import { apiService } from '../../services/api';
 
 type TeamFormationScreenNavigationProp = StackNavigationProp<
   MatchesStackParamList,
@@ -245,82 +246,202 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
       const availableFormations = FORMATIONS[gameFormat as keyof typeof FORMATIONS];
       setSelectedFormation(availableFormations[0]);
     }
+  }, [isPreMatch, gameFormat]);
+
+  useEffect(() => {
     loadTeamPlayers();
-  }, [teamId, isPreMatch, gameFormat]);
+  }, [teamId]);
 
   const loadTeamPlayers = async () => {
     try {
-      // This would load real team players from API
-      // For now, using mock data to demonstrate the UI
-      const mockPlayers: Player[] = [
-        { id: '1', name: 'John Doe', position: 'GK', jerseyNumber: 1 },
-        { id: '2', name: 'Mike Smith', position: 'DEF', jerseyNumber: 2 },
-        { id: '3', name: 'Alex Johnson', position: 'DEF', jerseyNumber: 3 },
-        { id: '4', name: 'Chris Brown', position: 'DEF', jerseyNumber: 4 },
-        { id: '5', name: 'David Wilson', position: 'DEF', jerseyNumber: 5 },
-        { id: '6', name: 'Tom Anderson', position: 'MID', jerseyNumber: 6 },
-        { id: '7', name: 'Ryan Taylor', position: 'MID', jerseyNumber: 7 },
-        { id: '8', name: 'James Miller', position: 'MID', jerseyNumber: 8 },
-        { id: '9', name: 'Kevin Davis', position: 'MID', jerseyNumber: 9 },
-        { id: '10', name: 'Paul Garcia', position: 'FWD', jerseyNumber: 10 },
-        { id: '11', name: 'Mark Rodriguez', position: 'FWD', jerseyNumber: 11 },
-      ];
+      // Load actual team players from API
+      const response = await apiService.getTeamById(teamId);
+      
+      if (response.team && response.team.players) {
+        // Transform team players to match our Player interface
+        const teamPlayers: Player[] = response.team.players.map((tp: any) => ({
+          id: tp.player_id || tp.playerId || tp.player?.id || `player-${Math.random()}`,
+          name: tp.player?.name || tp.player_name || tp.name || 'Unknown Player',
+          position: tp.player?.position || tp.position || 'MID',
+          jerseyNumber: tp.jersey_number || tp.jerseyNumber || Math.floor(Math.random() * 99) + 1
+        }));
 
-      // Assign positions based on selected formation
-      const playersWithPositions = assignPlayersToFormation(mockPlayers, selectedFormation);
-      setPlayers(playersWithPositions);
+        // Assign positions based on selected formation
+        const playersWithPositions = assignPlayersToFormation(teamPlayers, selectedFormation);
+        setPlayers(playersWithPositions);
+      } else {
+        // If no players in team, show empty formation with placeholders
+        const playersWithPositions = assignPlayersToFormation([], selectedFormation);
+        setPlayers(playersWithPositions);
+      }
     } catch (error) {
       console.error('Error loading team players:', error);
       Alert.alert('Error', 'Failed to load team players');
+      // Show empty formation on error
+      const playersWithPositions = assignPlayersToFormation([], selectedFormation);
+      setPlayers(playersWithPositions);
     } finally {
       setIsLoading(false);
     }
   };
 
   const assignPlayersToFormation = useCallback((teamPlayers: Player[], formation: Formation): Player[] => {
-    const positionOrder = ['GK', 'DEF', 'MID', 'FWD'];
-    const sortedPlayers = [...teamPlayers].sort((a, b) => {
-      const aIndex = positionOrder.indexOf(a.position);
-      const bIndex = positionOrder.indexOf(b.position);
-      return aIndex - bIndex;
-    });
+    const assignedPlayers: Player[] = [];
+    
+    // Group players by position
+    const playersByPosition = {
+      GK: teamPlayers.filter(p => p.position === 'GK'),
+      DEF: teamPlayers.filter(p => p.position === 'DEF'), 
+      MID: teamPlayers.filter(p => p.position === 'MID'),
+      FWD: teamPlayers.filter(p => p.position === 'FWD'),
+    };
 
-    return formation.positions.map((pos, index) => {
-      const player = sortedPlayers[index] || { 
-        id: `placeholder-${index}`, 
-        name: 'Empty', 
-        position: pos.position,
-        jerseyNumber: index + 1 // Assign sequential jersey numbers to placeholders
-      };
-      return {
-        ...player,
-        x: pos.x,
-        y: pos.y,
-      };
-    });
+    // Define zones on the pitch (Y coordinates)
+    const zones = {
+      GK: { minY: 5, maxY: 15 },      // Goalkeeper area
+      DEF: { minY: 15, maxY: 25 },    // Defensive zone  
+      MID: { minY: 25, maxY: 35 },    // Midfield zone
+      FWD: { minY: 35, maxY: 45 },    // Forward zone
+    };
+
+    // Assign goalkeepers (limit to 1, use formation GK position)
+    if (playersByPosition.GK.length > 0) {
+      const gkPosition = formation.positions.find(p => p.position === 'GK');
+      if (gkPosition) {
+        assignedPlayers.push({
+          ...playersByPosition.GK[0],
+          x: gkPosition.x,
+          y: gkPosition.y,
+        });
+      }
+    }
+
+    // Function to distribute players in a zone
+    const distributePlayersInZone = (players: Player[], position: keyof typeof zones) => {
+      if (players.length === 0) return;
+      
+      const zone = zones[position];
+      const positions = [];
+      
+      // Calculate positions based on number of players
+      if (players.length === 1) {
+        positions.push({ x: 50, y: (zone.minY + zone.maxY) / 2 });
+      } else if (players.length === 2) {
+        positions.push(
+          { x: 25, y: (zone.minY + zone.maxY) / 2 },
+          { x: 75, y: (zone.minY + zone.maxY) / 2 }
+        );
+      } else if (players.length === 3) {
+        positions.push(
+          { x: 15, y: (zone.minY + zone.maxY) / 2 },
+          { x: 50, y: (zone.minY + zone.maxY) / 2 },
+          { x: 85, y: (zone.minY + zone.maxY) / 2 }
+        );
+      } else if (players.length === 4) {
+        positions.push(
+          { x: 10, y: (zone.minY + zone.maxY) / 2 },
+          { x: 35, y: (zone.minY + zone.maxY) / 2 },
+          { x: 65, y: (zone.minY + zone.maxY) / 2 },
+          { x: 90, y: (zone.minY + zone.maxY) / 2 }
+        );
+      } else if (players.length === 5) {
+        positions.push(
+          { x: 10, y: zone.minY + 3 },
+          { x: 30, y: zone.maxY - 3 },
+          { x: 50, y: (zone.minY + zone.maxY) / 2 },
+          { x: 70, y: zone.maxY - 3 },
+          { x: 90, y: zone.minY + 3 }
+        );
+      } else {
+        // For 6+ players, arrange in two rows
+        const playersPerRow = Math.ceil(players.length / 2);
+        for (let i = 0; i < players.length; i++) {
+          const row = Math.floor(i / playersPerRow);
+          const col = i % playersPerRow;
+          const y = row === 0 ? zone.minY + 3 : zone.maxY - 3;
+          const x = ((col + 1) * 100) / (playersPerRow + 1);
+          positions.push({ x, y });
+        }
+      }
+
+      // Assign players to calculated positions
+      players.forEach((player, index) => {
+        if (positions[index]) {
+          assignedPlayers.push({
+            ...player,
+            x: positions[index].x,
+            y: positions[index].y,
+          });
+        }
+      });
+    };
+
+    // Distribute players in their respective zones
+    distributePlayersInZone(playersByPosition.DEF, 'DEF');
+    distributePlayersInZone(playersByPosition.MID, 'MID'); 
+    distributePlayersInZone(playersByPosition.FWD, 'FWD');
+
+    return assignedPlayers;
   }, []);
 
-  const handleGameFormatChange = useCallback((gameFormat: GameFormat) => {
+  const handleGameFormatChange = useCallback(async (gameFormat: GameFormat) => {
     setSelectedGameFormat(gameFormat);
     const availableFormations = FORMATIONS[gameFormat.id as keyof typeof FORMATIONS];
     const newFormation = availableFormations[0];
     setSelectedFormation(newFormation);
-    const updatedPlayers = assignPlayersToFormation(
-      players.filter(p => !p.id.startsWith('placeholder-')),
-      newFormation
-    );
-    setPlayers(updatedPlayers);
-  }, [players]);
+    
+    // Re-load team players for new formation
+    try {
+      const response = await apiService.getTeamById(teamId);
+      
+      if (response.team && response.team.players) {
+        const teamPlayers: Player[] = response.team.players.map((tp: any) => ({
+          id: tp.player_id || tp.playerId || tp.player?.id || `player-${Math.random()}`,
+          name: tp.player?.name || tp.player_name || tp.name || 'Unknown Player',
+          position: tp.player?.position || tp.position || 'MID',
+          jerseyNumber: tp.jersey_number || tp.jerseyNumber || Math.floor(Math.random() * 99) + 1
+        }));
 
-  const handleFormationChange = useCallback((formation: Formation) => {
+        const updatedPlayers = assignPlayersToFormation(teamPlayers, newFormation);
+        setPlayers(updatedPlayers);
+      } else {
+        const updatedPlayers = assignPlayersToFormation([], newFormation);
+        setPlayers(updatedPlayers);
+      }
+    } catch (error) {
+      console.error('Error loading team players:', error);
+      const updatedPlayers = assignPlayersToFormation([], newFormation);
+      setPlayers(updatedPlayers);
+    }
+  }, [teamId]);
+
+  const handleFormationChange = useCallback(async (formation: Formation) => {
     setSelectedFormation(formation);
-    const updatedPlayers = assignPlayersToFormation(
-      players.filter(p => !p.id.startsWith('placeholder-')),
-      formation
-    );
-    setPlayers(updatedPlayers);
+    // Re-load team players for new formation
+    try {
+      const response = await apiService.getTeamById(teamId);
+      
+      if (response.team && response.team.players) {
+        const teamPlayers: Player[] = response.team.players.map((tp: any) => ({
+          id: tp.player_id || tp.playerId || tp.player?.id || `player-${Math.random()}`,
+          name: tp.player?.name || tp.player_name || tp.name || 'Unknown Player',
+          position: tp.player?.position || tp.position || 'MID',
+          jerseyNumber: tp.jersey_number || tp.jerseyNumber || Math.floor(Math.random() * 99) + 1
+        }));
+
+        const updatedPlayers = assignPlayersToFormation(teamPlayers, formation);
+        setPlayers(updatedPlayers);
+      } else {
+        const updatedPlayers = assignPlayersToFormation([], formation);
+        setPlayers(updatedPlayers);
+      }
+    } catch (error) {
+      console.error('Error reloading team players:', error);
+      const updatedPlayers = assignPlayersToFormation([], formation);
+      setPlayers(updatedPlayers);
+    }
     setIsCustomFormation(false); // Reset custom flag when changing templates
-  }, [players]);
+  }, [teamId]);
 
 
   const saveCustomFormation = () => {
@@ -344,7 +465,7 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
     const formationData = {
       formationName: selectedFormation.name,
       gameFormat: selectedGameFormat.id,
-      players: players.filter(p => !p.id.startsWith('placeholder-')).map(p => ({
+      players: players.map(p => ({
         id: p.id,
         name: p.name,
         position: p.position,
@@ -362,12 +483,29 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
     }
   };
 
-  const resetToFormation = () => {
-    const updatedPlayers = assignPlayersToFormation(
-      players.filter(p => !p.id.startsWith('placeholder-')),
-      selectedFormation
-    );
-    setPlayers(updatedPlayers);
+  const resetToFormation = async () => {
+    try {
+      const response = await apiService.getTeamById(teamId);
+      
+      if (response.team && response.team.players) {
+        const teamPlayers: Player[] = response.team.players.map((tp: any) => ({
+          id: tp.player_id || tp.playerId || tp.player?.id || `player-${Math.random()}`,
+          name: tp.player?.name || tp.player_name || tp.name || 'Unknown Player',
+          position: tp.player?.position || tp.position || 'MID',
+          jerseyNumber: tp.jersey_number || tp.jerseyNumber || Math.floor(Math.random() * 99) + 1
+        }));
+
+        const updatedPlayers = assignPlayersToFormation(teamPlayers, selectedFormation);
+        setPlayers(updatedPlayers);
+      } else {
+        const updatedPlayers = assignPlayersToFormation([], selectedFormation);
+        setPlayers(updatedPlayers);
+      }
+    } catch (error) {
+      console.error('Error resetting formation:', error);
+      const updatedPlayers = assignPlayersToFormation([], selectedFormation);
+      setPlayers(updatedPlayers);
+    }
     setIsCustomFormation(false); // Reset custom flag
     setIsDragMode(false);
   };
@@ -926,16 +1064,29 @@ export default function TeamFormationScreen({ navigation, route }: Props) {
 
         {/* Player List */}
         <View style={styles.playerList}>
-          <Text style={styles.sectionTitle}>Starting XI</Text>
-          {players.map((player, index) => (
-            <View key={player.id} style={styles.playerItem}>
-              <View style={[styles.positionBadge, { backgroundColor: getPositionColor(player.position) }]}>
-                <Text style={styles.positionText}>{player.position}</Text>
+          <Text style={styles.sectionTitle}>
+            Players on Pitch ({players.length})
+          </Text>
+          {players.length > 0 ? (
+            players.map((player, index) => (
+              <View key={player.id} style={styles.playerItem}>
+                <View style={[styles.positionBadge, { backgroundColor: getPositionColor(player.position) }]}>
+                  <Text style={styles.positionText}>{player.position}</Text>
+                </View>
+                <Text style={styles.playerName}>{player.name}</Text>
+                <Text style={styles.jerseyNumber}>#{player.jerseyNumber || index + 1}</Text>
               </View>
-              <Text style={styles.playerName}>{player.name}</Text>
-              <Text style={styles.jerseyNumber}>#{player.jerseyNumber || index + 1}</Text>
+            ))
+          ) : (
+            <View style={styles.emptyPlayerList}>
+              <Text style={styles.emptyPlayerListText}>
+                No players available for this formation.
+              </Text>
+              <Text style={styles.emptyPlayerListSubtext}>
+                Add players to your team to see them in formation.
+              </Text>
             </View>
-          ))}
+          )}
         </View>
 
         {/* Action Buttons */}
@@ -1091,6 +1242,25 @@ const styles = StyleSheet.create({
   },
   playerList: {
     marginBottom: 30,
+  },
+  emptyPlayerList: {
+    padding: 20,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  emptyPlayerListText: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptyPlayerListSubtext: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.5)',
+    textAlign: 'center',
   },
   playerItem: {
     flexDirection: 'row',

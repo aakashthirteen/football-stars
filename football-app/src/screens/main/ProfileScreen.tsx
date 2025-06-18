@@ -22,6 +22,8 @@ import {
   DesignSystem
 } from '../../components/professional';
 
+import { ImagePickerComponent } from '../../components';
+
 const { colors, typography, spacing, borderRadius, shadows } = DesignSystem;
 const { width } = Dimensions.get('window');
 
@@ -49,6 +51,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const { user, logout } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profileImage, setProfileImage] = useState<string>('');
 
   useEffect(() => {
     loadProfile();
@@ -58,7 +61,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     setLoading(true);
     try {
       if (user) {
-        setProfile({
+        const userProfile = {
           name: user.name || 'Unknown Player',
           email: user.email || '',
           position: 'MID',
@@ -72,12 +75,39 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
           goals: 71,
           assists: 8,
           dailyStreak: 14,
-        });
+        };
+        setProfile(userProfile);
+        // Load saved profile image if exists
+        if (userProfile.profileImage) {
+          setProfileImage(userProfile.profileImage);
+        }
       }
     } catch (error) {
       console.error('Error loading profile:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleImageSelected = async (imageUri: string) => {
+    try {
+      setProfileImage(imageUri);
+      
+      // Update profile state
+      if (profile) {
+        setProfile({
+          ...profile,
+          profileImage: imageUri
+        });
+      }
+      
+      // Here you would typically upload to your backend
+      // await apiService.uploadProfileImage(imageUri);
+      
+      Alert.alert('Success', 'Profile photo updated successfully!');
+    } catch (error) {
+      console.error('Error updating profile image:', error);
+      Alert.alert('Error', 'Failed to update profile photo. Please try again.');
     }
   };
 
@@ -150,13 +180,14 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
               
               {/* Profile Photo */}
               <View style={styles.profilePhotoContainer}>
-                {profile?.profileImage ? (
-                  <Image source={{ uri: profile.profileImage }} style={styles.profilePhoto} />
-                ) : (
-                  <View style={styles.profilePhotoPlaceholder}>
-                    <Text style={styles.profileInitials}>{getInitials(profile?.name || 'PL')}</Text>
-                  </View>
-                )}
+                <ImagePickerComponent
+                  onImageSelected={handleImageSelected}
+                  currentImage={profileImage || profile?.profileImage}
+                  placeholder="Add Photo"
+                  size="large"
+                  type="avatar"
+                  style={styles.profileImagePicker}
+                />
               </View>
             </View>
 
@@ -430,6 +461,11 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     color: colors.text.primary,
+  },
+  profileImagePicker: {
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
+    borderStyle: 'solid',
   },
   levelBadge: {
     flexDirection: 'row',

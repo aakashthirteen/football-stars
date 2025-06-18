@@ -57,6 +57,20 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
     }, [])
   );
 
+  // Auto-refresh for live matches
+  useEffect(() => {
+    const hasLiveMatches = matches.some(match => match.status === 'LIVE');
+    
+    if (hasLiveMatches) {
+      const interval = setInterval(() => {
+        // Only trigger re-render to update calculated time, don't reload data
+        setMatches(prevMatches => [...prevMatches]);
+      }, 60000); // Update every minute
+
+      return () => clearInterval(interval);
+    }
+  }, [matches]);
+
   const loadData = async () => {
     await loadMatches();
     await loadMyTeams();
@@ -129,6 +143,21 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
       navigation.navigate('MatchOverview', { matchId: match.id });
     } else {
       navigation.navigate('MatchScoring', { matchId: match.id });
+    }
+  };
+
+  const calculateElapsedMinutes = (matchDate: string) => {
+    try {
+      const startTime = new Date(matchDate);
+      const currentTime = new Date();
+      const elapsedMs = currentTime.getTime() - startTime.getTime();
+      const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
+      
+      // Ensure minimum of 1 minute for live matches
+      return Math.max(elapsedMinutes, 1);
+    } catch (error) {
+      console.error('Error calculating elapsed time:', error);
+      return 1;
     }
   };
 
@@ -246,25 +275,22 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
             <ProfessionalMatchCard
               match={{
                 id: match.id,
-                competition: 'League Match',
+                status: (match.status === 'UPCOMING' ? 'SCHEDULED' : match.status) as 'LIVE' | 'SCHEDULED' | 'COMPLETED',
                 homeTeam: {
+                  id: match.homeTeam?.id || 'home',
                   name: match.homeTeam?.name || 'Home Team',
                   badge: undefined,
-                  score: match.homeScore || 0,
                 },
                 awayTeam: {
+                  id: match.awayTeam?.id || 'away',
                   name: match.awayTeam?.name || 'Away Team',
                   badge: undefined,
-                  score: match.awayScore || 0,
                 },
-                date: new Date(match.matchDate),
-                time: new Date(match.matchDate).toLocaleTimeString('en-US', { 
-                  hour: '2-digit', 
-                  minute: '2-digit' 
-                }),
-                venue: match.venue,
-                status: match.status as 'LIVE' | 'UPCOMING' | 'COMPLETED',
-                minute: match.status === 'LIVE' ? 45 : undefined,
+                homeScore: match.homeScore || 0,
+                awayScore: match.awayScore || 0,
+                matchDate: match.matchDate || new Date().toISOString(),
+                competition: 'League Match',
+                minute: match.status === 'LIVE' ? calculateElapsedMinutes(match.matchDate) : undefined,
               }}
               onPress={() => handleMatchPress(match)}
             />

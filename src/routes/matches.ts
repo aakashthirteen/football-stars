@@ -6,6 +6,9 @@ import {
   startMatch, 
   addMatchEvent,
   endMatch,
+  pauseForHalftime,
+  startSecondHalf,
+  addStoppageTime,
   populateTeamsWithPlayers,
   saveFormationForMatch,
   getFormationForMatch,
@@ -25,6 +28,9 @@ router.post('/populate-teams', populateTeamsWithPlayers);
 router.get('/:id', getMatchById);
 router.patch('/:id/start', startMatch);
 router.patch('/:id/end', endMatch);
+router.patch('/:id/halftime', pauseForHalftime);
+router.patch('/:id/second-half', startSecondHalf);
+router.patch('/:id/add-time', addStoppageTime);
 router.post('/:id/events', addMatchEvent);
 
 // Formation routes

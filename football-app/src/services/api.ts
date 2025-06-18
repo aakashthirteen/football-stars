@@ -280,7 +280,7 @@ class ApiService {
           homeScore: 0,
           awayScore: 0,
           status: 'LIVE',
-          matchDate: new Date().toISOString(), // Now
+          matchDate: new Date(Date.now() - (25 * 60 * 1000)).toISOString(), // Started 25 minutes ago
           venue: 'Sports Complex',
           events: []
         },
@@ -1218,6 +1218,25 @@ class ApiService {
   async endMatch(id: string) {
     return this.request(`/matches/${id}/end`, {
       method: 'PATCH',
+    });
+  }
+
+  async pauseForHalftime(id: string) {
+    return this.request(`/matches/${id}/halftime`, {
+      method: 'PATCH',
+    });
+  }
+
+  async startSecondHalf(id: string) {
+    return this.request(`/matches/${id}/second-half`, {
+      method: 'PATCH',
+    });
+  }
+
+  async addStoppageTime(id: string, minutes: number = 1) {
+    return this.request(`/matches/${id}/add-time`, {
+      method: 'PATCH',
+      body: JSON.stringify({ minutes }),
     });
   }
 

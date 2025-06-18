@@ -41,6 +41,7 @@ interface ProfessionalMatchCardProps {
 
 export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ match, onPress, style }) => {
   const isLive = match.status === 'LIVE';
+  const isHalftime = match.status === 'HALFTIME';
   const isCompleted = match.status === 'COMPLETED';
   const pulseAnim = useRef(new Animated.Value(1)).current;
   
@@ -65,29 +66,47 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
   }, [isLive]);
   
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    if (date.toDateString() === today.toDateString()) {
-      return `Today, ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
-    } else if (date.toDateString() === tomorrow.toDateString()) {
-      return `Tomorrow, ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+    try {
+      const date = new Date(dateString);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return 'Invalid Date';
+      }
+      
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      if (date.toDateString() === today.toDateString()) {
+        return `Today, ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+      } else if (date.toDateString() === yesterday.toDateString()) {
+        return `Yesterday, ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+      } else if (date.toDateString() === tomorrow.toDateString()) {
+        return `Tomorrow, ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+      }
+      
+      return date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric',
+        year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined,
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid Date';
     }
-    
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
   };
   
   const getStatusColor = () => {
     switch (match.status) {
       case 'LIVE':
         return colors.status.live;
+      case 'HALFTIME':
+        return colors.accent.orange;
       case 'COMPLETED':
         return colors.status.completed;
       default:
@@ -98,11 +117,41 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
   const getStatusText = () => {
     switch (match.status) {
       case 'LIVE':
-        return match.minute ? `${match.minute}'` : 'LIVE';
+        if (match.minute) {
+          const currentHalf = (match as any).current_half || 1;
+          const addedTimeFirstHalf = (match as any).added_time_first_half || 0;
+          const addedTimeSecondHalf = (match as any).added_time_second_half || 0;
+          
+          if (currentHalf === 1) {
+            const halfTime = 45 + addedTimeFirstHalf;
+            return match.minute >= halfTime ? `${halfTime}+${match.minute - halfTime}'` : `${match.minute}'`;
+          } else {
+            const firstHalfTotal = 45 + addedTimeFirstHalf;
+            const currentMinute = match.minute - firstHalfTotal;
+            const secondHalfTime = 45 + addedTimeSecondHalf;
+            return currentMinute >= secondHalfTime ? `${90 + addedTimeFirstHalf + addedTimeSecondHalf}+${currentMinute - secondHalfTime}'` : `${match.minute}'`;
+          }
+        }
+        return 'LIVE';
+      case 'HALFTIME':
+        return 'HT';
       case 'COMPLETED':
         return 'FT';
       default:
         return formatDate(match.matchDate);
+    }
+  };
+
+  const getMatchDetails = () => {
+    switch (match.status) {
+      case 'LIVE':
+        return 'Live now';
+      case 'HALFTIME':
+        return 'Half-time break';
+      case 'COMPLETED':
+        return formatDate(match.matchDate);
+      default:
+        return null; // Date already shown in status badge
     }
   };
 
@@ -112,6 +161,11 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
         return {
           borderLeftWidth: 3,
           borderLeftColor: colors.status.live,
+        };
+      case 'HALFTIME':
+        return {
+          borderLeftWidth: 3,
+          borderLeftColor: colors.accent.orange,
         };
       case 'COMPLETED':
         return {
@@ -147,10 +201,10 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
               </View>
               <Text style={styles.competitionText}>{match.competition}</Text>
             </View>
-            {isLive && (
+            {(isLive || isHalftime) && (
               <View style={styles.liveIndicator}>
                 <Animated.View style={styles.liveDot} />
-                <Text style={styles.liveText}>LIVE</Text>
+                <Text style={styles.liveText}>{isHalftime ? 'HT' : 'LIVE'}</Text>
               </View>
             )}
           </View>
@@ -181,7 +235,7 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
                 )}
               </View>
             </View>
-            {(isLive || isCompleted) && (
+            {(isLive || isHalftime || isCompleted) && (
               <Text style={[
                 styles.score,
                 isCompleted && match.homeScore > match.awayScore && styles.winnerScore
@@ -199,6 +253,11 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
             {match.status === 'SCHEDULED' && (
               <View style={styles.vsContainer}>
                 <Text style={styles.vsText}>VS</Text>
+              </View>
+            )}
+            {getMatchDetails() && (
+              <View style={styles.matchDetailsContainer}>
+                <Text style={styles.matchDetailsText}>{getMatchDetails()}</Text>
               </View>
             )}
           </View>
@@ -226,7 +285,7 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
                 )}
               </View>
             </View>
-            {(isLive || isCompleted) && (
+            {(isLive || isHalftime || isCompleted) && (
               <Text style={[
                 styles.score,
                 isCompleted && match.awayScore > match.homeScore && styles.winnerScore
@@ -401,6 +460,15 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: colors.text.tertiary,
     letterSpacing: 1,
+  },
+  matchDetailsContainer: {
+    marginTop: spacing.xs,
+  },
+  matchDetailsText: {
+    fontSize: typography.fontSize.caption,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    fontWeight: typography.fontWeight.medium,
   },
   bottomActions: {
     flexDirection: 'row',

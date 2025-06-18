@@ -101,12 +101,35 @@ export class PostgresDatabase {
           venue VARCHAR(255),
           match_date TIMESTAMP NOT NULL,
           duration INTEGER DEFAULT 90,
-          status VARCHAR(20) CHECK (status IN ('SCHEDULED', 'LIVE', 'COMPLETED', 'CANCELLED')) DEFAULT 'SCHEDULED',
+          status VARCHAR(20) CHECK (status IN ('SCHEDULED', 'LIVE', 'COMPLETED', 'CANCELLED', 'HALFTIME')) DEFAULT 'SCHEDULED',
           home_score INTEGER DEFAULT 0,
           away_score INTEGER DEFAULT 0,
           created_by UUID REFERENCES users(id) ON DELETE CASCADE,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
+      `);
+
+      // Add half-time related columns if they don't exist
+      await client.query(`
+        ALTER TABLE matches ADD COLUMN IF NOT EXISTS current_half INTEGER DEFAULT 1
+      `);
+      await client.query(`
+        ALTER TABLE matches ADD COLUMN IF NOT EXISTS first_half_minutes INTEGER DEFAULT 45
+      `);
+      await client.query(`
+        ALTER TABLE matches ADD COLUMN IF NOT EXISTS second_half_minutes INTEGER DEFAULT 45
+      `);
+      await client.query(`
+        ALTER TABLE matches ADD COLUMN IF NOT EXISTS first_half_start_time TIMESTAMP
+      `);
+      await client.query(`
+        ALTER TABLE matches ADD COLUMN IF NOT EXISTS second_half_start_time TIMESTAMP
+      `);
+      await client.query(`
+        ALTER TABLE matches ADD COLUMN IF NOT EXISTS added_time_first_half INTEGER DEFAULT 0
+      `);
+      await client.query(`
+        ALTER TABLE matches ADD COLUMN IF NOT EXISTS added_time_second_half INTEGER DEFAULT 0
       `);
 
       // Match events table

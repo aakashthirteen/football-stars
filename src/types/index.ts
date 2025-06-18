@@ -51,11 +51,18 @@ export interface Match {
   venue?: string;
   matchDate: Date;
   duration: number;
-  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'HALFTIME';
   homeScore: number;
   awayScore: number;
   liveStartTime?: Date;
   currentMinute?: number;
+  currentHalf: 1 | 2;
+  firstHalfMinutes: number;
+  secondHalfMinutes: number;
+  firstHalfStartTime?: Date;
+  secondHalfStartTime?: Date;
+  addedTimeFirstHalf: number;
+  addedTimeSecondHalf: number;
   createdBy: string;
   createdAt: Date;
 }

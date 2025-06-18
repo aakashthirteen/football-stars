@@ -15,6 +15,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { apiService } from '../../services/api';
+import { soundService } from '../../services/soundService';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useMatchNotifications } from '../../hooks/useNotifications';
@@ -80,6 +81,10 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const [match, setMatch] = useState<any>(null);
   const [currentMinute, setCurrentMinute] = useState(0);
   const [isLive, setIsLive] = useState(false);
+  const [isHalftime, setIsHalftime] = useState(false);
+  const [currentHalf, setCurrentHalf] = useState(1);
+  const [addedTimeFirstHalf, setAddedTimeFirstHalf] = useState(0);
+  const [addedTimeSecondHalf, setAddedTimeSecondHalf] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Actions');
   const [latestCommentary, setLatestCommentary] = useState<string>('');
@@ -119,13 +124,92 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (isLive) {
+    if (isLive && !isHalftime) {
       interval = setInterval(() => {
-        setCurrentMinute(prev => Math.min(prev + 1, 90));
+        updateMatchTimer();
       }, 60000); // Update every minute
     }
     return () => clearInterval(interval);
-  }, [isLive]);
+  }, [isLive, isHalftime, match]);
+
+  const updateMatchTimer = () => {
+    if (!match) return;
+
+    const now = new Date();
+    const matchData = match as any;
+    
+    if (currentHalf === 1 && matchData.first_half_start_time) {
+      const firstHalfStart = new Date(matchData.first_half_start_time);
+      const elapsed = Math.floor((now.getTime() - firstHalfStart.getTime()) / 60000);
+      const totalFirstHalfTime = (matchData.first_half_minutes || 45) + addedTimeFirstHalf;
+      
+      if (elapsed >= totalFirstHalfTime) {
+        // Automatically pause for halftime
+        handleHalftime();
+      } else {
+        setCurrentMinute(elapsed);
+      }
+    } else if (currentHalf === 2 && matchData.second_half_start_time) {
+      const secondHalfStart = new Date(matchData.second_half_start_time);
+      const elapsed = Math.floor((now.getTime() - secondHalfStart.getTime()) / 60000);
+      const totalSecondHalfTime = (matchData.second_half_minutes || 45) + addedTimeSecondHalf;
+      
+      if (elapsed >= totalSecondHalfTime) {
+        // Match should end
+        setCurrentMinute((matchData.first_half_minutes || 45) + addedTimeFirstHalf + elapsed);
+      } else {
+        setCurrentMinute((matchData.first_half_minutes || 45) + addedTimeFirstHalf + elapsed);
+      }
+    }
+  };
+
+  const updateCurrentMinute = (matchData: any) => {
+    const now = new Date();
+    
+    if (currentHalf === 1 && matchData.first_half_start_time) {
+      const firstHalfStart = new Date(matchData.first_half_start_time);
+      const elapsed = Math.max(1, Math.floor((now.getTime() - firstHalfStart.getTime()) / 60000));
+      setCurrentMinute(elapsed);
+    } else if (currentHalf === 2 && matchData.second_half_start_time) {
+      const secondHalfStart = new Date(matchData.second_half_start_time);
+      const elapsed = Math.max(1, Math.floor((now.getTime() - secondHalfStart.getTime()) / 60000));
+      const firstHalfTotal = (matchData.first_half_minutes || 45) + (matchData.added_time_first_half || 0);
+      setCurrentMinute(firstHalfTotal + elapsed);
+    }
+  };
+
+  const handleHalftime = async () => {
+    try {
+      await apiService.pauseForHalftime(matchId);
+      await soundService.playHalftimeWhistle();
+      showCommentary("⏱️ HALF-TIME! The referee blows the whistle to end the first half.");
+      await loadMatchDetails();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to pause for halftime');
+    }
+  };
+
+  const handleStartSecondHalf = async () => {
+    try {
+      await apiService.startSecondHalf(matchId);
+      await soundService.playSecondHalfWhistle();
+      showCommentary("⚽ SECOND HALF! The match resumes for the final 45 minutes!");
+      await loadMatchDetails();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to start second half');
+    }
+  };
+
+  const handleAddStoppageTime = async () => {
+    try {
+      await apiService.addStoppageTime(matchId, 1);
+      const halfText = currentHalf === 1 ? 'first' : 'second';
+      showCommentary(`⏱️ +1 minute of stoppage time added to the ${halfText} half.`);
+      await loadMatchDetails();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to add stoppage time');
+    }
+  };
 
   const loadMatchDetails = async () => {
     try {
@@ -145,13 +229,14 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       
       setMatch(matchData);
       setIsLive(matchData.status === 'LIVE');
+      setIsHalftime(matchData.status === 'HALFTIME');
+      setCurrentHalf(matchData.current_half || 1);
+      setAddedTimeFirstHalf(matchData.added_time_first_half || 0);
+      setAddedTimeSecondHalf(matchData.added_time_second_half || 0);
       
       if (matchData.status === 'LIVE') {
-        // Calculate current minute based on match start time
-        const matchStart = new Date(matchData.matchDate || matchData.match_date);
-        const now = new Date();
-        const elapsed = Math.floor((now.getTime() - matchStart.getTime()) / 60000);
-        setCurrentMinute(Math.max(1, Math.min(elapsed, 90)));
+        // Calculate current minute based on current half
+        updateCurrentMinute(matchData);
       }
 
       // Load formation data
@@ -192,9 +277,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   const startMatch = async () => {
     try {
+      await soundService.initializeSounds();
       await apiService.startMatch(matchId);
+      await soundService.playMatchStartWhistle();
       await loadMatchDetails();
-      showCommentary("⚽ KICK-OFF! The match is underway! Let's see what both teams can produce today!");
+      showCommentary("⚽ KICK-OFF! The referee blows the whistle and the match is underway!");
       
       // Add some initial commentary
       setTimeout(() => {
@@ -219,7 +306,8 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
           onPress: async () => {
             try {
               await apiService.endMatch(matchId);
-              showCommentary("📢 FULL-TIME! The match has ended!");
+              await soundService.playFullTimeWhistle();
+              showCommentary("📢 FULL-TIME! The referee blows the final whistle! The match has ended!");
               setTimeout(() => {
                 // Pass both teams for rating
                 navigation.replace('PlayerRating', { 
@@ -414,7 +502,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       case 'Actions':
         return (
           <View style={styles.tabContent}>
-            {isLive ? (
+            {(isLive || isHalftime) ? (
               <View style={styles.sectionContainer}>
                 {/* Match Actions Card */}
                 <View style={styles.cardSection}>
@@ -430,6 +518,54 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                       onAction={handleAction}
                       onQuickEvent={handleQuickEvent}
                     />
+                  </LinearGradient>
+                </View>
+                
+                {/* Half-time Controls Card */}
+                <View style={styles.cardSection}>
+                  <LinearGradient
+                    colors={[colors.accent.blue + '20', colors.accent.teal + '10']}
+                    style={styles.cardGradient}
+                  >
+                    <View style={styles.halftimeCard}>
+                      <View style={styles.halftimeHeader}>
+                        <Ionicons name="timer" size={24} color={colors.accent.blue} />
+                        <Text style={styles.halftimeTitle}>Match Time Control</Text>
+                      </View>
+                      <Text style={styles.halftimeSubtitle}>
+                        Current Half: {currentHalf} | Added Time: {currentHalf === 1 ? addedTimeFirstHalf : addedTimeSecondHalf} min
+                      </Text>
+                      
+                      <View style={styles.halftimeButtons}>
+                        <ProfessionalButton
+                          title="+1 Min"
+                          icon="add-circle"
+                          variant="secondary"
+                          onPress={handleAddStoppageTime}
+                          style={styles.addTimeButton}
+                        />
+                        
+                        {currentHalf === 1 && !isHalftime && (
+                          <ProfessionalButton
+                            title="Half-Time"
+                            icon="pause-circle"
+                            variant="primary"
+                            onPress={handleHalftime}
+                            style={styles.halftimeButton}
+                          />
+                        )}
+                        
+                        {isHalftime && (
+                          <ProfessionalButton
+                            title="Start 2nd Half"
+                            icon="play-circle"
+                            variant="primary"
+                            onPress={handleStartSecondHalf}
+                            style={styles.secondHalfButton}
+                          />
+                        )}
+                      </View>
+                    </View>
                   </LinearGradient>
                 </View>
                 
@@ -1781,5 +1917,46 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.regular,
     color: colors.text.secondary,
     marginTop: spacing.md,
+  },
+  
+  // Half-time Controls Styles
+  halftimeCard: {
+    alignItems: 'center',
+    paddingVertical: spacing.lg,
+  },
+  halftimeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  halftimeTitle: {
+    fontSize: typography.fontSize.title4,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary,
+    marginLeft: spacing.sm,
+  },
+  halftimeSubtitle: {
+    fontSize: typography.fontSize.small,
+    color: colors.text.secondary,
+    marginBottom: spacing.lg,
+    textAlign: 'center',
+  },
+  halftimeButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  addTimeButton: {
+    minWidth: 100,
+    backgroundColor: colors.accent.blue,
+  },
+  halftimeButton: {
+    minWidth: 120,
+    backgroundColor: colors.accent.orange,
+  },
+  secondHalfButton: {
+    minWidth: 140,
+    backgroundColor: colors.primary.main,
   },
 });
