@@ -548,17 +548,49 @@ export const saveFormationForMatch = async (req: AuthRequest, res: Response): Pr
     const { matchId, teamId } = req.params;
     const formationData = req.body;
 
-    console.log('💾 Saving formation:', { matchId, teamId, formation: formationData.formation });
+    console.log('💾 Formation save request:', { 
+      matchId, 
+      teamId, 
+      userId: req.user.id,
+      formation: formationData.formation,
+      gameFormat: formationData.gameFormat,
+      playerCount: formationData.players?.length 
+    });
+
+    // Validate input
+    if (!matchId || !teamId) {
+      console.error('❌ Missing matchId or teamId');
+      res.status(400).json({ error: 'Match ID and Team ID are required' });
+      return;
+    }
+
+    if (!formationData.formation || !formationData.players) {
+      console.error('❌ Missing formation data');
+      res.status(400).json({ error: 'Formation and players data are required' });
+      return;
+    }
+
+    console.log('📋 Formation data received:', formationData);
 
     const result = await database.saveFormationForMatch(matchId, teamId, formationData);
+
+    console.log('✅ Formation saved successfully:', result);
 
     res.status(201).json({
       formation: result,
       message: 'Formation saved successfully'
     });
   } catch (error) {
-    console.error('❌ Save formation error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('❌ Save formation error details:', {
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : 'No stack',
+      matchId: req.params.matchId,
+      teamId: req.params.teamId
+    });
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
 

@@ -131,22 +131,40 @@ export class PostgresDatabase {
       
       console.log('✅ Added unique constraint to prevent duplicate match events');
 
-      // Match formations table
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS match_formations (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          match_id UUID REFERENCES matches(id) ON DELETE CASCADE,
-          team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
-          formation VARCHAR(20) NOT NULL,
-          game_format VARCHAR(10) CHECK (game_format IN ('5v5', '7v7', '11v11')) DEFAULT '11v11',
-          formation_data JSONB NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE(match_id, team_id)
-        )
-      `);
-      
-      console.log('✅ Created match_formations table');
+      // Match formations table - force creation with detailed logging
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS match_formations (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            match_id UUID REFERENCES matches(id) ON DELETE CASCADE,
+            team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
+            formation VARCHAR(20) NOT NULL,
+            game_format VARCHAR(10) CHECK (game_format IN ('5v5', '7v7', '11v11')) DEFAULT '11v11',
+            formation_data JSONB NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(match_id, team_id)
+          )
+        `);
+        
+        console.log('✅ Successfully created match_formations table');
+        
+        // Verify table exists
+        const tableCheck = await client.query(`
+          SELECT table_name FROM information_schema.tables 
+          WHERE table_schema = 'public' AND table_name = 'match_formations'
+        `);
+        
+        if (tableCheck.rows.length > 0) {
+          console.log('✅ Verified match_formations table exists');
+        } else {
+          console.error('❌ match_formations table was not created');
+        }
+        
+      } catch (error) {
+        console.error('❌ Error creating match_formations table:', error);
+        throw error;
+      }
 
       // Tournaments table
       await client.query(`
