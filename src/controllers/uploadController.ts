@@ -68,6 +68,16 @@ export const uploadTeamBadge = async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
+    // Check if Cloudinary is configured
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      console.error('❌ Cloudinary not configured for team badge upload');
+      res.status(503).json({ 
+        error: 'Image upload service not configured',
+        details: 'Please contact administrator to set up image upload service'
+      });
+      return;
+    }
+
     const { imageData, teamId } = req.body;
 
     if (!imageData) {

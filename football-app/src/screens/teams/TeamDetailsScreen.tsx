@@ -242,7 +242,30 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
 
   // Handle edit team
   const handleEditTeam = () => {
-    Alert.alert('Coming Soon', 'Team editing functionality will be available soon.');
+    Alert.alert(
+      'Edit Team',
+      'What would you like to edit?',
+      [
+        {
+          text: 'Change Badge',
+          onPress: handleChangeBadge,
+        },
+        {
+          text: 'Edit Info',
+          onPress: () => Alert.alert('Coming Soon', 'Team info editing will be available soon.'),
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  // Handle badge change
+  const handleChangeBadge = () => {
+    // Import ImagePickerComponent dynamically or add it to imports
+    Alert.alert('Coming Soon', 'Badge upload for existing teams will be available soon.');
   };
 
   // Handle delete team

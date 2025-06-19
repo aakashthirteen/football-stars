@@ -80,10 +80,37 @@ export default function CreateTeamScreen({ navigation }: CreateTeamScreenProps) 
           );
         } catch (uploadError: any) {
           console.error('❌ Badge upload failed:', uploadError);
+          
+          // Show different messages based on error type
+          let errorMessage = 'Badge upload failed';
+          if (uploadError.message?.includes('not configured')) {
+            errorMessage = 'Image upload service is not configured yet. You can add a badge later in team settings.';
+          } else if (uploadError.message?.includes('502')) {
+            errorMessage = 'Server temporarily unavailable. You can add a badge later in team settings.';
+          } else {
+            errorMessage = `Badge upload failed: ${uploadError.message}`;
+          }
+          
           Alert.alert(
-            'Team Created',
-            `Team created successfully but badge upload failed: ${uploadError.message}`,
-            [{ text: 'OK', onPress: () => navigation.goBack() }]
+            'Team Created Successfully',
+            `Your team "${teamName}" has been created! ${errorMessage}`,
+            [
+              {
+                text: 'Add Players',
+                onPress: () => {
+                  if (teamId) {
+                    navigation.replace('TeamDetails', { teamId });
+                  } else {
+                    navigation.goBack();
+                  }
+                },
+              },
+              {
+                text: 'Back to Teams',
+                onPress: () => navigation.goBack(),
+                style: 'cancel',
+              },
+            ]
           );
         }
       } else {
