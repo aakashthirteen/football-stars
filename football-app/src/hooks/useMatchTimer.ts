@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { API_BASE_URL } from '../services/api';
+import { API_BASE_URL, apiService } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface TimerState {
@@ -329,20 +329,73 @@ export function useMatchTimer(matchId: string) {
     };
   }, [matchId, connectSSE, stopInterpolation]);
 
-  // Monitor connection health
+  // Fallback timer when SSE connection fails
+  const startFallbackTimer = useCallback(async () => {
+    try {
+      console.log('🔄 Starting fallback timer for match:', matchId);
+      
+      // Get match data from API to calculate time from start
+      const match = await apiService.getMatchById(matchId);
+      if (!match || match.status !== 'LIVE') return;
+      
+      const matchStartTime = new Date(match.timer_started_at || match.match_date).getTime();
+      const halfDuration = (match.duration || 90) / 2;
+      
+      const fallbackInterval = setInterval(() => {
+        const now = Date.now();
+        const elapsedSeconds = Math.floor((now - matchStartTime) / 1000);
+        const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+        const currentSecond = elapsedSeconds % 60;
+        
+        // Determine current half and adjust time
+        let currentHalf: 1 | 2 = 1;
+        let displayMinute = elapsedMinutes;
+        
+        if (elapsedMinutes >= halfDuration) {
+          currentHalf = 2;
+          // For second half, continue from where first half left off
+          displayMinute = elapsedMinutes;
+        }
+        
+        setTimerState(prev => ({
+          ...prev,
+          currentMinute: displayMinute,
+          currentSecond: currentSecond,
+          displayTime: formatTime(displayMinute, currentSecond),
+          displayMinute: `${displayMinute}'`,
+          currentHalf,
+          serverTime: now,
+          connectionStatus: 'disconnected' // Show we're in fallback mode
+        }));
+      }, 1000);
+      
+      // Store interval reference for cleanup
+      interpolationRef.current = fallbackInterval;
+      
+    } catch (error) {
+      console.error('❌ Failed to start fallback timer:', error);
+    }
+  }, [matchId, formatTime]);
+
+  // Monitor connection health and start fallback if needed
   useEffect(() => {
     const healthCheck = setInterval(() => {
       const timeSinceLastUpdate = Date.now() - lastUpdateRef.current;
       
       // If no update for 10 seconds, consider connection unhealthy
       if (timeSinceLastUpdate > 10000 && timerState.status === 'LIVE') {
-        console.warn('⚠️ No timer updates for 10 seconds, connection may be unhealthy');
+        console.warn('⚠️ No timer updates for 10 seconds, starting fallback timer');
         setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+        
+        // Start fallback timer if not already running
+        if (!interpolationRef.current) {
+          startFallbackTimer();
+        }
       }
     }, 5000);
 
     return () => clearInterval(healthCheck);
-  }, [timerState.status]);
+  }, [timerState.status, startFallbackTimer]);
 
   return {
     ...timerState,
