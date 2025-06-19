@@ -768,7 +768,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                           
                           {currentHalf === 1 && !isHalftime && (
                             <TouchableOpacity style={styles.manualControlButton} onPress={handleManualHalftime}>
-                              <Ionicons name="pause-circle" size={20} color={colors.accent.yellow} />
+                              <Ionicons name="pause-circle" size={20} color={colors.accent.gold} />
                               <Text style={styles.manualControlButtonText}>Call HT</Text>
                             </TouchableOpacity>
                           )}
@@ -2408,8 +2408,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background.primary,
     borderRadius: borderRadius.button,
     borderWidth: 1,
-    borderColor: colors.border.secondary,
-    ...shadows.small,
+    borderColor: colors.surface.border,
+    ...shadows.sm,
   },
   manualControlButtonText: {
     fontSize: typography.fontSize.small,
