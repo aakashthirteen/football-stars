@@ -60,6 +60,84 @@ app.get('/api/test-db', async (req, res) => {
   }
 });
 
+// Debug timer endpoint - no auth needed
+app.post('/api/debug-timer/:matchId', async (req, res) => {
+  try {
+    const { matchId } = req.params;
+    console.log(`🐛 DEBUG: Testing timer for match ${matchId}`);
+    
+    // Import the timer service
+    const { matchTimerService } = require('./services/MatchTimerService');
+    
+    // Create a mock match for testing
+    const mockMatch = {
+      id: matchId,
+      status: 'SCHEDULED',
+      duration: 5, // 5 minute test match
+      matchDate: new Date(),
+      current_half: 1
+    };
+    
+    // Try to start the timer directly
+    console.log(`🐛 DEBUG: Starting timer for ${matchId}`);
+    
+    // Check if timer service exists
+    const hasStartMethod = typeof matchTimerService.startMatch === 'function';
+    const activeMatches = matchTimerService.getActiveMatches();
+    
+    res.json({
+      success: true,
+      debug: {
+        matchId,
+        hasTimerService: !!matchTimerService,
+        hasStartMethod,
+        activeMatches,
+        mockMatch
+      },
+      message: 'Debug info collected'
+    });
+  } catch (error: any) {
+    console.error('🐛 DEBUG ERROR:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
+// Simple timer test - no dependencies
+app.post('/api/test-basic-timer', async (req, res) => {
+  try {
+    console.log('🧪 BASIC TIMER TEST: Starting...');
+    
+    let counter = 0;
+    const results = [];
+    
+    const testTimer = setInterval(() => {
+      counter++;
+      results.push(`Tick ${counter} at ${new Date().toISOString()}`);
+      console.log(`🧪 BASIC TIMER: Tick ${counter}`);
+      
+      if (counter >= 5) {
+        clearInterval(testTimer);
+        console.log('🧪 BASIC TIMER TEST: Completed');
+      }
+    }, 1000);
+    
+    res.json({
+      success: true,
+      message: 'Basic timer test started - check server logs',
+      testId: Date.now()
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Clean up test data endpoint
 app.post('/api/cleanup-test-data', async (req, res) => {
   try {
