@@ -35,7 +35,7 @@ export const createTeam = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    const { name, description }: CreateTeamRequest = req.body as CreateTeamRequest;
+    const { name, description, logoUrl } = req.body;
 
     if (!name) {
       res.status(400).json({ error: 'Team name is required' });
@@ -46,11 +46,12 @@ export const createTeam = async (req: AuthRequest, res: Response): Promise<void>
       id: uuidv4(),
       name,
       description,
+      logoUrl,
       createdBy: req.user.id,
       createdAt: new Date(),
     };
 
-    const createdTeam = await database.createTeam(name, description || '', req.user.id);
+    const createdTeam = await database.createTeam(name, description || '', req.user.id, logoUrl);
 
     // Add the creator as team captain
     const userPlayer = await database.getPlayerByUserId(req.user.id);
@@ -282,5 +283,104 @@ export const getAvailablePlayers = async (req: AuthRequest, res: Response): Prom
   } catch (error) {
     console.error('Get available players error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateTeam = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id } = req.params;
+    const { name, description, logoUrl } = req.body;
+
+    // Check if team exists
+    const team = await database.getTeamById(id);
+    if (!team) {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+
+    // Check if user is the team creator
+    if (team.createdBy !== req.user.id) {
+      res.status(403).json({ error: 'Only team creator can update team details' });
+      return;
+    }
+
+    const updatedTeam = await database.updateTeam(id, { name, description, logoUrl });
+
+    res.json({
+      team: updatedTeam,
+      message: 'Team updated successfully',
+    });
+  } catch (error) {
+    console.error('Update team error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const deleteTeam = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id } = req.params;
+
+    console.log('🗑️ Delete team request:', { teamId: id, userId: req.user.id });
+
+    // Check if team exists
+    const team = await database.getTeamById(id);
+    if (!team) {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+
+    // Check if user is the team creator
+    if (team.createdBy !== req.user.id) {
+      res.status(403).json({ error: 'Only team creator can delete this team' });
+      return;
+    }
+
+    // Check if team has any active matches
+    const teamMatches = await database.getMatchesByTeamId(id);
+    const activeMatches = teamMatches.filter(match => match.status === 'LIVE' || match.status === 'HALFTIME');
+    
+    if (activeMatches.length > 0) {
+      res.status(400).json({ 
+        error: 'Cannot delete team with active matches',
+        details: `Team has ${activeMatches.length} active match(es). Please complete or cancel them first.`
+      });
+      return;
+    }
+
+    console.log('🗑️ Proceeding with team deletion...');
+    const deleted = await database.deleteTeam(id);
+
+    if (deleted) {
+      console.log('✅ Team deleted successfully');
+      res.json({ 
+        message: 'Team deleted successfully',
+        deletedTeamId: id
+      });
+    } else {
+      console.log('❌ Team deletion failed');
+      res.status(500).json({ error: 'Failed to delete team' });
+    }
+  } catch (error: any) {
+    console.error('❌ Delete team error:', error);
+    
+    // Handle specific database errors
+    if (error.code === '23503') { // Foreign key violation
+      res.status(400).json({ 
+        error: 'Cannot delete team due to existing references',
+        details: 'Team may have associated matches, tournaments, or other data that prevents deletion.'
+      });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
   }
 };

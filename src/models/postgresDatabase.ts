@@ -388,10 +388,10 @@ export class PostgresDatabase {
   }
 
   // Team operations
-  async createTeam(name: string, description: string, createdBy: string): Promise<Team> {
+  async createTeam(name: string, description: string, createdBy: string, logoUrl?: string): Promise<Team> {
     const result = await this.pool.query(
-      'INSERT INTO teams (name, description, created_by) VALUES ($1, $2, $3) RETURNING *',
-      [name, description, createdBy]
+      'INSERT INTO teams (name, description, created_by, logo_url) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, description, createdBy, logoUrl]
     );
     return { ...result.rows[0], players: [] };
   }
@@ -448,6 +448,76 @@ export class PostgresDatabase {
     `, [id]);
     
     return result.rows[0] || null;
+  }
+
+  async updateTeam(id: string, updates: { name?: string; description?: string; logoUrl?: string }): Promise<Team> {
+    const fields = [];
+    const values = [];
+    let paramCount = 1;
+
+    if (updates.name !== undefined) {
+      fields.push(`name = $${paramCount}`);
+      values.push(updates.name);
+      paramCount++;
+    }
+
+    if (updates.description !== undefined) {
+      fields.push(`description = $${paramCount}`);
+      values.push(updates.description);
+      paramCount++;
+    }
+
+    if (updates.logoUrl !== undefined) {
+      fields.push(`logo_url = $${paramCount}`);
+      values.push(updates.logoUrl);
+      paramCount++;
+    }
+
+    if (fields.length === 0) {
+      const team = await this.getTeamById(id);
+      if (!team) throw new Error('Team not found');
+      return team;
+    }
+
+    values.push(id);
+    const query = `UPDATE teams SET ${fields.join(', ')} WHERE id = $${paramCount} RETURNING *`;
+    
+    const result = await this.pool.query(query, values);
+    return { ...result.rows[0], players: [] };
+  }
+
+  async deleteTeam(id: string): Promise<boolean> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Delete related records first (foreign key constraints)
+      // Delete team formations
+      await client.query('DELETE FROM match_formations WHERE team_id = $1', [id]);
+      
+      // Delete team players
+      await client.query('DELETE FROM team_players WHERE team_id = $1', [id]);
+      
+      // Delete match events where team participated
+      await client.query('DELETE FROM match_events WHERE match_id IN (SELECT id FROM matches WHERE home_team_id = $1 OR away_team_id = $1)', [id]);
+      
+      // Delete matches where team participated
+      await client.query('DELETE FROM matches WHERE home_team_id = $1 OR away_team_id = $1', [id]);
+      
+      // Delete tournament team associations
+      await client.query('DELETE FROM tournament_teams WHERE team_id = $1', [id]);
+      
+      // Finally delete the team
+      const result = await client.query('DELETE FROM teams WHERE id = $1', [id]);
+      
+      await client.query('COMMIT');
+      return result.rowCount !== null && result.rowCount > 0;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   // Match operations
@@ -802,6 +872,35 @@ export class PostgresDatabase {
       createdAt: row.created_at,
       homeTeam: { name: row.home_team_name || 'Unknown Home Team' },
       awayTeam: { name: row.away_team_name || 'Unknown Away Team' },
+      events: []
+    }));
+  }
+
+  async getMatchesByTeamId(teamId: string): Promise<Match[]> {
+    console.log('🔍 Querying matches for team:', teamId);
+    
+    const result = await this.pool.query(`
+      SELECT m.*, 
+             ht.name as home_team_name,
+             at.name as away_team_name
+      FROM matches m
+      LEFT JOIN teams ht ON m.home_team_id = ht.id
+      LEFT JOIN teams at ON m.away_team_id = at.id
+      WHERE m.home_team_id = $1 OR m.away_team_id = $1
+      ORDER BY m.match_date DESC
+    `, [teamId]);
+    
+    console.log(`📋 Found ${result.rows.length} matches for team:`, teamId);
+    
+    return result.rows.map(row => ({
+      ...row,
+      homeScore: row.home_score || 0,
+      awayScore: row.away_score || 0,
+      homeTeamId: row.home_team_id,
+      awayTeamId: row.away_team_id,
+      matchDate: row.match_date,
+      homeTeam: { id: row.home_team_id, name: row.home_team_name },
+      awayTeam: { id: row.away_team_id, name: row.away_team_name },
       events: []
     }));
   }
