@@ -751,7 +751,7 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
             <View style={styles.teamHeaderInfo}>
               <ProfessionalTeamBadge
                 teamName={team?.name || ''}
-                badgeUrl={team?.logoUrl}
+                badgeUrl={team?.logoUrl || (team as any)?.logo_url}
                 size="large"
                 variant="detailed"
                 teamColor={team?.primaryColor}

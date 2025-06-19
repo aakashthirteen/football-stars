@@ -221,7 +221,7 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
               <ProfessionalTeamBadge
                 teamName={match.homeTeam.name}
                 teamShortName={match.homeTeam.shortName}
-                badgeUrl={match.homeTeam.logoUrl || match.homeTeam.badge}
+                badgeUrl={match.homeTeam.logoUrl || (match.homeTeam as any).logo_url || match.homeTeam.badge}
                 size="medium"
                 variant="minimal"
               />
@@ -269,7 +269,7 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
               <ProfessionalTeamBadge
                 teamName={match.awayTeam.name}
                 teamShortName={match.awayTeam.shortName}
-                badgeUrl={match.awayTeam.logoUrl || match.awayTeam.badge}
+                badgeUrl={match.awayTeam.logoUrl || (match.awayTeam as any).logo_url || match.awayTeam.badge}
                 size="medium"
                 variant="minimal"
               />
