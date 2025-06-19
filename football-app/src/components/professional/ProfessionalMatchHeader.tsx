@@ -30,6 +30,7 @@ interface ProfessionalMatchHeaderProps {
   awayScore: number;
   status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'HALFTIME';
   currentMinute?: number;
+  currentSecond?: number;
   venue?: string;
   competition?: string;
   onBack?: () => void;
@@ -43,6 +44,7 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
   awayScore,
   status,
   currentMinute = 0,
+  currentSecond = 0,
   venue,
   competition = 'Grassroots League',
   onBack,
@@ -90,7 +92,9 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
   const getStatusDisplay = () => {
     switch (status) {
       case 'LIVE':
-        return `${currentMinute}'`;
+        // Professional MM:SS format like ESPN/BBC Sport
+        const displaySeconds = currentSecond ? String(currentSecond).padStart(2, '0') : '00';
+        return `${currentMinute}:${displaySeconds}`;
       case 'HALFTIME':
         return 'HT';
       case 'COMPLETED':

@@ -39,16 +39,14 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onPress, style }) =
   
   const [liveMinute, setLiveMinute] = useState(calculateLiveMinute());
 
+  // DISABLED: Client-side timer conflicts with professional WebSocket timer
+  // Timer updates now come from server via WebSocket for accurate synchronization
   useEffect(() => {
+    // Only set initial value, no periodic updates
     if (isLive) {
-      // Update minute every 10 seconds
-      const interval = setInterval(() => {
-        setLiveMinute(calculateLiveMinute());
-      }, 10000);
-      
-      return () => clearInterval(interval);
+      setLiveMinute(calculateLiveMinute());
     }
-  }, [isLive, match.created_at]);
+  }, [isLive]);
 
   useEffect(() => {
     if (isLive) {

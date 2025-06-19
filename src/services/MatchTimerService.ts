@@ -163,8 +163,8 @@ export class MatchTimerService extends EventEmitter {
       // Update state
       this.matchStates.set(matchId, state);
 
-      // Emit timer update every 5 seconds to clients (reduce bandwidth)
-      if (state.currentSecond % 5 === 0) {
+      // Emit timer update every 2 seconds for real-time feel (professional sports standard)
+      if (state.currentSecond % 2 === 0) {
         this.emitTimerUpdate(matchId, 'TIMER_UPDATE');
       }
 

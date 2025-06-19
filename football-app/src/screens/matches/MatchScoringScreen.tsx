@@ -81,6 +81,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const { matchId } = route?.params || {};
   const [match, setMatch] = useState<any>(null);
   const [currentMinute, setCurrentMinute] = useState(0);
+  const [currentSecond, setCurrentSecond] = useState(0);
   const [isLive, setIsLive] = useState(false);
   const [isHalftime, setIsHalftime] = useState(false);
   const [currentHalf, setCurrentHalf] = useState(1);
@@ -151,6 +152,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     
     // Update all timer-related state from server
     setCurrentMinute(timerState.currentMinute);
+    setCurrentSecond(timerState.currentSecond);
     setCurrentHalf(timerState.currentHalf);
     setIsLive(timerState.status === 'LIVE');
     setIsHalftime(timerState.status === 'HALFTIME');
@@ -1109,6 +1111,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             awayScore={match.awayScore}
             status={match.status}
             currentMinute={currentMinute}
+            currentSecond={currentSecond}
             venue={match.venue}
             onBack={() => navigation.goBack()}
           />
