@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
+import { sseAuthenticate } from '../middleware/sseAuth';
 import { sseMatchTimerService } from '../services/sse/SSEMatchTimerService';
 import { AuthRequest } from '../types';
 
@@ -9,7 +10,7 @@ const router = Router();
  * Server-Sent Events endpoint for real-time match timer updates
  * GET /api/matches/:id/timer-stream
  */
-router.get('/:id/timer-stream', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/:id/timer-stream', sseAuthenticate, async (req: AuthRequest, res: Response) => {
   const { id: matchId } = req.params;
   
   if (!matchId) {
