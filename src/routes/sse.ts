@@ -196,4 +196,38 @@ router.patch('/:id/add-time-sse', authenticateToken, async (req: AuthRequest, re
   }
 });
 
+/**
+ * Test SSE connection
+ * GET /api/matches/test-sse
+ */
+router.get('/test-sse', async (req: any, res: Response) => {
+  console.log('🧪 SSE Test: Connection attempt');
+  
+  // Set SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  // Send test data
+  res.write(':ok\n\n');
+  res.write(`data: {"message": "SSE connection successful", "time": "${new Date().toISOString()}"}\n\n`);
+  
+  // Send periodic test messages
+  const interval = setInterval(() => {
+    try {
+      res.write(`data: {"message": "Heartbeat", "time": "${new Date().toISOString()}"}\n\n`);
+    } catch (error) {
+      clearInterval(interval);
+    }
+  }, 5000);
+
+  req.on('close', () => {
+    console.log('🧪 SSE Test: Connection closed');
+    clearInterval(interval);
+  });
+});
+
 export default router;

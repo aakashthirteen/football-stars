@@ -97,6 +97,8 @@ export class SSEMatchTimerService extends EventEmitter {
   public async startMatch(matchId: string): Promise<SSETimerState> {
     try {
       console.log(`⚽ SSE Timer: Starting match ${matchId}`);
+      console.log(`📊 SSE Timer: Active matches before start:`, this.matchStates.size);
+      console.log(`📊 SSE Timer: Connected clients:`, this.sseClients.get(matchId)?.size || 0);
       
       const match = await database.getMatchById(matchId);
       if (!match) {
