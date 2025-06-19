@@ -93,7 +93,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const timerState = useMatchTimer(matchId);
   const { breakTimeDisplay, isBreakEnding } = useHalftimeBreakDisplay(timerState.halftimeBreakRemaining);
   
-  // Debug: Log timer state changes
+  // Debug: Log timer state changes and reset manual flag when SSE confirms live status
   useEffect(() => {
     console.log('🔍 SSE Screen: Timer state updated:', {
       status: timerState.status,
@@ -102,7 +102,13 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       currentSecond: timerState.currentSecond,
       isHalftime: timerState.isHalftime
     });
-  }, [timerState]);
+    
+    // Reset manual start flag once SSE confirms live status
+    if (matchStartRequested && timerState.status === 'LIVE' && timerState.connectionStatus === 'connected') {
+      console.log('✅ SSE confirmed live status, resetting manual flag');
+      setMatchStartRequested(false);
+    }
+  }, [timerState, matchStartRequested]);
 
   // Debug: Log match state changes
   useEffect(() => {
@@ -112,6 +118,19 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       awayScore: match?.awayScore
     });
   }, [match]);
+
+  // Debug: Log view rendering decision
+  useEffect(() => {
+    const shouldShowLiveView = (timerState.status === 'LIVE' || timerState.isHalftime || match?.status === 'LIVE' || matchStartRequested);
+    console.log('🎯 View Decision:', {
+      timerStatus: timerState.status,
+      isHalftime: timerState.isHalftime,
+      matchStatus: match?.status,
+      matchStartRequested: matchStartRequested,
+      willShowLiveView: shouldShowLiveView,
+      connectionStatus: timerState.connectionStatus
+    });
+  }, [timerState.status, timerState.isHalftime, match?.status, matchStartRequested, timerState.connectionStatus]);
   
   // Formation data
   const [homeFormation, setHomeFormation] = useState<any>(null);
@@ -121,6 +140,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   // Halftime modal
   const [showHalftimeModal, setShowHalftimeModal] = useState(false);
   const [showManualControls, setShowManualControls] = useState(false);
+  
+  // Track if match has been manually started (to handle SSE delay)
+  const [matchStartRequested, setMatchStartRequested] = useState(false);
   
   // Modals
   const [showPlayerModal, setShowPlayerModal] = useState(false);
@@ -224,16 +246,38 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   const startMatch = async () => {
     try {
+      console.log('🚀 Starting match:', matchId);
+      console.log('🔍 Before start - Timer state:', timerState.status, 'Match state:', match?.status);
+      
       await soundService.initializeSounds();
+      
       // Use SSE-based match start
-      await apiService.startMatchWithSSE(matchId);
+      console.log('📡 Calling SSE start match API...');
+      const startResponse = await apiService.startMatchWithSSE(matchId);
+      console.log('✅ SSE start response:', startResponse);
+      
+      // Set flag to indicate match start was requested (helps with SSE delay)
+      setMatchStartRequested(true);
+      
       await soundService.playMatchStartWhistle();
+      
+      // Reload match details to get updated status
+      console.log('🔄 Reloading match details...');
       await loadMatchDetails();
+      console.log('🔍 After reload - Match state:', match?.status);
+      
       showCommentary("⚽ KICK-OFF! The referee blows the whistle and the match is underway!");
+      
+      // Force a re-render by updating a state that triggers view change
+      setTimeout(() => {
+        console.log('🔍 Timer state after start:', timerState.status, 'Match state:', match?.status);
+        console.log('🔍 Will show live view?', (timerState.status === 'LIVE' || timerState.isHalftime || match?.status === 'LIVE'));
+      }, 2000);
       
       Vibration.vibrate(100);
     } catch (error) {
-      Alert.alert('Error', 'Failed to start match');
+      console.error('❌ Failed to start match:', error);
+      Alert.alert('Error', 'Failed to start match: ' + (error?.message || 'Unknown error'));
     }
   };
 
@@ -485,7 +529,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       case 'Actions':
         return (
           <View style={styles.tabContent}>
-            {(timerState.status === 'LIVE' || timerState.isHalftime || match?.status === 'LIVE') ? (
+            {(timerState.status === 'LIVE' || timerState.isHalftime || match?.status === 'LIVE' || matchStartRequested) ? (
               <View style={styles.sectionContainer}>
                 {/* Time Controls Bar */}
                 <View style={styles.timeControlsBar}>
