@@ -1274,31 +1274,31 @@ class ApiService {
 
   // SSE-based timer methods
   async startMatchWithSSE(id: string) {
-    return this.request(`/matches/${id}/start-sse`, {
+    return this.request(`/sse/${id}/start-sse`, {
       method: 'PATCH',
     });
   }
 
   async startSecondHalfSSE(id: string) {
-    return this.request(`/matches/${id}/start-second-half-sse`, {
+    return this.request(`/sse/${id}/start-second-half-sse`, {
       method: 'PATCH',
     });
   }
 
   async pauseMatchSSE(id: string) {
-    return this.request(`/matches/${id}/pause-sse`, {
+    return this.request(`/sse/${id}/pause-sse`, {
       method: 'PATCH',
     });
   }
 
   async resumeMatchSSE(id: string) {
-    return this.request(`/matches/${id}/resume-sse`, {
+    return this.request(`/sse/${id}/resume-sse`, {
       method: 'PATCH',
     });
   }
 
   async addStoppageTimeSSE(id: string, minutes: number = 1) {
-    return this.request(`/matches/${id}/add-time-sse`, {
+    return this.request(`/sse/${id}/add-time-sse`, {
       method: 'PATCH',
       body: JSON.stringify({ minutes }),
     });

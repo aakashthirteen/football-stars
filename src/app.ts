@@ -272,7 +272,7 @@ app.use('/api/players', playerRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/simple-matches', simpleMatchRoutes);
-app.use('/api/matches', sseRoutes); // SSE routes for matches
+app.use('/api/sse', sseRoutes); // SSE routes for real-time match updates
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

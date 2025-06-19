@@ -178,7 +178,7 @@ export function useMatchTimer(matchId: string) {
 
       // EventSource in React Native may not support custom headers properly
       // Let's try both approaches: headers and query parameter
-      const url = `${API_BASE_URL}/matches/${matchId}/timer-stream`;
+      const url = `${API_BASE_URL}/sse/${matchId}/timer-stream`;
       const urlWithToken = `${url}?token=${encodeURIComponent(token)}`;
       
       console.log(`📡 SSE: Connecting to ${url}`);
@@ -260,8 +260,8 @@ export function useMatchTimer(matchId: string) {
         return;
       }
 
-      const url = `${API_BASE_URL}/matches/${matchId}/timer-stream?token=${encodeURIComponent(token)}`;
-      console.log(`📡 SSE: Connecting with query token to ${API_BASE_URL}/matches/${matchId}/timer-stream`);
+      const url = `${API_BASE_URL}/sse/${matchId}/timer-stream?token=${encodeURIComponent(token)}`;
+      console.log(`📡 SSE: Connecting with query token to ${API_BASE_URL}/sse/${matchId}/timer-stream`);
       
       const eventSource = new EventSource(url);
       eventSourceRef.current = eventSource;
