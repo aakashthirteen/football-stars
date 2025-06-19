@@ -11,6 +11,7 @@ import playerRoutes from './routes/players';
 import tournamentRoutes from './routes/tournaments';
 import uploadRoutes from './routes/upload';
 import simpleMatchRoutes from './routes/simpleMatches';
+import sseRoutes from './routes/sse';
 
 // Import database
 import { database } from './models/databaseFactory';
@@ -271,6 +272,7 @@ app.use('/api/players', playerRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/simple-matches', simpleMatchRoutes);
+app.use('/api/matches', sseRoutes); // SSE routes for matches
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

@@ -2,7 +2,7 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import MatchesScreen from '../screens/main/MatchesScreen';
 import CreateMatchScreen from '../screens/matches/CreateMatchScreen';
-import MatchScoringScreen from '../screens/matches/MatchScoringScreen';
+import MatchScoringScreenSSE from '../screens/matches/MatchScoringScreenSSE';
 import MatchOverviewScreen from '../screens/matches/MatchOverviewScreen';
 import PlayerRatingScreen from '../screens/matches/PlayerRatingScreen';
 import MatchSummaryScreen from '../screens/matches/MatchSummaryScreen';
@@ -59,7 +59,7 @@ export default function MatchesStack() {
       <Stack.Screen name="MatchesList" component={MatchesScreen} />
       <Stack.Screen name="CreateMatch" component={CreateMatchScreen} />
       <Stack.Screen name="PreMatchPlanning" component={PreMatchPlanningScreen} />
-      <Stack.Screen name="MatchScoring" component={MatchScoringScreen} />
+      <Stack.Screen name="MatchScoring" component={MatchScoringScreenSSE} />
       <Stack.Screen name="MatchOverview" component={MatchOverviewScreen} />
       <Stack.Screen name="PlayerRating" component={PlayerRatingScreen} />
       <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />
