@@ -51,9 +51,11 @@ export default function CreateTeamScreen({ navigation }: CreateTeamScreenProps) 
             // Upload badge with team ID
             const uploadResult = await apiService.uploadTeamBadge(teamBadge, teamId);
             logoUrl = uploadResult.imageUrl;
+            console.log('📤 Badge upload result:', uploadResult);
             
             // Update team with logo URL
-            await apiService.updateTeam(teamId, { logoUrl });
+            const updateResult = await apiService.updateTeam(teamId, { logoUrl });
+            console.log('🔄 Team update result:', updateResult);
             console.log('✅ Team badge uploaded and linked successfully');
           }
           
