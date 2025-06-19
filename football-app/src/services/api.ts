@@ -1132,10 +1132,23 @@ class ApiService {
     return this.request('/teams');
   }
 
-  async createTeam(name: string, description?: string) {
+  async createTeam(name: string, description?: string, logoUrl?: string) {
     return this.request('/teams', {
       method: 'POST',
-      body: JSON.stringify({ name, description }),
+      body: JSON.stringify({ name, description, logoUrl }),
+    });
+  }
+
+  async updateTeam(teamId: string, updates: { name?: string; description?: string; logoUrl?: string }) {
+    return this.request(`/teams/${teamId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteTeam(teamId: string) {
+    return this.request(`/teams/${teamId}`, {
+      method: 'DELETE',
     });
   }
 

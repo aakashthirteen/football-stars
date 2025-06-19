@@ -125,6 +125,7 @@ export default function TeamsScreen({ navigation }: TeamsScreenProps) {
         <View style={styles.teamBadgeSection}>
           <ProfessionalTeamBadge 
             teamName={team.name} 
+            badgeUrl={team.logoUrl}
             size="large" 
           />
         </View>

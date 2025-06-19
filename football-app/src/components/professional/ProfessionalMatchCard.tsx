@@ -10,6 +10,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import DesignSystem from '../../theme/designSystem';
+import { ProfessionalTeamBadge } from './ProfessionalTeamBadge';
 
 const { colors, typography, spacing, borderRadius, shadows } = DesignSystem;
 
@@ -22,12 +23,14 @@ interface ProfessionalMatchCardProps {
       name: string;
       shortName?: string;
       badge?: string;
+      logoUrl?: string;
     };
     awayTeam: {
       id: string;
       name: string;
       shortName?: string;
       badge?: string;
+      logoUrl?: string;
     };
     homeScore: number;
     awayScore: number;
@@ -215,15 +218,13 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
           {/* Home Team */}
           <View style={styles.teamSection}>
             <View style={styles.teamInfo}>
-              <View style={styles.teamBadge}>
-                {match.homeTeam.badge ? (
-                  <Image source={{ uri: match.homeTeam.badge }} style={styles.badgeImage} />
-                ) : (
-                  <Text style={styles.badgePlaceholder}>
-                    {match.homeTeam.shortName?.substring(0, 3) || match.homeTeam.name.substring(0, 3)}
-                  </Text>
-                )}
-              </View>
+              <ProfessionalTeamBadge
+                teamName={match.homeTeam.name}
+                teamShortName={match.homeTeam.shortName}
+                badgeUrl={match.homeTeam.logoUrl || match.homeTeam.badge}
+                size="medium"
+                variant="minimal"
+              />
               <View style={styles.teamNameContainer}>
                 <Text style={styles.teamName} numberOfLines={1}>
                   {match.homeTeam.name}
@@ -265,15 +266,13 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
           {/* Away Team */}
           <View style={styles.teamSection}>
             <View style={styles.teamInfo}>
-              <View style={styles.teamBadge}>
-                {match.awayTeam.badge ? (
-                  <Image source={{ uri: match.awayTeam.badge }} style={styles.badgeImage} />
-                ) : (
-                  <Text style={styles.badgePlaceholder}>
-                    {match.awayTeam.shortName?.substring(0, 3) || match.awayTeam.name.substring(0, 3)}
-                  </Text>
-                )}
-              </View>
+              <ProfessionalTeamBadge
+                teamName={match.awayTeam.name}
+                teamShortName={match.awayTeam.shortName}
+                badgeUrl={match.awayTeam.logoUrl || match.awayTeam.badge}
+                size="medium"
+                variant="minimal"
+              />
               <View style={styles.teamNameContainer}>
                 <Text style={styles.teamName} numberOfLines={1}>
                   {match.awayTeam.name}

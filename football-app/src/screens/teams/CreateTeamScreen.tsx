@@ -37,29 +37,81 @@ export default function CreateTeamScreen({ navigation }: CreateTeamScreenProps) 
 
     setIsLoading(true);
     try {
-      const response = await apiService.createTeam(teamName.trim(), description.trim());
-      
-      Alert.alert(
-        '🎉 Team Created!', 
-        `Your team "${teamName}" has been created successfully. What would you like to do next?`,
-        [
-          {
-            text: 'Add Players',
-            onPress: () => {
-              if (response.team && response.team.id) {
-                navigation.replace('TeamDetails', { teamId: response.team.id });
-              } else {
-                navigation.goBack();
-              }
+      let logoUrl: string | undefined;
+
+      // Upload team badge if selected
+      if (teamBadge) {
+        try {
+          console.log('📤 Uploading team badge first...');
+          // Create team first to get the ID
+          const response = await apiService.createTeam(teamName.trim(), description.trim());
+          const teamId = response.team?.id;
+          
+          if (teamId) {
+            // Upload badge with team ID
+            const uploadResult = await apiService.uploadTeamBadge(teamBadge, teamId);
+            logoUrl = uploadResult.imageUrl;
+            
+            // Update team with logo URL
+            await apiService.updateTeam(teamId, { logoUrl });
+            console.log('✅ Team badge uploaded and linked successfully');
+          }
+          
+          Alert.alert(
+            '🎉 Team Created!', 
+            `Your team "${teamName}" has been created successfully with badge. What would you like to do next?`,
+            [
+              {
+                text: 'Add Players',
+                onPress: () => {
+                  if (teamId) {
+                    navigation.replace('TeamDetails', { teamId });
+                  } else {
+                    navigation.goBack();
+                  }
+                },
+              },
+              {
+                text: 'Back to Teams',
+                onPress: () => navigation.goBack(),
+                style: 'cancel',
+              },
+            ]
+          );
+        } catch (uploadError: any) {
+          console.error('❌ Badge upload failed:', uploadError);
+          Alert.alert(
+            'Team Created',
+            `Team created successfully but badge upload failed: ${uploadError.message}`,
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
+          );
+        }
+      } else {
+        // Create team without badge
+        const response = await apiService.createTeam(teamName.trim(), description.trim());
+        
+        Alert.alert(
+          '🎉 Team Created!', 
+          `Your team "${teamName}" has been created successfully. What would you like to do next?`,
+          [
+            {
+              text: 'Add Players',
+              onPress: () => {
+                if (response.team && response.team.id) {
+                  navigation.replace('TeamDetails', { teamId: response.team.id });
+                } else {
+                  navigation.goBack();
+                }
+              },
             },
-          },
-          {
-            text: 'Back to Teams',
-            onPress: () => navigation.goBack(),
-            style: 'cancel',
-          },
-        ]
-      );
+            {
+              text: 'Back to Teams',
+              onPress: () => navigation.goBack(),
+              style: 'cancel',
+            },
+          ]
+        );
+      }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to create team');
     } finally {

@@ -189,7 +189,6 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     }
     
     // Auto full-time at exact match duration + stoppage time
-    const matchDuration = match.duration || 90;
     const fullTimeMinute = matchDuration + addedTimeSecondHalf;
     if (actualMinute >= fullTimeMinute && currentHalf === 2 && isLive) {
       console.log('🔴 TIMER: Triggering fulltime at minute', actualMinute, 'of', fullTimeMinute);

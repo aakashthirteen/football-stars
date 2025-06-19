@@ -48,6 +48,7 @@ interface Team {
   id: string;
   name: string;
   description?: string;
+  logoUrl?: string;
   players: Player[];
   createdBy: string;
   primaryColor?: string;
@@ -209,6 +210,91 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
       teamId: team.id,
       teamName: team.name
     });
+  };
+
+  // Handle team settings (admin only)
+  const handleTeamSettings = () => {
+    if (!isTeamAdmin()) {
+      Alert.alert('Permission Denied', 'Only team admins can access team settings.');
+      return;
+    }
+
+    Alert.alert(
+      'Team Settings',
+      `Manage "${team?.name}" settings`,
+      [
+        {
+          text: 'Edit Team Info',
+          onPress: handleEditTeam,
+        },
+        {
+          text: 'Delete Team',
+          style: 'destructive',
+          onPress: handleDeleteTeam,
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  // Handle edit team
+  const handleEditTeam = () => {
+    Alert.alert('Coming Soon', 'Team editing functionality will be available soon.');
+  };
+
+  // Handle delete team
+  const handleDeleteTeam = () => {
+    if (!team) return;
+
+    Alert.alert(
+      'Delete Team',
+      `Are you sure you want to delete "${team.name}"?\n\nThis action cannot be undone and will:\n• Remove all players from the team\n• Delete all team matches and statistics\n• Remove team from any tournaments`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: confirmDeleteTeam,
+        },
+      ]
+    );
+  };
+
+  // Confirm team deletion
+  const confirmDeleteTeam = async () => {
+    if (!team) return;
+
+    setIsLoading(true);
+    try {
+      console.log('🗑️ Deleting team:', team.id);
+      await apiService.deleteTeam(team.id);
+      
+      Alert.alert(
+        'Team Deleted',
+        `"${team.name}" has been successfully deleted.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]
+      );
+    } catch (error: any) {
+      console.error('❌ Delete team error:', error);
+      Alert.alert(
+        'Delete Failed',
+        error.message || 'Failed to delete team. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
 
@@ -642,6 +728,7 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
             <View style={styles.teamHeaderInfo}>
               <ProfessionalTeamBadge
                 teamName={team?.name || ''}
+                badgeUrl={team?.logoUrl}
                 size="large"
                 variant="detailed"
                 teamColor={team?.primaryColor}
@@ -649,9 +736,19 @@ export default function TeamDetailsScreen({ navigation, route }: TeamDetailsScre
               
               {/* Admin Badge */}
               {isTeamAdmin() && (
-                <View style={styles.adminBadge}>
-                  <Ionicons name="shield-checkmark" size={16} color={colors.primary.main} />
-                  <Text style={styles.adminBadgeText}>TEAM ADMIN</Text>
+                <View style={styles.adminControls}>
+                  <View style={styles.adminBadge}>
+                    <Ionicons name="shield-checkmark" size={16} color={colors.primary.main} />
+                    <Text style={styles.adminBadgeText}>TEAM ADMIN</Text>
+                  </View>
+                  
+                  {/* Team Settings Button */}
+                  <TouchableOpacity 
+                    style={styles.settingsButton}
+                    onPress={handleTeamSettings}
+                  >
+                    <Ionicons name="settings" size={20} color={colors.text.secondary} />
+                  </TouchableOpacity>
                 </View>
               )}
             </View>
@@ -1245,7 +1342,14 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   
-  // Admin Badge
+  // Admin Controls
+  adminControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.xs,
+    gap: spacing.sm,
+  },
   adminBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1253,7 +1357,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xxs,
     borderRadius: borderRadius.badge,
-    marginTop: spacing.xs,
     gap: spacing.xxs,
   },
   adminBadgeText: {
@@ -1261,6 +1364,12 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: colors.primary.main,
     letterSpacing: 0.5,
+  },
+  settingsButton: {
+    padding: spacing.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.background.secondary,
+    ...shadows.sm,
   },
   bottomSpacing: {
     height: spacing.xxl,
