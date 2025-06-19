@@ -176,20 +176,15 @@ export function useMatchTimer(matchId: string) {
         return;
       }
 
-      // EventSource in React Native may not support custom headers properly
-      // Let's try both approaches: headers and query parameter
-      const url = `${API_BASE_URL}/sse/${matchId}/timer-stream`;
-      const urlWithToken = `${url}?token=${encodeURIComponent(token)}`;
+      // React Native EventSource doesn't support custom headers properly
+      // Use query parameter method for authentication
+      const url = `${API_BASE_URL}/sse/${matchId}/timer-stream?token=${encodeURIComponent(token)}`;
       
-      console.log(`📡 SSE: Connecting to ${url}`);
-      console.log(`🔑 SSE: Using token: ${token.substring(0, 20)}...`);
+      console.log(`📡 SSE: Connecting to ${API_BASE_URL}/sse/${matchId}/timer-stream`);
+      console.log(`🔑 SSE: Using token query param: ${token.substring(0, 20)}...`);
       
-      // Try with headers first
-      const eventSource = new EventSource(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      // Use query parameter for authentication (React Native compatible)
+      const eventSource = new EventSource(url);
       
       eventSourceRef.current = eventSource;
 
@@ -213,22 +208,6 @@ export function useMatchTimer(matchId: string) {
         console.error('❌ SSE: Connection error:', error);
         setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
         
-        // Try query parameter approach if this is the first attempt
-        if (reconnectAttemptsRef.current === 0) {
-          console.log('🔄 SSE: Trying query parameter authentication...');
-          reconnectAttemptsRef.current++;
-          
-          if (reconnectTimeoutRef.current) {
-            clearTimeout(reconnectTimeoutRef.current);
-          }
-          
-          reconnectTimeoutRef.current = setTimeout(() => {
-            eventSource.close();
-            connectSSEWithQueryToken();
-          }, 1000);
-          return;
-        }
-        
         // Exponential backoff reconnection
         const backoffDelay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
         reconnectAttemptsRef.current++;
@@ -250,62 +229,6 @@ export function useMatchTimer(matchId: string) {
     }
   }, [matchId, handleSSEUpdate]);
 
-  // Alternative connection method using query parameter for token
-  const connectSSEWithQueryToken = useCallback(async () => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        console.error('❌ SSE: No auth token available for query method');
-        setTimerState(prev => ({ ...prev, connectionStatus: 'error' }));
-        return;
-      }
-
-      const url = `${API_BASE_URL}/sse/${matchId}/timer-stream?token=${encodeURIComponent(token)}`;
-      console.log(`📡 SSE: Connecting with query token to ${API_BASE_URL}/sse/${matchId}/timer-stream`);
-      
-      const eventSource = new EventSource(url);
-      eventSourceRef.current = eventSource;
-
-      eventSource.onopen = () => {
-        console.log('✅ SSE: Query token connection established successfully');
-        setTimerState(prev => ({ ...prev, connectionStatus: 'connected' }));
-      };
-
-      eventSource.onmessage = (event) => {
-        console.log('📨 SSE: Received message (query method):', event.data);
-        try {
-          const data = JSON.parse(event.data) as SSEUpdate;
-          console.log('🔄 SSE: Parsed data (query method):', data);
-          handleSSEUpdate(data);
-        } catch (error) {
-          console.error('❌ SSE: Failed to parse data (query method):', error);
-        }
-      };
-
-      eventSource.onerror = (error) => {
-        console.error('❌ SSE: Query token connection error:', error);
-        setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
-        
-        // Continue with normal exponential backoff
-        const backoffDelay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
-        reconnectAttemptsRef.current++;
-        
-        console.log(`🔄 SSE: Reconnecting with query token in ${backoffDelay}ms`);
-        
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current);
-        }
-        
-        reconnectTimeoutRef.current = setTimeout(() => {
-          eventSource.close();
-          connectSSEWithQueryToken();
-        }, backoffDelay);
-      };
-    } catch (error) {
-      console.error('❌ SSE: Failed to connect with query token:', error);
-      setTimerState(prev => ({ ...prev, connectionStatus: 'error' }));
-    }
-  }, [matchId, handleSSEUpdate]);
 
   // Effect to manage SSE connection
   useEffect(() => {
