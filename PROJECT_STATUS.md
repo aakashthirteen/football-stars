@@ -35,6 +35,47 @@
 
 ---
 
+## 🚀 **SESSION 12 UPDATE - JANUARY 20, 2025 (HALFTIME DEBUGGING)**
+
+### **🎯 ATTEMPTED HALFTIME SYSTEM FIXES**
+**Goal:** Fix 5-minute match halftime and manual controls
+**Attempted Solutions:**
+- ✅ **Fixed fractional duration calculations** - 5-min match now triggers halftime at 2:30 (not 3:00)
+- ✅ **Fixed second half timer start** - Should start at 3:00 for 5-min matches
+- ✅ **Added 5-second polling** to detect server-side halftime triggers
+- ✅ **Universal UI updates** - HomeScreen/MatchesScreen show halftime status
+- ✅ **Enhanced debugging** - Comprehensive logging for all manual controls
+- ✅ **Match duration display** - Shows "5 min match" in live match header
+
+### **🚨 CURRENT HALFTIME SYSTEM STATUS: PARTIALLY WORKING**
+**What Works:**
+- ✅ **Server-side halftime trigger** - Correctly triggers at 2:30 for 5-min matches
+- ✅ **Frontend detection** - Polling detects halftime within 5 seconds
+- ✅ **UI updates** - All screens show halftime status correctly
+- ✅ **Timer stops** - Frontend timer pauses during halftime
+
+**What's STILL BROKEN:**
+- ❌ **"Start 2nd" button** - Shows commentary but doesn't actually start second half
+- ❌ **Unreliable polling** - 5-second delays and inconsistent updates
+- ❌ **Manual controls** - Referee controls not working reliably
+- ❌ **No automatic resume** - 15-minute break doesn't auto-start second half
+
+### **🔧 ROOT CAUSE ANALYSIS**
+**Problem:** Polling approach is fundamentally flawed
+- **5-second delays** are too slow for real-time sports
+- **API polling** creates race conditions and sync issues
+- **Manual controls** rely on same broken polling system
+- **Railway WebSocket broken** - need alternative real-time solution
+
+### **💡 NEXT SESSION STRATEGY**
+**Need completely different approach:**
+1. **Server-Sent Events (SSE)** - Alternative to WebSocket
+2. **Direct timer synchronization** - Shared timer state
+3. **Simplified manual controls** - Direct API calls without polling dependency
+4. **Local timer with server checkpoints** - Hybrid approach
+
+---
+
 ## 🚀 **PREVIOUS MAJOR UPDATES - JUNE 19 (Session 10)**
 
 ### **✅ COMPLETE TEAM MANAGEMENT SYSTEM - REVOLUTIONARY UPDATE**
@@ -499,10 +540,10 @@
 ## 🎯 **IMMEDIATE NEXT PRIORITIES**
 
 ### **🚨 CRITICAL FIXES (Must Do Next Session)**
-1. **WebSocket Connection Fix** - Resolve Railway WebSocket proxy issue causing immediate disconnections (code 1001)
-2. **Halftime Pause Implementation** - Matches should automatically pause at halftime for 15-minute break
-3. **Manual Match Controls** - Add manual halftime/fulltime buttons for referee control
-4. **Timer Sync Issues** - Ensure timer syncs properly across all connected users when WebSocket works
+1. **COMPLETE HALFTIME SYSTEM REDESIGN** - Current polling approach is unreliable and broken
+2. **"Start 2nd" Button Fix** - Manual second half start doesn't work despite API calls
+3. **Real-Time Alternative** - Replace WebSocket with Server-Sent Events or hybrid solution
+4. **Manual Controls Overhaul** - Referee controls need direct server communication, not polling
 
 ### **🚨 HIGH PRIORITY FEATURES (After Critical Fixes)**
 1. **Real Whistle Sound Files** - Replace vibration patterns with actual referee whistle audio (whistle-short.mp3 file already exists in assets/sounds/)
@@ -536,12 +577,12 @@
 - ✅ **Real Players Only**: Phone number mandatory registration implemented
 - ✅ **Phone Discovery**: Complete phone number search system implemented
 - ✅ **Pro Feel**: Professional UI matching top sports apps with realistic match controls
-- ✅ **Perfect Timing**: Match system respects exact durations with precise halftime/fulltime
-- ✅ **Automatic Match Flow**: No manual controls needed - works like real football
 - ✅ **Visual Polish**: Animated live indicators, smooth wave effects, consistent design
 - ✅ **Cloud Storage**: Professional image upload system with Cloudinary integration
 - ✅ **Team Management**: Complete team creation, deletion, and badge upload system
 - ✅ **Team Branding**: Team logos display across all screens with fallback design
+- ⚠️ **Match Timing**: Server-side timing works, but client sync is broken
+- ❌ **Automatic Match Flow**: Halftime system partially working, manual controls broken
 - 🟡 **QR Discovery**: Planned for next sprint
 - 🟡 **Whistle Sounds**: Framework ready, need actual audio files
 
@@ -550,9 +591,10 @@
 ## 🐛 **KNOWN ISSUES**
 
 ### **Critical Issues (High Priority)**
-- **WebSocket Disconnections**: Railway WebSocket proxy immediately closes connections (code 1001) - fallback timer working
-- **No Halftime Pause**: Matches don't automatically pause at halftime - need 15-minute break implementation
-- **Missing Manual Controls**: No manual halftime/fulltime buttons for referee control
+- **Halftime System Broken**: 5-second polling is unreliable, manual controls don't work
+- **"Start 2nd" Button Failure**: API calls succeed but match doesn't resume properly
+- **Real-Time Sync Issues**: No reliable method for client-server timer synchronization
+- **WebSocket Disconnections**: Railway WebSocket proxy broken (code 1001) - need alternative
 
 ### **Current Issues (Non-Critical)**
 - **Create Screens**: Need professional design updates to match main screens (cosmetic)
@@ -1265,9 +1307,11 @@ CREATE TABLE match_formations (
 
 ---
 
-**CONFIDENCE LEVEL**: **FUNCTIONAL WITH WORKAROUNDS** - App has working timer via fallback system, WebSocket needs fixing
+**CONFIDENCE LEVEL**: **PARTIALLY FUNCTIONAL - HALFTIME SYSTEM BROKEN** - Basic match timing works, but halftime/manual controls unreliable
 
-**DEPLOYMENT STATUS**: ✅ Live on Railway with working timer (fallback), team management, cloud storage, but WebSocket disconnection issues
+**DEPLOYMENT STATUS**: ✅ Live on Railway with basic functionality, but halftime system needs complete redesign
+
+**SESSION 12 RESULT**: Made progress on fractional timing, but fundamental architecture issues remain with real-time synchronization
 
 ---
 
