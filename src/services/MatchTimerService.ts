@@ -88,7 +88,15 @@ export class MatchTimerService extends EventEmitter {
 
       this.activeMatches.set(matchId, timer);
 
-      console.log(`✅ TIMER_SERVICE: Match ${matchId} timer started successfully`);
+      console.log(`✅ TIMER_SERVICE: Match ${matchId} timer started successfully with ${this.TIMER_INTERVAL_MS}ms interval`);
+      console.log(`📊 TIMER_SERVICE: Active matches count: ${this.activeMatches.size}`);
+      console.log(`🔍 TIMER_SERVICE: Initial timer state:`, {
+        matchId: timerState.matchId,
+        currentMinute: timerState.currentMinute,
+        currentSecond: timerState.currentSecond,
+        status: timerState.status,
+        isPaused: timerState.isPaused
+      });
       
       // Emit initial state to all connected clients
       this.emitTimerUpdate(matchId, 'STATUS_CHANGE', 'Match started! ⚽');
@@ -105,7 +113,12 @@ export class MatchTimerService extends EventEmitter {
    */
   private async updateMatchTimer(matchId: string): Promise<void> {
     const state = this.matchStates.get(matchId);
-    if (!state || state.isPaused) return;
+    if (!state || state.isPaused) {
+      console.log(`⏱️ TIMER_DEBUG: Skipping update for ${matchId} - state:`, state ? 'paused' : 'not found');
+      return;
+    }
+
+    console.log(`⏱️ TIMER_DEBUG: Updating timer for match ${matchId} - current: ${state.currentMinute}:${state.currentSecond}`);
 
     try {
       // Get fresh match data for duration and stoppage time

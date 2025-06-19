@@ -38,7 +38,8 @@ class WebSocketService {
 
   // Get WebSocket URL from API base URL
   private getWebSocketUrl(): string {
-    const baseUrl = API_BASE_URL.replace(/^http/, 'ws');
+    // Remove /api from the end and replace http with ws
+    const baseUrl = API_BASE_URL.replace(/\/api$/, '').replace(/^http/, 'ws');
     return `${baseUrl}/ws`;
   }
 
@@ -59,20 +60,20 @@ class WebSocketService {
         return;
       }
 
-      const wsUrl = this.getWebSocketUrl();
-      console.log('🔌 WebSocket: Connecting to:', wsUrl);
+      const baseWsUrl = this.getWebSocketUrl();
+      const wsUrl = `${baseWsUrl}?token=${encodeURIComponent(token)}`;
+      console.log('🔌 WebSocket: Connecting to:', baseWsUrl); // Don't log token
       
-      this.ws = new WebSocket(wsUrl, undefined, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
         console.log('✅ WebSocket: Connected to professional timer service');
+        console.log('🔌 WebSocket: Connection URL:', wsUrl);
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.reconnectDelay = 1000;
+        
+        // Authentication handled via query parameter
         
         // Start ping-pong to keep connection alive
         this.startPingPong();
@@ -83,7 +84,9 @@ class WebSocketService {
 
       this.ws.onmessage = (event) => {
         try {
+          console.log('📨 WebSocket: Received raw message:', event.data);
           const message: WebSocketMessage = JSON.parse(event.data);
+          console.log('📨 WebSocket: Parsed message:', message);
           this.handleMessage(message);
         } catch (error) {
           console.error('❌ WebSocket: Failed to parse message:', error);
@@ -192,19 +195,24 @@ class WebSocketService {
 
   subscribeToMatch(matchId: string, callback?: (update: MatchTimerUpdate) => void): void {
     console.log('📡 WebSocket: Subscribing to match timer:', matchId);
+    console.log('📡 WebSocket: Connection status:', this.getConnectionStatus());
     
     this.subscribedMatches.add(matchId);
     
     if (callback) {
       this.timerUpdateCallbacks.set(matchId, callback);
+      console.log('📡 WebSocket: Added callback for match:', matchId);
     }
 
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
+      const subscribeMessage = {
         type: 'SUBSCRIBE_MATCH',
         matchId: matchId,
-      }));
+      };
+      console.log('📡 WebSocket: Sending subscription message:', subscribeMessage);
+      this.ws.send(JSON.stringify(subscribeMessage));
     } else {
+      console.log('📡 WebSocket: Not connected, attempting to connect first...');
       // If not connected, connect first
       this.connect();
     }

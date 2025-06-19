@@ -23,6 +23,7 @@ export class WebSocketService {
   private constructor() {
     // Initialize timer service event listener
     matchTimerService.on('timerUpdate', (update: MatchTimerUpdate) => {
+      console.log(`🔌 WEBSOCKET_SERVICE: Received timer update for match ${update.matchId}:`, update.timerState?.currentMinute);
       this.broadcastToMatch(update.matchId, update);
     });
   }
@@ -210,14 +211,20 @@ export class WebSocketService {
   private broadcastToMatch(matchId: string, update: MatchTimerUpdate): void {
     let sentCount = 0;
     
+    console.log(`📡 WEBSOCKET_SERVICE: Broadcasting to match ${matchId}, connected clients: ${this.clients.size}`);
+    
     for (const [clientId, client] of this.clients) {
+      console.log(`📡 WEBSOCKET_SERVICE: Checking client ${clientId}, subscribed to: [${Array.from(client.subscribedMatches).join(', ')}]`);
+      
       if (client.subscribedMatches.has(matchId) && client.ws.readyState === WebSocket.OPEN) {
         try {
-          client.ws.send(JSON.stringify({
-            ...update,
-            serverTime: Date.now()
-          }));
+          const message = JSON.stringify({
+            type: 'MATCH_TIMER_UPDATE',
+            data: update
+          });
+          client.ws.send(message);
           sentCount++;
+          console.log(`📡 WEBSOCKET_SERVICE: Sent timer update to client ${clientId}`);
         } catch (error) {
           console.error(`❌ WEBSOCKET_SERVICE: Failed to send to client ${clientId}:`, error);
           this.clients.delete(clientId);
