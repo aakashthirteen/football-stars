@@ -127,10 +127,17 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     loadMatchDetails();
   }, []);
 
-  // Professional WebSocket-based timer system
+  // Professional WebSocket-based timer system (TEMPORARILY DISABLED)
   useEffect(() => {
     if (!matchId) return;
 
+    // TEMPORARY: Disable WebSocket while Railway connection issue is investigated
+    // The fallback timer provides accurate timing, so this is safe to disable
+    console.log('⏱️ PROFESSIONAL_TIMER: WebSocket temporarily disabled - using fallback timer');
+    console.log('⏱️ PROFESSIONAL_TIMER: Match ID:', matchId, '- Fallback timer will provide accurate timing');
+    
+    // TODO: Re-enable when Railway WebSocket issue is resolved
+    /*
     console.log('⏱️ PROFESSIONAL_TIMER: Connecting to server-side timer service for match:', matchId);
     
     // Subscribe to professional timer updates
@@ -143,6 +150,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       console.log('⏱️ PROFESSIONAL_TIMER: Cleaning up timer subscription for match:', matchId);
       webSocketService.unsubscribeFromMatch(matchId);
     };
+    */
   }, [matchId]);
 
   // Fallback timer update (only if WebSocket fails)

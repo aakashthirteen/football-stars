@@ -42,7 +42,13 @@ export class WebSocketService {
     this.wss = new WebSocketServer({ 
       server,
       path: '/ws',
-      clientTracking: true
+      clientTracking: true,
+      // Railway-specific configurations
+      maxPayload: 1024 * 1024, // 1MB max payload
+      verifyClient: (info) => {
+        console.log('🔍 WEBSOCKET_SERVICE: Verifying client connection from:', info.origin);
+        return true; // Accept all connections for now
+      }
     });
 
     this.wss.on('connection', (ws: WebSocket, request: IncomingMessage) => {

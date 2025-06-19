@@ -186,17 +186,19 @@ class WebSocketService {
 
   private scheduleReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('❌ WebSocket: Max reconnection attempts reached');
+      console.error('❌ WebSocket: Max reconnection attempts reached - using fallback timer');
       return;
     }
 
-    console.log(`🔄 WebSocket: Scheduling reconnect in ${this.reconnectDelay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+    // TEMPORARY: Reduce reconnection frequency while Railway WebSocket issue is investigated
+    const extendedDelay = Math.min(this.reconnectDelay * 5, 60000); // Much slower reconnects
+    console.log(`🔄 WebSocket: Scheduling reconnect in ${extendedDelay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts}) - using fallback timer`);
     
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectAttempts++;
       this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000); // Max 30 seconds
       this.connect();
-    }, this.reconnectDelay);
+    }, extendedDelay);
   }
 
   private cleanup(): void {
