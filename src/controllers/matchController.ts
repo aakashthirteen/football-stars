@@ -785,3 +785,59 @@ export const updateFormationDuringMatch = async (req: AuthRequest, res: Response
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// New Match Control Endpoints for Halftime Break and Manual Controls
+
+export const pauseMatch = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`⏸️ MATCH_CONTROLLER: Pausing match ${id}`);
+    
+    const timerState = await matchTimerService.pauseMatch(id);
+    
+    res.json({
+      timerState,
+      message: 'Match paused successfully'
+    });
+  } catch (error) {
+    console.error('❌ Pause match error:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
+  }
+};
+
+export const resumeMatch = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`▶️ MATCH_CONTROLLER: Resuming match ${id}`);
+    
+    const timerState = await matchTimerService.resumeMatch(id);
+    
+    res.json({
+      timerState,
+      message: 'Match resumed successfully'
+    });
+  } catch (error) {
+    console.error('❌ Resume match error:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
+  }
+};
+
+export const manualHalftime = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`🟨 MATCH_CONTROLLER: Manual halftime for match ${id}`);
+    
+    const timerState = await matchTimerService.manualHalftime(id);
+    
+    res.json({
+      timerState,
+      message: 'Halftime triggered manually'
+    });
+  } catch (error) {
+    console.error('❌ Manual halftime error:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
+  }
+};

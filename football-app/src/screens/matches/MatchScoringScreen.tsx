@@ -101,8 +101,10 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const [awayFormation, setAwayFormation] = useState<any>(null);
   const [formationsLoaded, setFormationsLoaded] = useState(false);
   
-  // Halftime modal
+  // Halftime modal and break countdown
   const [showHalftimeModal, setShowHalftimeModal] = useState(false);
+  const [halftimeBreakTimeRemaining, setHalftimeBreakTimeRemaining] = useState(0);
+  const [showManualControls, setShowManualControls] = useState(false);
   
   // Modals
   const [showPlayerModal, setShowPlayerModal] = useState(false);
@@ -303,6 +305,37 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     }
   };
 
+  // New Manual Control Handlers
+  const handlePauseMatch = async () => {
+    try {
+      await apiService.pauseMatch(matchId);
+      showCommentary('⏸️ Match paused by referee');
+      await loadMatchDetails();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to pause match');
+    }
+  };
+
+  const handleResumeMatch = async () => {
+    try {
+      await apiService.resumeMatch(matchId);
+      showCommentary('▶️ Match resumed by referee');
+      await loadMatchDetails();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to resume match');
+    }
+  };
+
+  const handleManualHalftime = async () => {
+    try {
+      await apiService.manualHalftime(matchId);
+      showCommentary('🟨 HALF-TIME! Called by referee');
+      await loadMatchDetails();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to trigger halftime');
+    }
+  };
+
   const loadMatchDetails = async () => {
     try {
       setIsLoading(true);
@@ -369,6 +402,40 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       setIsLoading(false);
     }
   };
+
+  // Halftime break countdown effect
+  useEffect(() => {
+    if (!isHalftime || !match) return;
+
+    // Calculate time remaining in 15-minute break
+    const calculateBreakTimeRemaining = () => {
+      const now = Date.now();
+      // Get halftime break start time from server (this would need to be in the match data)
+      // For now, we'll calculate based on when status changed to HALFTIME
+      const halftimeStartTime = new Date(match.updated_at || match.matchDate).getTime();
+      const breakDurationMs = 15 * 60 * 1000; // 15 minutes
+      const elapsedBreakTime = now - halftimeStartTime;
+      const timeRemaining = Math.max(0, breakDurationMs - elapsedBreakTime);
+      
+      return Math.ceil(timeRemaining / 1000); // Return seconds remaining
+    };
+
+    // Update countdown every second during halftime break
+    const breakTimer = setInterval(() => {
+      const remaining = calculateBreakTimeRemaining();
+      setHalftimeBreakTimeRemaining(remaining);
+      
+      if (remaining <= 0) {
+        // Break should be over, but don't auto-start (server handles this)
+        clearInterval(breakTimer);
+      }
+    }, 1000);
+
+    // Initial calculation
+    setHalftimeBreakTimeRemaining(calculateBreakTimeRemaining());
+
+    return () => clearInterval(breakTimer);
+  }, [isHalftime, match]);
 
   const loadFormationData = async (matchData: any) => {
     try {
@@ -638,23 +705,85 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                   >
                     <View style={styles.timeControlsContent}>
                       <View style={styles.timeInfo}>
-                        <Text style={styles.timeInfoText}>
-                          Half {currentHalf} | +{currentHalf === 1 ? addedTimeFirstHalf : addedTimeSecondHalf} min
-                        </Text>
+                        {isHalftime ? (
+                          <View style={styles.halftimeBreakInfo}>
+                            <Text style={styles.halftimeBreakTitle}>⏰ Halftime Break</Text>
+                            <Text style={styles.halftimeBreakCountdown}>
+                              {Math.floor(halftimeBreakTimeRemaining / 60)}:{String(halftimeBreakTimeRemaining % 60).padStart(2, '0')} remaining
+                            </Text>
+                          </View>
+                        ) : (
+                          <Text style={styles.timeInfoText}>
+                            Half {currentHalf} | +{currentHalf === 1 ? addedTimeFirstHalf : addedTimeSecondHalf} min
+                          </Text>
+                        )}
                       </View>
                       
                       <View style={styles.timeControlButtons}>
+                        {!isHalftime && (
+                          <TouchableOpacity
+                            style={styles.quickButton}
+                            onPress={handleAddStoppageTime}
+                          >
+                            <Ionicons name="add" size={16} color={colors.accent.blue} />
+                            <Text style={styles.quickButtonText}>+1</Text>
+                          </TouchableOpacity>
+                        )}
+                        
                         <TouchableOpacity
-                          style={styles.quickButton}
-                          onPress={handleAddStoppageTime}
+                          style={[styles.quickButton, { marginLeft: 8 }]}
+                          onPress={() => setShowManualControls(!showManualControls)}
                         >
-                          <Ionicons name="add" size={16} color={colors.accent.blue} />
-                          <Text style={styles.quickButtonText}>+1</Text>
+                          <Ionicons name="settings" size={16} color={colors.accent.purple} />
+                          <Text style={styles.quickButtonText}>Ref</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
                   </LinearGradient>
                 </View>
+
+                {/* Manual Controls Panel */}
+                {showManualControls && (
+                  <View style={styles.cardSection}>
+                    <LinearGradient
+                      colors={[colors.accent.purple + '15', colors.accent.coral + '10']}
+                      style={styles.cardGradient}
+                    >
+                      <View style={styles.manualControlsPanel}>
+                        <Text style={styles.manualControlsTitle}>🧑‍⚖️ Referee Controls</Text>
+                        <View style={styles.manualControlsGrid}>
+                          {!isHalftime && isLive && (
+                            <TouchableOpacity style={styles.manualControlButton} onPress={handlePauseMatch}>
+                              <Ionicons name="pause" size={20} color={colors.accent.orange} />
+                              <Text style={styles.manualControlButtonText}>Pause</Text>
+                            </TouchableOpacity>
+                          )}
+                          
+                          {!isHalftime && !isLive && match?.status === 'LIVE' && (
+                            <TouchableOpacity style={styles.manualControlButton} onPress={handleResumeMatch}>
+                              <Ionicons name="play" size={20} color={colors.accent.teal} />
+                              <Text style={styles.manualControlButtonText}>Resume</Text>
+                            </TouchableOpacity>
+                          )}
+                          
+                          {currentHalf === 1 && !isHalftime && (
+                            <TouchableOpacity style={styles.manualControlButton} onPress={handleManualHalftime}>
+                              <Ionicons name="pause-circle" size={20} color={colors.accent.yellow} />
+                              <Text style={styles.manualControlButtonText}>Call HT</Text>
+                            </TouchableOpacity>
+                          )}
+                          
+                          {isHalftime && (
+                            <TouchableOpacity style={styles.manualControlButton} onPress={handleStartSecondHalf}>
+                              <Ionicons name="play-circle" size={20} color={colors.primary.main} />
+                              <Text style={styles.manualControlButtonText}>Start 2nd</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    </LinearGradient>
+                  </View>
+                )}
 
                 {/* Match Actions Card */}
                 <View style={styles.cardSection}>
@@ -2236,5 +2365,56 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.large,
     fontWeight: typography.fontWeight.semibold,
     color: colors.text.primary,
+  },
+
+  // Halftime Break Styles
+  halftimeBreakInfo: {
+    alignItems: 'flex-start',
+  },
+  halftimeBreakTitle: {
+    fontSize: typography.fontSize.small,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.accent.orange,
+    marginBottom: 2,
+  },
+  halftimeBreakCountdown: {
+    fontSize: typography.fontSize.regular,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
+  },
+
+  // Manual Controls Styles
+  manualControlsPanel: {
+    padding: spacing.md,
+  },
+  manualControlsTitle: {
+    fontSize: typography.fontSize.large,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+    textAlign: 'center',
+  },
+  manualControlsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-around',
+    gap: spacing.sm,
+  },
+  manualControlButton: {
+    minWidth: 80,
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.background.primary,
+    borderRadius: borderRadius.button,
+    borderWidth: 1,
+    borderColor: colors.border.secondary,
+    ...shadows.small,
+  },
+  manualControlButtonText: {
+    fontSize: typography.fontSize.small,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
+    marginTop: 4,
   },
 });

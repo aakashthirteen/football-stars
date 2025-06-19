@@ -1253,6 +1253,25 @@ class ApiService {
     });
   }
 
+  // New Manual Match Control Methods
+  async pauseMatch(id: string) {
+    return this.request(`/matches/${id}/pause`, {
+      method: 'PATCH',
+    });
+  }
+
+  async resumeMatch(id: string) {
+    return this.request(`/matches/${id}/resume`, {
+      method: 'PATCH',
+    });
+  }
+
+  async manualHalftime(id: string) {
+    return this.request(`/matches/${id}/manual-halftime`, {
+      method: 'PATCH',
+    });
+  }
+
   // Formation endpoints
   async saveFormationForMatch(matchId: string, teamId: string, formationData: {
     formation: string;

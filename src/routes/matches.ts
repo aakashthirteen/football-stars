@@ -13,7 +13,10 @@ import {
   saveFormationForMatch,
   getFormationForMatch,
   getMatchWithFormations,
-  updateFormationDuringMatch
+  updateFormationDuringMatch,
+  pauseMatch,
+  resumeMatch,
+  manualHalftime
 } from '../controllers/matchController';
 import { authenticateToken } from '../middleware/auth';
 
@@ -32,6 +35,11 @@ router.patch('/:id/halftime', pauseForHalftime);
 router.patch('/:id/second-half', startSecondHalf);
 router.patch('/:id/add-time', addStoppageTime);
 router.post('/:id/events', addMatchEvent);
+
+// New Manual Match Control Routes
+router.patch('/:id/pause', pauseMatch);
+router.patch('/:id/resume', resumeMatch);
+router.patch('/:id/manual-halftime', manualHalftime);
 
 // Formation routes
 router.post('/:matchId/teams/:teamId/formation', saveFormationForMatch);

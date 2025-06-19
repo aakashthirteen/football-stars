@@ -18,6 +18,9 @@ export interface MatchTimerState {
   // Add match configuration to avoid database calls in timer loop
   matchDuration: number; // Total match duration (e.g., 90 minutes)
   halfDuration: number; // Half duration (e.g., 45 minutes)
+  // Halftime break timer
+  halftimeBreakStartTime?: number; // Timestamp when halftime break started
+  halftimeBreakDuration: number; // Break duration in minutes (default: 15)
 }
 
 export interface MatchTimerUpdate {
@@ -34,8 +37,10 @@ export interface MatchTimerUpdate {
 export class MatchTimerService extends EventEmitter {
   private static instance: MatchTimerService;
   private activeMatches: Map<string, NodeJS.Timeout> = new Map();
+  private halftimeBreakTimers: Map<string, NodeJS.Timeout> = new Map();
   private matchStates: Map<string, MatchTimerState> = new Map();
   private readonly TIMER_INTERVAL_MS = 1000; // 1 second precision
+  private readonly HALFTIME_BREAK_DURATION_MS = 15 * 60 * 1000; // 15 minutes in milliseconds
 
   private constructor() {
     super();
@@ -86,7 +91,9 @@ export class MatchTimerService extends EventEmitter {
         automaticFulltimeTriggered: false,
         // Store match config to avoid database calls in timer loop
         matchDuration,
-        halfDuration
+        halfDuration,
+        // Halftime break configuration
+        halftimeBreakDuration: 15 // 15-minute break
       };
 
       this.matchStates.set(matchId, timerState);
@@ -190,16 +197,45 @@ export class MatchTimerService extends EventEmitter {
       state.isLive = false;
       state.isHalftime = true;
       state.automaticHalftimeTriggered = true;
+      state.halftimeBreakStartTime = Date.now();
       this.matchStates.set(matchId, state);
 
       console.log(`✅ TIMER_SERVICE: Halftime triggered for match ${matchId}`);
       
+      // Start 15-minute halftime break timer
+      this.startHalftimeBreakTimer(matchId);
+      
       // Notify all clients
-      this.emitTimerUpdate(matchId, 'HALF_TIME', '⏱️ HALF-TIME! First half ends.');
+      this.emitTimerUpdate(matchId, 'HALF_TIME', '⏱️ HALF-TIME! 15-minute break begins.');
 
     } catch (error) {
       console.error(`❌ TIMER_SERVICE: Failed to trigger halftime for match ${matchId}:`, error);
     }
+  }
+
+  /**
+   * Start 15-minute halftime break timer
+   */
+  private startHalftimeBreakTimer(matchId: string): void {
+    const breakTimer = setTimeout(async () => {
+      console.log(`⏰ TIMER_SERVICE: 15-minute halftime break completed for match ${matchId}, starting second half automatically`);
+      
+      try {
+        // Automatically start second half after 15-minute break
+        await this.startSecondHalf(matchId);
+        
+        // Clean up break timer
+        this.halftimeBreakTimers.delete(matchId);
+        
+      } catch (error) {
+        console.error(`❌ TIMER_SERVICE: Failed to auto-start second half for match ${matchId}:`, error);
+      }
+    }, this.HALFTIME_BREAK_DURATION_MS);
+
+    // Store break timer for potential manual override
+    this.halftimeBreakTimers.set(matchId, breakTimer);
+    
+    console.log(`⏰ TIMER_SERVICE: Started 15-minute halftime break timer for match ${matchId}`);
   }
 
   /**
@@ -212,6 +248,14 @@ export class MatchTimerService extends EventEmitter {
     }
 
     try {
+      // Clear any existing halftime break timer (in case of manual override)
+      const breakTimer = this.halftimeBreakTimers.get(matchId);
+      if (breakTimer) {
+        clearTimeout(breakTimer);
+        this.halftimeBreakTimers.delete(matchId);
+        console.log(`🔄 TIMER_SERVICE: Cleared halftime break timer for match ${matchId}`);
+      }
+
       // Update database
       await database.updateMatch(matchId, { status: 'LIVE', second_half_start_time: new Date() });
       
@@ -227,6 +271,7 @@ export class MatchTimerService extends EventEmitter {
       state.isPaused = false;
       state.isLive = true;
       state.isHalftime = false;
+      state.halftimeBreakStartTime = undefined; // Clear break start time
       state.serverTime = Date.now();
 
       this.matchStates.set(matchId, state);
@@ -273,6 +318,75 @@ export class MatchTimerService extends EventEmitter {
     } catch (error) {
       console.error(`❌ TIMER_SERVICE: Failed to trigger fulltime for match ${matchId}:`, error);
     }
+  }
+
+  /**
+   * Pause match (referee timeout)
+   */
+  public async pauseMatch(matchId: string): Promise<MatchTimerState> {
+    const state = this.matchStates.get(matchId);
+    if (!state) {
+      throw new Error('Match timer state not found');
+    }
+
+    try {
+      state.isPaused = true;
+      state.isLive = false;
+      state.serverTime = Date.now();
+      this.matchStates.set(matchId, state);
+
+      console.log(`⏸️ TIMER_SERVICE: Match ${matchId} paused by referee`);
+      
+      // Notify all clients
+      this.emitTimerUpdate(matchId, 'STATUS_CHANGE', '⏸️ Match paused by referee');
+
+      return state;
+    } catch (error) {
+      console.error(`❌ TIMER_SERVICE: Failed to pause match ${matchId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Resume match (end timeout)
+   */
+  public async resumeMatch(matchId: string): Promise<MatchTimerState> {
+    const state = this.matchStates.get(matchId);
+    if (!state || state.status !== 'LIVE') {
+      throw new Error('Match timer state not found or match not live');
+    }
+
+    try {
+      state.isPaused = false;
+      state.isLive = true;
+      state.serverTime = Date.now();
+      this.matchStates.set(matchId, state);
+
+      console.log(`▶️ TIMER_SERVICE: Match ${matchId} resumed by referee`);
+      
+      // Notify all clients
+      this.emitTimerUpdate(matchId, 'STATUS_CHANGE', '▶️ Match resumed');
+
+      return state;
+    } catch (error) {
+      console.error(`❌ TIMER_SERVICE: Failed to resume match ${matchId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Manually trigger halftime (referee control)
+   */
+  public async manualHalftime(matchId: string): Promise<MatchTimerState> {
+    const state = this.matchStates.get(matchId);
+    if (!state || state.currentHalf !== 1) {
+      throw new Error('Match not in first half or state not found');
+    }
+
+    console.log(`🟨 TIMER_SERVICE: Manual halftime triggered for match ${matchId}`);
+    await this.triggerHalftime(matchId);
+    
+    return this.getMatchState(matchId) as MatchTimerState;
   }
 
   /**
@@ -368,6 +482,13 @@ export class MatchTimerService extends EventEmitter {
       this.activeMatches.delete(matchId);
     }
     
+    // Clear halftime break timer if exists
+    const breakTimer = this.halftimeBreakTimers.get(matchId);
+    if (breakTimer) {
+      clearTimeout(breakTimer);
+      this.halftimeBreakTimers.delete(matchId);
+    }
+    
     // Keep state for clients but mark as stopped
     const state = this.matchStates.get(matchId);
     if (state) {
@@ -436,7 +557,9 @@ export class MatchTimerService extends EventEmitter {
         automaticFulltimeTriggered: false,
         // Add match config to avoid database calls in timer loop
         matchDuration,
-        halfDuration
+        halfDuration,
+        // Halftime break configuration
+        halftimeBreakDuration: 15
       };
 
       this.matchStates.set(matchId, state);
@@ -491,10 +614,18 @@ export class MatchTimerService extends EventEmitter {
    */
   public cleanup(): void {
     console.log('🧹 TIMER_SERVICE: Cleaning up all timers');
+    
+    // Clear all match timers
     for (const [matchId, timer] of this.activeMatches) {
       clearInterval(timer);
     }
     this.activeMatches.clear();
+    
+    // Clear all halftime break timers
+    for (const [matchId, breakTimer] of this.halftimeBreakTimers) {
+      clearTimeout(breakTimer);
+    }
+    this.halftimeBreakTimers.clear();
   }
 }
 
