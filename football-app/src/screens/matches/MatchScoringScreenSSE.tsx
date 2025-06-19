@@ -93,6 +93,26 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const timerState = useMatchTimer(matchId);
   const { breakTimeDisplay, isBreakEnding } = useHalftimeBreakDisplay(timerState.halftimeBreakRemaining);
   
+  // Debug: Log timer state changes
+  useEffect(() => {
+    console.log('🔍 SSE Screen: Timer state updated:', {
+      status: timerState.status,
+      connectionStatus: timerState.connectionStatus,
+      currentMinute: timerState.currentMinute,
+      currentSecond: timerState.currentSecond,
+      isHalftime: timerState.isHalftime
+    });
+  }, [timerState]);
+
+  // Debug: Log match state changes
+  useEffect(() => {
+    console.log('🔍 SSE Screen: Match state updated:', {
+      status: match?.status,
+      homeScore: match?.homeScore,
+      awayScore: match?.awayScore
+    });
+  }, [match]);
+  
   // Formation data
   const [homeFormation, setHomeFormation] = useState<any>(null);
   const [awayFormation, setAwayFormation] = useState<any>(null);
@@ -465,7 +485,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       case 'Actions':
         return (
           <View style={styles.tabContent}>
-            {(timerState.status === 'LIVE' || timerState.isHalftime) ? (
+            {(timerState.status === 'LIVE' || timerState.isHalftime || match?.status === 'LIVE') ? (
               <View style={styles.sectionContainer}>
                 {/* Time Controls Bar */}
                 <View style={styles.timeControlsBar}>
@@ -475,7 +495,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                   >
                     <View style={styles.timeControlsContent}>
                       <View style={styles.timeInfo}>
-                        {timerState.isHalftime ? (
+                        {timerState.isHalftime || (match?.status === 'HALFTIME') ? (
                           <View style={styles.halftimeBreakInfo}>
                             <Text style={styles.halftimeBreakTitle}>⏰ Halftime Break</Text>
                             <Text style={styles.halftimeBreakCountdown}>
