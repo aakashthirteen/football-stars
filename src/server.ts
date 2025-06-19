@@ -44,6 +44,51 @@ async function startServer() {
         } else {
           console.log('✅ match_formations table already exists');
         }
+
+        // Check and add SSE timer columns
+        console.log('🔄 Checking SSE timer columns...');
+        const timerColumnsCheck = await client.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'matches' 
+          AND column_name = 'timer_started_at'
+        `);
+
+        if (timerColumnsCheck.rows.length === 0) {
+          console.log('⚠️ SSE timer columns not found, adding them now...');
+          
+          // Add timer tracking columns
+          await client.query(`
+            ALTER TABLE matches 
+            ADD COLUMN IF NOT EXISTS timer_started_at TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS halftime_started_at TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS second_half_started_at TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS timer_paused_at TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS total_paused_duration INTEGER DEFAULT 0
+          `);
+          
+          console.log('✅ Added SSE timer tracking columns');
+          
+          // Add index for performance
+          await client.query(`
+            CREATE INDEX IF NOT EXISTS idx_matches_timer_status 
+            ON matches(status, timer_started_at)
+          `);
+          
+          console.log('✅ Added timer status index');
+          
+          // Update existing LIVE matches
+          const updateResult = await client.query(`
+            UPDATE matches 
+            SET timer_started_at = match_date 
+            WHERE status = 'LIVE' 
+            AND timer_started_at IS NULL
+          `);
+          
+          console.log(`✅ Updated ${updateResult.rowCount} live matches with timer start time`);
+        } else {
+          console.log('✅ SSE timer columns already exist');
+        }
       } finally {
         client.release();
       }
