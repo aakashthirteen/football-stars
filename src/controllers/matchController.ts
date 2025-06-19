@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { database } from '../models/databaseFactory';
 import { AuthRequest, CreateMatchRequest, MatchEventRequest, Match, MatchWithDetails, MatchEvent } from '../types';
 import { matchTimerService } from '../services/MatchTimerService';
+import { sseMatchTimerService } from '../services/sse/SSEMatchTimerService';
+import { getTimerService } from '../config/timerConfig';
 
 export const getUserMatches = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -57,7 +59,8 @@ export const endMatch = async (req: AuthRequest, res: Response): Promise<void> =
     console.log('🏁 MATCH_CONTROLLER: Ending match with professional timer service:', id);
     
     // End match using timer service
-    const timerState = await matchTimerService.endMatch(id);
+    const timerService = getTimerService();
+    const timerState = await timerService.endMatch(id);
     
     // Get updated match data
     const updatedMatch = await database.getMatchById(id);
@@ -242,9 +245,10 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    // Start professional server-side timer
-    console.log(`🚀 MATCH_CONTROLLER: About to call matchTimerService.startMatch(${id})`);
-    const timerState = await matchTimerService.startMatch(id);
+    // Start professional server-side timer (SSE or WebSocket based on config)
+    const timerService = getTimerService();
+    console.log(`🚀 MATCH_CONTROLLER: About to call timerService.startMatch(${id}) with SSE timer`);
+    const timerState = await timerService.startMatch(id);
     
     console.log(`✅ MATCH_CONTROLLER: Match ${id} started with timer service:`, {
       matchId: timerState.matchId,
@@ -256,7 +260,7 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
     
     // Verify timer is actually running
     setTimeout(() => {
-      const verifyState = matchTimerService.getMatchState(id);
+      const verifyState = timerService.getMatchState(id);
       console.log(`🔍 MATCH_CONTROLLER: Timer verification after 3 seconds:`, verifyState ? {
         minute: verifyState.currentMinute,
         second: verifyState.currentSecond,
@@ -285,7 +289,8 @@ export const pauseForHalftime = async (req: AuthRequest, res: Response): Promise
     const { id } = req.params;
     
     // Get current timer state (halftime should already be triggered automatically)
-    const timerState = matchTimerService.getMatchState(id);
+    const timerService = getTimerService();
+    const timerState = timerService.getMatchState(id);
     if (!timerState) {
       res.status(404).json({ error: 'Match timer not found' });
       return;
@@ -323,7 +328,8 @@ export const startSecondHalf = async (req: AuthRequest, res: Response): Promise<
     const { id } = req.params;
     
     // Get current timer state (second half should be automatically triggered)
-    const timerState = matchTimerService.getMatchState(id);
+    const timerService = getTimerService();
+    const timerState = timerService.getMatchState(id);
     if (!timerState) {
       res.status(404).json({ error: 'Match timer not found' });
       return;
@@ -794,7 +800,8 @@ export const pauseMatch = async (req: AuthRequest, res: Response): Promise<void>
     
     console.log(`⏸️ MATCH_CONTROLLER: Pausing match ${id}`);
     
-    const timerState = await matchTimerService.pauseMatch(id);
+    const timerService = getTimerService();
+    const timerState = await timerService.pauseMatch(id);
     
     res.json({
       timerState,
@@ -812,7 +819,8 @@ export const resumeMatch = async (req: AuthRequest, res: Response): Promise<void
     
     console.log(`▶️ MATCH_CONTROLLER: Resuming match ${id}`);
     
-    const timerState = await matchTimerService.resumeMatch(id);
+    const timerService = getTimerService();
+    const timerState = await timerService.resumeMatch(id);
     
     res.json({
       timerState,
@@ -830,7 +838,8 @@ export const manualHalftime = async (req: AuthRequest, res: Response): Promise<v
     
     console.log(`🟨 MATCH_CONTROLLER: Manual halftime for match ${id}`);
     
-    const timerState = await matchTimerService.manualHalftime(id);
+    const timerService = getTimerService();
+    const timerState = await timerService.manualHalftime(id);
     
     res.json({
       timerState,
