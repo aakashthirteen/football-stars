@@ -297,6 +297,14 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       
       // Timer state will be automatically synced via WebSocket from professional timer service
       console.log('⏱️ PROFESSIONAL_TIMER: Match loaded, timer will sync via WebSocket');
+      console.log('🔍 TIMER_DEBUG: Match status:', matchData.status);
+      console.log('🔍 TIMER_DEBUG: Current minute/second before WebSocket:', currentMinute, currentSecond);
+      
+      // If match is already live, request current timer state from server
+      if (matchData.status === 'LIVE') {
+        console.log('🔄 TIMER_DEBUG: Match is LIVE, requesting timer state from server...');
+        // The WebSocket subscription will provide the timer state
+      }
 
       // Load formation data
       await loadFormationData(matchData);

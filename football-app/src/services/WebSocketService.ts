@@ -27,8 +27,10 @@ interface MatchTimerUpdate {
 }
 
 interface WebSocketMessage {
-  type: 'MATCH_TIMER_UPDATE' | 'MATCH_EVENT' | 'PING' | 'PONG';
+  type: 'MATCH_TIMER_UPDATE' | 'MATCH_EVENT' | 'MATCH_STATE' | 'PING' | 'PONG' | 'CONNECTION_ESTABLISHED';
   data?: any;
+  matchId?: string;
+  timerState?: MatchTimerState;
 }
 
 class WebSocketService {
@@ -58,23 +60,19 @@ class WebSocketService {
       this.isConnecting = true;
       console.log('🔌 WebSocket: Connecting to professional timer service...');
       
-      // Get auth token for WebSocket authentication
+      // Get auth token for WebSocket authentication (optional for testing)
       const token = await AsyncStorage.getItem('auth_token');
-      if (!token) {
-        console.error('❌ WebSocket: No auth token found');
-        this.isConnecting = false;
-        return;
-      }
-
       const baseWsUrl = this.getWebSocketUrl();
-      const wsUrl = `${baseWsUrl}?token=${encodeURIComponent(token)}`;
-      console.log('🔌 WebSocket: Connecting to:', baseWsUrl); // Don't log token
+      
+      // Use token if available, otherwise connect without auth (for testing)
+      const wsUrl = token ? `${baseWsUrl}?token=${encodeURIComponent(token)}` : baseWsUrl;
+      console.log('🔌 WebSocket: Connecting to:', baseWsUrl, token ? '(with auth)' : '(no auth - testing mode)');
       
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
         console.log('✅ WebSocket: Connected to professional timer service');
-        console.log('🔌 WebSocket: Connection URL:', wsUrl);
+        console.log('🔌 WebSocket: Connection established successfully');
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.reconnectDelay = 1000;
@@ -127,11 +125,25 @@ class WebSocketService {
       case 'MATCH_TIMER_UPDATE':
         this.handleTimerUpdate(message.data as MatchTimerUpdate);
         break;
+      case 'MATCH_STATE':
+        if (message.matchId && message.timerState) {
+          // Convert MATCH_STATE to a timer update format
+          const update: MatchTimerUpdate = {
+            type: 'TIMER_UPDATE',
+            matchId: message.matchId,
+            timerState: message.timerState
+          };
+          this.handleTimerUpdate(update);
+        }
+        break;
       case 'PING':
         this.sendPong();
         break;
       case 'PONG':
         // Server responded to our ping
+        break;
+      case 'CONNECTION_ESTABLISHED':
+        console.log('✅ WebSocket: Connection confirmed by server');
         break;
       default:
         console.log('🔌 WebSocket: Unknown message type:', message.type);
@@ -217,6 +229,18 @@ class WebSocketService {
       };
       console.log('📡 WebSocket: Sending subscription message:', subscribeMessage);
       this.ws.send(JSON.stringify(subscribeMessage));
+      
+      // Also request current match state immediately
+      setTimeout(() => {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          const stateRequest = {
+            type: 'GET_MATCH_STATE',
+            matchId: matchId,
+          };
+          console.log('📡 WebSocket: Requesting current match state:', stateRequest);
+          this.ws.send(JSON.stringify(stateRequest));
+        }
+      }, 1000); // Wait 1 second after subscription
     } else {
       console.log('📡 WebSocket: Not connected, attempting to connect first...');
       // If not connected, connect first
