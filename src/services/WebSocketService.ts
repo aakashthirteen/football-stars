@@ -78,7 +78,13 @@ export class WebSocketService {
 
       // Handle messages from client
       ws.on('message', (data: Buffer) => {
-        this.handleMessage(clientId, data);
+        try {
+          console.log(`📨 WEBSOCKET_SERVICE: Received message from client ${clientId}:`, data.toString());
+          this.handleMessage(clientId, data);
+        } catch (error) {
+          console.error(`❌ WEBSOCKET_SERVICE: Error handling message from client ${clientId}:`, error);
+          // Don't close connection on message error, just log it
+        }
       });
 
       // Handle disconnection
@@ -147,14 +153,19 @@ export class WebSocketService {
    */
   private subscribeToMatch(clientId: string, matchId: string): void {
     const client = this.clients.get(clientId);
-    if (!client) return;
+    if (!client) {
+      console.log(`❌ WEBSOCKET_SERVICE: No client found for ID ${clientId}`);
+      return;
+    }
 
+    console.log(`📺 WEBSOCKET_SERVICE: Subscribing client ${clientId} to match ${matchId}`);
     client.subscribedMatches.add(matchId);
     
     // Send current match state immediately
+    console.log(`📺 WEBSOCKET_SERVICE: Sending current match state for ${matchId}...`);
     this.sendMatchState(clientId, matchId);
     
-    console.log(`📺 WEBSOCKET_SERVICE: Client ${client.userId} subscribed to match ${matchId}`);
+    console.log(`✅ WEBSOCKET_SERVICE: Client ${client.userId} successfully subscribed to match ${matchId}`);
   }
 
   /**
@@ -172,8 +183,12 @@ export class WebSocketService {
    * Send current match timer state to client
    */
   private sendMatchState(clientId: string, matchId: string): void {
+    console.log(`🔍 WEBSOCKET_SERVICE: Requesting timer state for match ${matchId}`);
     const state = matchTimerService.getMatchState(matchId);
+    console.log(`🔍 WEBSOCKET_SERVICE: Timer state result:`, state ? `FOUND (${state.currentMinute}:${state.currentSecond})` : 'NOT FOUND');
+    
     if (!state) {
+      console.log(`❌ WEBSOCKET_SERVICE: Match ${matchId} not found in timer service - sending MATCH_NOT_FOUND`);
       this.sendToClient(clientId, {
         type: 'MATCH_NOT_FOUND',
         matchId,
@@ -182,6 +197,11 @@ export class WebSocketService {
       return;
     }
 
+    console.log(`✅ WEBSOCKET_SERVICE: Sending timer state for match ${matchId}:`, {
+      minute: state.currentMinute,
+      second: state.currentSecond,
+      status: state.status
+    });
     this.sendToClient(clientId, {
       type: 'MATCH_STATE',
       matchId,

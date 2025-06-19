@@ -246,7 +246,23 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
     console.log(`🚀 MATCH_CONTROLLER: About to call matchTimerService.startMatch(${id})`);
     const timerState = await matchTimerService.startMatch(id);
     
-    console.log(`✅ MATCH_CONTROLLER: Match ${id} started with timer service:`, timerState);
+    console.log(`✅ MATCH_CONTROLLER: Match ${id} started with timer service:`, {
+      matchId: timerState.matchId,
+      currentMinute: timerState.currentMinute,
+      currentSecond: timerState.currentSecond,
+      status: timerState.status,
+      isLive: timerState.isLive
+    });
+    
+    // Verify timer is actually running
+    setTimeout(() => {
+      const verifyState = matchTimerService.getMatchState(id);
+      console.log(`🔍 MATCH_CONTROLLER: Timer verification after 3 seconds:`, verifyState ? {
+        minute: verifyState.currentMinute,
+        second: verifyState.currentSecond,
+        status: verifyState.status
+      } : 'TIMER NOT FOUND');
+    }, 3000);
 
     // Get updated match data
     const updatedMatch = await database.getMatchById(id);
