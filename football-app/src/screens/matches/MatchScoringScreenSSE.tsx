@@ -532,14 +532,62 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                   </LinearGradient>
                 </View>
 
-                {/* SSE Connection Status */}
-                {!timerState.isConnected && (
-                  <View style={styles.connectionWarning}>
-                    <Text style={styles.connectionWarningText}>
-                      ⚠️ Timer connection lost. Reconnecting...
-                    </Text>
-                  </View>
-                )}
+                {/* Enhanced Connection Status Indicator */}
+                <View style={styles.connectionStatusContainer}>
+                  <LinearGradient
+                    colors={
+                      timerState.connectionStatus === 'connected' 
+                        ? [colors.semantic.success + '20', colors.semantic.success + '10']
+                        : timerState.connectionStatus === 'disconnected'
+                        ? [colors.semantic.warning + '20', colors.semantic.warning + '10'] 
+                        : timerState.connectionStatus === 'error'
+                        ? [colors.semantic.error + '20', colors.semantic.error + '10']
+                        : [colors.accent.blue + '20', colors.accent.blue + '10']
+                    }
+                    style={styles.connectionStatusGradient}
+                  >
+                    <View style={styles.connectionStatusContent}>
+                      <View style={styles.connectionStatusInfo}>
+                        <View style={[
+                          styles.connectionStatusDot,
+                          {
+                            backgroundColor: 
+                              timerState.connectionStatus === 'connected' ? colors.semantic.success :
+                              timerState.connectionStatus === 'disconnected' ? colors.semantic.warning :
+                              timerState.connectionStatus === 'error' ? colors.semantic.error :
+                              colors.accent.blue
+                          }
+                        ]} />
+                        <Text style={styles.connectionStatusText}>
+                          {timerState.connectionStatus === 'connected' && '📡 Live SSE Timer'}
+                          {timerState.connectionStatus === 'disconnected' && '⏱️ Fallback Timer'}
+                          {timerState.connectionStatus === 'connecting' && '🔄 Connecting...'}
+                          {timerState.connectionStatus === 'error' && '❌ Connection Error'}
+                        </Text>
+                      </View>
+                      
+                      {timerState.connectionStatus === 'disconnected' && (
+                        <TouchableOpacity 
+                          style={styles.reconnectButton}
+                          onPress={() => timerState.reconnect?.()}
+                        >
+                          <Ionicons name="refresh" size={14} color={colors.semantic.warning} />
+                          <Text style={styles.reconnectButtonText}>Retry</Text>
+                        </TouchableOpacity>
+                      )}
+                      
+                      {timerState.connectionStatus === 'error' && (
+                        <TouchableOpacity 
+                          style={styles.reconnectButton}
+                          onPress={() => timerState.reconnect?.()}
+                        >
+                          <Ionicons name="refresh" size={14} color={colors.semantic.error} />
+                          <Text style={styles.reconnectButtonText}>Retry</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </LinearGradient>
+                </View>
 
                 {/* Manual Controls Panel */}
                 {showManualControls && (
@@ -755,6 +803,21 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             onBack={() => navigation.goBack()}
           />
         </Animated.View>
+        
+        {/* Discrete Connection Mode Indicator */}
+        <View style={styles.discreteConnectionIndicator}>
+          <View style={styles.discreteConnectionContent}>
+            <View style={[
+              styles.discreteConnectionDot,
+              {
+                backgroundColor: timerState.connectionStatus === 'connected' ? colors.semantic.success : colors.semantic.warning
+              }
+            ]} />
+            <Text style={styles.discreteConnectionText}>
+              {timerState.connectionStatus === 'connected' ? 'Real-time' : 'Local timer'}
+            </Text>
+          </View>
+        </View>
         
         {/* Live Commentary Toast */}
         {latestCommentary && (
@@ -1069,7 +1132,7 @@ const styles = StyleSheet.create({
   },
   modernTabTextActive: {
     color: colors.text.primary,
-    fontWeight: typography.fontWeight.semiBold,
+    fontWeight: typography.fontWeight.semibold,
   },
   
   // Tab Content Container
@@ -1135,19 +1198,82 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   
-  // Connection Warning
-  connectionWarning: {
-    backgroundColor: colors.semantic.warning + '20',
-    padding: spacing.sm,
+  // Enhanced Connection Status
+  connectionStatusContainer: {
     marginBottom: spacing.sm,
-    borderRadius: borderRadius.sm,
-    borderWidth: 1,
-    borderColor: colors.semantic.warning + '40',
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+    ...shadows.sm,
   },
-  connectionWarningText: {
+  connectionStatusGradient: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+  },
+  connectionStatusContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  connectionStatusInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  connectionStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: spacing.sm,
+  },
+  connectionStatusText: {
     fontSize: typography.fontSize.small,
-    color: colors.semantic.warning,
-    textAlign: 'center',
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
+    flex: 1,
+  },
+  reconnectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.primary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    gap: spacing.xxs,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  reconnectButtonText: {
+    fontSize: typography.fontSize.caption,
+    color: colors.text.secondary,
+    fontWeight: typography.fontWeight.medium,
+  },
+  
+  // Discrete Connection Indicator
+  discreteConnectionIndicator: {
+    paddingHorizontal: spacing.screenPadding,
+    paddingVertical: spacing.xs,
+  },
+  discreteConnectionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background.secondary + '80',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.badge,
+    alignSelf: 'center',
+  },
+  discreteConnectionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: spacing.xs,
+  },
+  discreteConnectionText: {
+    fontSize: typography.fontSize.caption,
+    color: colors.text.secondary,
+    fontWeight: typography.fontWeight.medium,
   },
   
   // Time Controls
@@ -1459,7 +1585,7 @@ const styles = StyleSheet.create({
   },
   playerName: {
     fontSize: typography.fontSize.regular,
-    fontWeight: typography.fontWeight.semiBold,
+    fontWeight: typography.fontWeight.semibold,
     color: colors.text.primary,
     marginBottom: 2,
   },
