@@ -32,6 +32,10 @@ export const ProfessionalTeamBadge: React.FC<ProfessionalTeamBadgeProps> = ({
   variant = 'default',
   teamColor,
 }) => {
+  console.log('🏆 TEAM_BADGE: Rendering badge for team:', teamName);
+  console.log('🏆 TEAM_BADGE: badgeUrl:', badgeUrl);
+  console.log('🏆 TEAM_BADGE: badgeSource:', badgeSource);
+  console.log('🏆 TEAM_BADGE: All props:', { teamName, teamShortName, badgeUrl, badgeSource, size, showName, variant, teamColor });
   const getSizeValue = () => {
     switch (size) {
       case 'small':

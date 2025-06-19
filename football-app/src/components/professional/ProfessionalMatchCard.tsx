@@ -416,6 +416,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    marginLeft: spacing.sm,
   },
   teamName: {
     fontSize: typography.fontSize.regular,

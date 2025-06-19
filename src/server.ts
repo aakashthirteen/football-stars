@@ -1,5 +1,7 @@
 import app from './app';
 import { database } from './models/databaseFactory';
+import { webSocketService } from './services/WebSocketService';
+import { matchTimerService } from './services/MatchTimerService';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
@@ -53,6 +55,16 @@ async function startServer() {
         console.log(`📱 Local access: http://localhost:${PORT}/health`);
       }
     });
+
+    // Initialize WebSocket server with the HTTP server
+    console.log('🔌 Initializing WebSocket server for real-time match updates...');
+    webSocketService.initialize(server);
+    
+    // Start the professional timer service
+    console.log('⏱️ Starting professional match timer service...');
+    matchTimerService.startTimerService();
+    
+    console.log('✅ Professional timer system initialized successfully!');
 
     // Graceful shutdown handlers
     process.on('SIGTERM', () => {

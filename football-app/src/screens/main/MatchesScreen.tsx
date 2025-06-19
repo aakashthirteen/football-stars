@@ -91,14 +91,31 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
     try {
       setIsLoading(true);
       const response = await apiService.getMatches();
+      console.log('🏈 MATCHES_SCREEN: Raw API response:', JSON.stringify(response, null, 2));
       const matchesArray = response.matches || [];
+      console.log('🏈 MATCHES_SCREEN: Matches array:', JSON.stringify(matchesArray, null, 2));
       
-      const normalizedMatches = matchesArray.map((match: any) => ({
-        ...match,
-        matchDate: match.match_date || match.matchDate,
-        homeTeam: match.homeTeam || { name: match.home_team_name, id: match.home_team_id },
-        awayTeam: match.awayTeam || { name: match.away_team_name, id: match.away_team_id }
-      }));
+      const normalizedMatches = matchesArray.map((match: any) => {
+        console.log('🏈 MATCHES_SCREEN: Processing match:', JSON.stringify(match, null, 2));
+        const normalized = {
+          ...match,
+          matchDate: match.match_date || match.matchDate,
+          homeTeam: match.homeTeam || { 
+            name: match.home_team_name, 
+            id: match.home_team_id,
+            logo_url: match.home_team_logo_url,
+            logoUrl: match.home_team_logo_url
+          },
+          awayTeam: match.awayTeam || { 
+            name: match.away_team_name, 
+            id: match.away_team_id,
+            logo_url: match.away_team_logo_url,
+            logoUrl: match.away_team_logo_url
+          }
+        };
+        console.log('🏈 MATCHES_SCREEN: Normalized match:', JSON.stringify(normalized, null, 2));
+        return normalized;
+      });
       
       const sortedMatches = normalizedMatches.sort((a: any, b: any) => {
         const dateA = new Date(a.matchDate || 0).getTime();
@@ -106,6 +123,7 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
         return dateB - dateA;
       });
       
+      console.log('🏈 MATCHES_SCREEN: Final sorted matches:', JSON.stringify(sortedMatches, null, 2));
       setMatches(sortedMatches);
     } catch (error: any) {
       console.error('Error loading matches:', error);
@@ -270,32 +288,40 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
 
     return (
       <View style={styles.matchesList}>
-        {filteredMatches.map((match) => (
-          <View key={match.id} style={styles.matchCardWrapper}>
-            <ProfessionalMatchCard
-              match={{
-                id: match.id,
-                status: (match.status === 'UPCOMING' ? 'SCHEDULED' : match.status) as 'LIVE' | 'SCHEDULED' | 'COMPLETED',
-                homeTeam: {
-                  id: match.homeTeam?.id || 'home',
-                  name: match.homeTeam?.name || 'Home Team',
-                  badge: undefined,
-                },
-                awayTeam: {
-                  id: match.awayTeam?.id || 'away',
-                  name: match.awayTeam?.name || 'Away Team',
-                  badge: undefined,
-                },
-                homeScore: match.homeScore || 0,
-                awayScore: match.awayScore || 0,
-                matchDate: match.matchDate || new Date().toISOString(),
-                competition: 'League Match',
-                minute: match.status === 'LIVE' ? calculateElapsedMinutes(match.matchDate) : undefined,
-              }}
-              onPress={() => handleMatchPress(match)}
-            />
-          </View>
-        ))}
+        {filteredMatches.map((match) => {
+          console.log('🎯 MATCH_CARD_DATA: Processing match for render:', JSON.stringify(match, null, 2));
+          const matchCardData = {
+            id: match.id,
+            status: (match.status === 'UPCOMING' ? 'SCHEDULED' : match.status) as 'LIVE' | 'SCHEDULED' | 'COMPLETED',
+            homeTeam: {
+              id: match.homeTeam?.id || 'home',
+              name: match.homeTeam?.name || 'Home Team',
+              badge: match.homeTeam?.badge || match.homeTeam?.logoUrl || match.homeTeam?.logo_url,
+              logoUrl: match.homeTeam?.logoUrl || match.homeTeam?.logo_url || match.homeTeam?.badge,
+            },
+            awayTeam: {
+              id: match.awayTeam?.id || 'away',
+              name: match.awayTeam?.name || 'Away Team',
+              badge: match.awayTeam?.badge || match.awayTeam?.logoUrl || match.awayTeam?.logo_url,
+              logoUrl: match.awayTeam?.logoUrl || match.awayTeam?.logo_url || match.awayTeam?.badge,
+            },
+            homeScore: match.homeScore || 0,
+            awayScore: match.awayScore || 0,
+            matchDate: match.matchDate || new Date().toISOString(),
+            competition: 'League Match',
+            minute: match.status === 'LIVE' ? calculateElapsedMinutes(match.matchDate) : undefined,
+          };
+          console.log('🎯 MATCH_CARD_DATA: Final data being passed to ProfessionalMatchCard:', JSON.stringify(matchCardData, null, 2));
+          
+          return (
+            <View key={match.id} style={styles.matchCardWrapper}>
+              <ProfessionalMatchCard
+                match={matchCardData}
+                onPress={() => handleMatchPress(match)}
+              />
+            </View>
+          );
+        })}
       </View>
     );
   };

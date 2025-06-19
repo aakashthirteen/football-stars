@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const USE_MOCK = false; // ✅ Using Railway backend for real data!
 const RAILWAY_URL = 'https://football-stars-production.up.railway.app/api'; // ✅ Your Railway URL
 const LOCAL_URL = 'http://192.168.0.108:3001/api'; // Update with your Mac's IP
-const API_BASE_URL = USE_MOCK ? 'MOCK' : RAILWAY_URL; // 🌐 Using RAILWAY backend!
+export const API_BASE_URL = USE_MOCK ? 'MOCK' : RAILWAY_URL; // 🌐 Using RAILWAY backend!
 
 // Health check URL (outside of /api)
 const HEALTH_CHECK_URL = RAILWAY_URL.replace('/api', '/health');

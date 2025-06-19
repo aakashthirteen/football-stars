@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { apiService } from '../../services/api';
 import { soundService } from '../../services/soundService';
+import { webSocketService, MatchTimerUpdate } from '../../services/WebSocketService';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useMatchNotifications } from '../../hooks/useNotifications';
@@ -125,102 +126,77 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     loadMatchDetails();
   }, []);
 
+  // Professional WebSocket-based timer system
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isLive && !isHalftime) {
-      interval = setInterval(() => {
-        updateMatchTimer();
-      }, match?.duration === 5 ? 1000 : 10000); // Update every 1 second for 5-min matches, 10 seconds for others
-    }
-    return () => clearInterval(interval);
-  }, [isLive, isHalftime, match]);
+    if (!matchId) return;
 
-  const updateMatchTimer = () => {
-    if (!match) return;
+    console.log('⏱️ PROFESSIONAL_TIMER: Connecting to server-side timer service for match:', matchId);
+    
+    // Subscribe to professional timer updates
+    webSocketService.subscribeToMatch(matchId, handleTimerUpdate);
+    
+    // Connect to WebSocket if not already connected
+    webSocketService.connect();
 
-    const now = new Date();
-    let actualMinute;
+    return () => {
+      console.log('⏱️ PROFESSIONAL_TIMER: Cleaning up timer subscription for match:', matchId);
+      webSocketService.unsubscribeFromMatch(matchId);
+    };
+  }, [matchId]);
+
+  const handleTimerUpdate = (update: MatchTimerUpdate) => {
+    console.log('⏱️ PROFESSIONAL_TIMER: Received real-time update:', update);
     
-    // Get actual match duration settings
-    const halfDuration = (match.duration || 90) / 2;
-    const firstHalfMinutes = match.first_half_minutes || halfDuration;
-    const secondHalfMinutes = match.second_half_minutes || halfDuration;
+    const timerState = update.timerState;
     
-    // For 5-minute matches, use seconds instead of minutes for faster testing
-    const timeUnit = match.duration === 5 ? 1000 : 60000; // 1 second vs 1 minute
-    const timeMultiplier = match.duration === 5 ? 1 : 1; // Show actual seconds for 5-min matches
+    // Update all timer-related state from server
+    setCurrentMinute(timerState.currentMinute);
+    setCurrentHalf(timerState.currentHalf);
+    setIsLive(timerState.status === 'LIVE');
+    setIsHalftime(timerState.status === 'HALFTIME');
+    setAddedTimeFirstHalf(timerState.addedTimeFirstHalf);
+    setAddedTimeSecondHalf(timerState.addedTimeSecondHalf);
     
-    if (currentHalf === 2 && match.second_half_start_time) {
-      // In second half, calculate from second half start time + first half minutes
-      const secondHalfStart = new Date(match.second_half_start_time);
-      const elapsedInSecondHalf = Math.floor((now.getTime() - secondHalfStart.getTime()) / timeUnit) * timeMultiplier;
-      actualMinute = firstHalfMinutes + elapsedInSecondHalf;
-    } else {
-      // In first half, calculate from match start
-      const matchStart = new Date(match.matchDate || match.match_date);
-      actualMinute = Math.max(1, Math.floor((now.getTime() - matchStart.getTime()) / timeUnit) * timeMultiplier);
+    // Handle automatic halftime (server-side triggered)
+    if (update.type === 'HALF_TIME' && timerState.status === 'HALFTIME') {
+      console.log('🟨 PROFESSIONAL_TIMER: Server triggered halftime automatically');
+      handleServerTriggeredHalftime();
     }
     
-    setCurrentMinute(actualMinute);
-    
-    // Auto half-time at exact half of match duration + stoppage time
-    const matchDuration = match.duration || 90;
-    const halfTimeMinute = (matchDuration / 2) + addedTimeFirstHalf;
-    console.log('⏱️ TIMER CHECK:', {
-      actualMinute,
-      halfTimeMinute,
-      calculatedHalftime: (match.duration || 90) / 2, 
-      firstHalfMinutes,
-      secondHalfMinutes,
-      fullTimeMinute: (match.duration || 90) + addedTimeSecondHalf,
-      currentHalf,
-      isHalftime,
-      isLive,
-      duration: match.duration,
-      addedTimeFirstHalf,
-      addedTimeSecondHalf,
-      shouldTriggerHalftime: actualMinute >= halfTimeMinute && currentHalf === 1 && !isHalftime && isLive,
-      shouldTriggerFulltime: actualMinute >= ((match.duration || 90) + addedTimeSecondHalf) && currentHalf === 2 && isLive
-    });
-    
-    if (actualMinute >= halfTimeMinute && currentHalf === 1 && !isHalftime && isLive) {
-      console.log('🟨 TIMER: Triggering halftime at minute', actualMinute);
-      handleHalftime();
+    // Handle automatic fulltime (server-side triggered) 
+    if ((update.type === 'FULL_TIME' || update.type === 'MATCH_END') && timerState.status === 'COMPLETED') {
+      console.log('🔴 PROFESSIONAL_TIMER: Server triggered fulltime automatically');
+      handleServerTriggeredFulltime();
     }
     
-    // Auto full-time at exact match duration + stoppage time
-    const fullTimeMinute = matchDuration + addedTimeSecondHalf;
-    if (actualMinute >= fullTimeMinute && currentHalf === 2 && isLive) {
-      console.log('🔴 TIMER: Triggering fulltime at minute', actualMinute, 'of', fullTimeMinute);
-      handleFullTime();
+    // Update match status if changed
+    if (match && match.status !== timerState.status) {
+      setMatch(prev => ({ ...prev, status: timerState.status }));
     }
   };
 
-  const updateCurrentMinute = (matchData: any) => {
-    if (matchData.status === 'LIVE') {
-      const now = new Date();
-      
-      // Get actual match duration settings
-      const halfDuration = (matchData.duration || 90) / 2;
-      const firstHalfMinutes = matchData.first_half_minutes || halfDuration;
-      
-      // For 5-minute matches, use seconds instead of minutes for faster testing
-      const timeUnit = matchData.duration === 5 ? 1000 : 60000;
-      const timeMultiplier = matchData.duration === 5 ? 1 : 1;
-      
-      if (matchData.current_half === 2 && matchData.second_half_start_time) {
-        // In second half, calculate from second half start time + first half minutes
-        const secondHalfStart = new Date(matchData.second_half_start_time);
-        const elapsedInSecondHalf = Math.floor((now.getTime() - secondHalfStart.getTime()) / timeUnit) * timeMultiplier;
-        setCurrentMinute(firstHalfMinutes + elapsedInSecondHalf);
-      } else {
-        // In first half, calculate from match start
-        const matchStart = new Date(matchData.matchDate || matchData.match_date);
-        const elapsed = Math.max(1, Math.floor((now.getTime() - matchStart.getTime()) / timeUnit) * timeMultiplier);
-        setCurrentMinute(elapsed);
-      }
-    }
+  const handleServerTriggeredHalftime = () => {
+    // Play halftime whistle
+    soundService.playWhisle();
+    
+    // Show halftime notification
+    Alert.alert('⏱️ Half Time', 'First half completed automatically by professional timer service', [
+      { text: 'OK', onPress: () => console.log('✅ Halftime acknowledged') }
+    ]);
   };
+
+  const handleServerTriggeredFulltime = () => {
+    // Play final whistle
+    soundService.playWhisle();
+    
+    // Show fulltime notification
+    Alert.alert('🏁 Full Time', 'Match completed automatically by professional timer service', [
+      { text: 'View Results', onPress: () => navigation.goBack() }
+    ]);
+  };
+
+  // Note: Timer calculation now handled by professional server-side timer service
+  // No more client-side timer calculations - all timing comes from WebSocket updates
 
   const handleHalftime = async () => {
     try {
@@ -317,10 +293,8 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       setAddedTimeFirstHalf(matchData.added_time_first_half || 0);
       setAddedTimeSecondHalf(matchData.added_time_second_half || 0);
       
-      if (matchData.status === 'LIVE') {
-        // Calculate current minute based on current half
-        updateCurrentMinute(matchData);
-      }
+      // Timer state will be automatically synced via WebSocket from professional timer service
+      console.log('⏱️ PROFESSIONAL_TIMER: Match loaded, timer will sync via WebSocket');
 
       // Load formation data
       await loadFormationData(matchData);

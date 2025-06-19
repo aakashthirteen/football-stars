@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { database } from '../models/databaseFactory';
 import { AuthRequest, CreateMatchRequest, MatchEventRequest, Match, MatchWithDetails, MatchEvent } from '../types';
+import { matchTimerService } from '../services/MatchTimerService';
 
 export const getUserMatches = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -53,31 +54,24 @@ export const endMatch = async (req: AuthRequest, res: Response): Promise<void> =
   try {
     const { id } = req.params;
     
-    console.log('🏁 Ending match:', id);
+    console.log('🏁 MATCH_CONTROLLER: Ending match with professional timer service:', id);
     
-    const match = await database.getMatchById(id);
-    if (!match) {
-      console.log('❌ Match not found:', id);
+    // End match using timer service
+    const timerState = await matchTimerService.endMatch(id);
+    
+    // Get updated match data
+    const updatedMatch = await database.getMatchById(id);
+    if (!updatedMatch) {
       res.status(404).json({ error: 'Match not found' });
       return;
     }
 
-    console.log('📊 Current match status:', match.status);
-    
-    if (match.status !== 'LIVE') {
-      console.log('❌ Match not live, cannot end. Status:', match.status);
-      res.status(400).json({ error: `Match can only be ended from live status. Current status: ${match.status}` });
-      return;
-    }
-
-    console.log('✅ Updating match status to COMPLETED');
-    const updatedMatch = await database.updateMatch(id, { status: 'COMPLETED' });
-    
-    console.log('🎉 Match ended successfully:', updatedMatch?.status);
+    console.log('🎉 MATCH_CONTROLLER: Match ended successfully with timer service:', timerState);
 
     res.json({
       match: updatedMatch,
-      message: 'Match ended successfully',
+      timerState,
+      message: 'Match ended successfully with professional timer service',
     });
   } catch (error) {
     console.error('❌ End match error:', error);
@@ -229,6 +223,8 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
   try {
     const { id } = req.params;
     
+    console.log(`⚽ MATCH_CONTROLLER: Starting match ${id} with professional timer service`);
+    
     const match = await database.getMatchById(id);
     if (!match) {
       res.status(404).json({ error: 'Match not found' });
@@ -240,16 +236,18 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    const now = new Date();
+    // Start professional server-side timer
+    const timerState = await matchTimerService.startMatch(id);
     
-    const updatedMatch = await database.updateMatch(id, { 
-      status: 'LIVE',
-      match_date: now
-    });
+    console.log(`✅ MATCH_CONTROLLER: Match ${id} started with timer service:`, timerState);
+
+    // Get updated match data
+    const updatedMatch = await database.getMatchById(id);
 
     res.json({
       match: updatedMatch,
-      message: 'Match started successfully',
+      timerState,
+      message: 'Match started successfully with professional timer service',
     });
   } catch (error) {
     console.error('Start match error:', error);
@@ -257,39 +255,30 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
   }
 };
 
-// Half-time control endpoints
+// Half-time control endpoints (now handled automatically by timer service)
 export const pauseForHalftime = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    console.log('🔄 pauseForHalftime called for match:', req.params.id);
+    console.log('🟨 HALFTIME_CONTROLLER: Halftime is now automatic - handled by timer service');
     const { id } = req.params;
     
+    // Get current timer state (halftime should already be triggered automatically)
+    const timerState = matchTimerService.getMatchState(id);
+    if (!timerState) {
+      res.status(404).json({ error: 'Match timer not found' });
+      return;
+    }
+
+    // Get updated match data
     const match = await database.getMatchById(id);
     if (!match) {
-      console.log('❌ Match not found:', id);
       res.status(404).json({ error: 'Match not found' });
       return;
     }
 
-    console.log('📊 Current match status:', match.status);
-    console.log('📊 Current match current_half:', match.current_half);
-    
-    if (match.status !== 'LIVE') {
-      console.log('❌ Match not live, cannot pause for halftime');
-      res.status(400).json({ error: 'Match must be live to pause for halftime' });
-      return;
-    }
-
-    console.log('✅ Updating match to HALFTIME status only (testing)');
-    
-    // Try updating just the status first to isolate the issue
-    const updatedMatch = await database.updateMatch(id, { 
-      status: 'HALFTIME'
-    });
-
-    console.log('✅ Match updated successfully:', updatedMatch);
     res.json({
-      match: updatedMatch,
-      message: 'Match paused for halftime',
+      match: match,
+      timerState,
+      message: 'Halftime is automatic - handled by professional timer service',
     });
   } catch (error) {
     console.error('❌ Pause for halftime error:', error);
@@ -307,36 +296,28 @@ export const pauseForHalftime = async (req: AuthRequest, res: Response): Promise
 
 export const startSecondHalf = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    console.log('🔄 startSecondHalf called for match:', req.params.id);
+    console.log('🟨 SECOND_HALF_CONTROLLER: Second half is now automatic - handled by timer service');
     const { id } = req.params;
     
+    // Get current timer state (second half should be automatically triggered)
+    const timerState = matchTimerService.getMatchState(id);
+    if (!timerState) {
+      res.status(404).json({ error: 'Match timer not found' });
+      return;
+    }
+
+    // Get updated match data
     const match = await database.getMatchById(id);
     if (!match) {
-      console.log('❌ Match not found:', id);
       res.status(404).json({ error: 'Match not found' });
       return;
     }
 
-    console.log('📊 Current match status:', match.status);
-    if (match.status !== 'HALFTIME') {
-      console.log('❌ Match not at halftime, cannot start second half');
-      res.status(400).json({ error: 'Match must be at halftime to start second half' });
-      return;
-    }
-
-    const now = new Date();
-    console.log('✅ Starting second half at:', now.toISOString());
-    
-    const updatedMatch = await database.updateMatch(id, { 
-      status: 'LIVE',
-      current_half: 2,
-      second_half_start_time: now
-    });
-
-    console.log('✅ Second half started successfully:', updatedMatch);
+    console.log('✅ SECOND_HALF_CONTROLLER: Returning current timer state:', timerState);
     res.json({
-      match: updatedMatch,
-      message: 'Second half started successfully',
+      match: match,
+      timerState,
+      message: 'Second half is automatic - handled by professional timer service',
     });
   } catch (error) {
     console.error('❌ Start second half error:', error);
