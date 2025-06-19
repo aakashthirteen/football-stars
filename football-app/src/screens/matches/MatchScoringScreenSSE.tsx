@@ -261,10 +261,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       
       await soundService.playMatchStartWhistle();
       
-      // Reload match details to get updated status
-      console.log('🔄 Reloading match details...');
-      await loadMatchDetails();
-      console.log('🔍 After reload - Match state:', match?.status);
+      // Don't reload immediately - let SSE handle status updates
+      // The SSE system will provide real-time match status updates
+      console.log('⏳ Waiting for SSE to confirm status update...');
       
       showCommentary("⚽ KICK-OFF! The referee blows the whistle and the match is underway!");
       
