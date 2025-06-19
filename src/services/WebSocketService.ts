@@ -45,7 +45,7 @@ export class WebSocketService {
       clientTracking: true,
       // Railway-specific configurations
       maxPayload: 1024 * 1024, // 1MB max payload
-      verifyClient: (info) => {
+      verifyClient: (info: { origin: string; secure: boolean; req: IncomingMessage }) => {
         console.log('🔍 WEBSOCKET_SERVICE: Verifying client connection from:', info.origin);
         return true; // Accept all connections for now
       }
