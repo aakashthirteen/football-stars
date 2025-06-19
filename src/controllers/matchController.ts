@@ -224,19 +224,26 @@ export const startMatch = async (req: AuthRequest, res: Response): Promise<void>
     const { id } = req.params;
     
     console.log(`⚽ MATCH_CONTROLLER: Starting match ${id} with professional timer service`);
+    console.log(`🔍 MATCH_CONTROLLER: Match ID type: ${typeof id}, length: ${id.length}`);
+    console.log(`🔍 MATCH_CONTROLLER: Match ID format check: ${/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? 'VALID UUID' : 'INVALID UUID'}`);
     
     const match = await database.getMatchById(id);
     if (!match) {
+      console.log(`❌ MATCH_CONTROLLER: No match found with ID: ${id}`);
       res.status(404).json({ error: 'Match not found' });
       return;
     }
 
+    console.log(`✅ MATCH_CONTROLLER: Match found:`, { id: match.id, status: match.status });
+
     if (match.status !== 'SCHEDULED') {
+      console.log(`❌ MATCH_CONTROLLER: Match status is ${match.status}, not SCHEDULED`);
       res.status(400).json({ error: 'Match can only be started from scheduled status' });
       return;
     }
 
     // Start professional server-side timer
+    console.log(`🚀 MATCH_CONTROLLER: About to call matchTimerService.startMatch(${id})`);
     const timerState = await matchTimerService.startMatch(id);
     
     console.log(`✅ MATCH_CONTROLLER: Match ${id} started with timer service:`, timerState);
