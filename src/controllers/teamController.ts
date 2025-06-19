@@ -303,8 +303,9 @@ export const updateTeam = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    // Check if user is the team creator
-    if (team.createdBy !== req.user.id) {
+    // Check if user is the team creator (handle both camelCase and snake_case)
+    const teamCreatedBy = (team as any).created_by || team.createdBy;
+    if (teamCreatedBy !== req.user.id) {
       res.status(403).json({ error: 'Only team creator can update team details' });
       return;
     }
@@ -339,8 +340,20 @@ export const deleteTeam = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    // Check if user is the team creator
-    if (team.createdBy !== req.user.id) {
+    const teamCreatedBy = (team as any).created_by || team.createdBy;
+    
+    console.log('🔍 Authorization check:', { 
+      teamCreatedBy, 
+      requestUserId: req.user.id,
+      areEqual: teamCreatedBy === req.user.id,
+      teamCreatedByType: typeof teamCreatedBy,
+      requestUserIdType: typeof req.user.id,
+      fullTeam: team
+    });
+
+    // Check if user is the team creator (handle both camelCase and snake_case)
+    if (teamCreatedBy !== req.user.id) {
+      console.log('❌ Authorization failed - user is not team creator');
       res.status(403).json({ error: 'Only team creator can delete this team' });
       return;
     }
