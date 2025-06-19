@@ -323,14 +323,17 @@ export const updateTeam = async (req: AuthRequest, res: Response): Promise<void>
 
 export const deleteTeam = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    console.log('🗑️ DELETE TEAM ENDPOINT HIT - Route exists!');
+    
     if (!req.user) {
+      console.log('❌ No user in request');
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
     const { id } = req.params;
 
-    console.log('🗑️ Delete team request:', { teamId: id, userId: req.user.id });
+    console.log('🗑️ Delete team request:', { teamId: id, userId: req.user.id, method: req.method, url: req.url });
 
     // Check if team exists
     const team = await database.getTeamById(id);
