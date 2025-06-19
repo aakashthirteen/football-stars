@@ -21,16 +21,6 @@ router.get('/', getUserTeams);
 router.get('/all', getAllTeams);
 router.get('/players/available', getAvailablePlayers);
 router.post('/', createTeam);
-
-// Test route to verify deleteTeam function exists
-router.get('/test-delete-exists', (req, res) => {
-  res.json({ 
-    deleteTeamExists: typeof deleteTeam === 'function',
-    deleteTeamName: deleteTeam.name,
-    timestamp: new Date().toISOString()
-  });
-});
-
 router.get('/:id', getTeamById);
 router.patch('/:id', updateTeam);
 router.post('/:id/players', addPlayerToTeam);
