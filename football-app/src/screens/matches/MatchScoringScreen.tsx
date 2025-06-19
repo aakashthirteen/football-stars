@@ -157,7 +157,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   useEffect(() => {
     if (!isLive || !match) return;
 
-    // Start a fallback timer that updates every 2 seconds
+    // Start a fallback timer that updates every second
     const fallbackTimer = setInterval(() => {
       if (match.match_date || match.matchDate) {
         const matchStart = new Date(match.match_date || match.matchDate);
@@ -168,10 +168,10 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         
         // Only update if we haven't received WebSocket updates recently
         // (This prevents fallback from overriding WebSocket updates)
-        setCurrentMinute(Math.max(1, elapsedMinutes));
+        setCurrentMinute(Math.max(0, elapsedMinutes));
         setCurrentSecond(elapsedSeconds);
       }
-    }, 2000);
+    }, 1000); // Update every second
 
     return () => clearInterval(fallbackTimer);
   }, [isLive, match]);
@@ -346,16 +346,14 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
           console.log('🔄 TIMER_DEBUG: Fallback calculation:', {
             matchStart: matchStart.toISOString(),
             elapsedMs,
-            fallbackMinute: Math.max(1, elapsedMinutes),
+            fallbackMinute: Math.max(0, elapsedMinutes),
             fallbackSecond: elapsedSeconds
           });
           
           // Set fallback timer values (WebSocket will override when it connects)
-          if (elapsedMinutes > 0) {
-            setCurrentMinute(Math.max(1, elapsedMinutes));
-            setCurrentSecond(elapsedSeconds);
-            console.log('⏰ TIMER_DEBUG: Set fallback timer to', Math.max(1, elapsedMinutes), ':', elapsedSeconds);
-          }
+          setCurrentMinute(Math.max(0, elapsedMinutes));
+          setCurrentSecond(elapsedSeconds);
+          console.log('⏰ TIMER_DEBUG: Set fallback timer to', Math.max(0, elapsedMinutes), ':', elapsedSeconds);
         }
         
         // The WebSocket subscription will provide the timer state and override fallback

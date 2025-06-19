@@ -72,7 +72,7 @@ export class MatchTimerService extends EventEmitter {
       // Initialize timer state
       const timerState: MatchTimerState = {
         matchId,
-        currentMinute: 1,
+        currentMinute: 0,
         currentSecond: 0,
         status: 'LIVE',
         currentHalf: 1,
