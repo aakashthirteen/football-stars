@@ -11,6 +11,12 @@ interface MatchTimerState {
   addedTimeSecondHalf: number;
   isPaused: boolean;
   serverTime: number;
+  isLive: boolean;
+  isHalftime: boolean;
+  automaticHalftimeTriggered: boolean;
+  automaticFulltimeTriggered: boolean;
+  matchDuration: number;
+  halfDuration: number;
 }
 
 interface MatchTimerUpdate {

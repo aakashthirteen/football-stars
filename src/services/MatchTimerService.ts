@@ -15,6 +15,9 @@ export interface MatchTimerState {
   isHalftime: boolean;
   automaticHalftimeTriggered: boolean;
   automaticFulltimeTriggered: boolean;
+  // Add match configuration to avoid database calls in timer loop
+  matchDuration: number; // Total match duration (e.g., 90 minutes)
+  halfDuration: number; // Half duration (e.g., 45 minutes)
 }
 
 export interface MatchTimerUpdate {
@@ -62,6 +65,10 @@ export class MatchTimerService extends EventEmitter {
       // Update match status to LIVE in database
       await database.updateMatch(matchId, { status: 'LIVE', match_date: new Date() });
 
+      // Get match configuration once at start (not in timer loop!)
+      const matchDuration = match.duration || 90;
+      const halfDuration = matchDuration / 2;
+
       // Initialize timer state
       const timerState: MatchTimerState = {
         matchId,
@@ -76,7 +83,10 @@ export class MatchTimerService extends EventEmitter {
         isLive: true,
         isHalftime: false,
         automaticHalftimeTriggered: false,
-        automaticFulltimeTriggered: false
+        automaticFulltimeTriggered: false,
+        // Store match config to avoid database calls in timer loop
+        matchDuration,
+        halfDuration
       };
 
       this.matchStates.set(matchId, timerState);
@@ -121,15 +131,9 @@ export class MatchTimerService extends EventEmitter {
     console.log(`⏱️ TIMER_DEBUG: Updating timer for match ${matchId} - current: ${state.currentMinute}:${state.currentSecond}`);
 
     try {
-      // Get fresh match data for duration and stoppage time
-      const match = await database.getMatchById(matchId);
-      if (!match) {
-        console.warn(`⚠️ TIMER_SERVICE: Match ${matchId} not found in database`);
-        return;
-      }
-
-      const matchDuration = match.duration || 90;
-      const halfDuration = matchDuration / 2;
+      // NO DATABASE CALLS IN TIMER LOOP! Use stored config instead
+      const matchDuration = state.matchDuration;
+      const halfDuration = state.halfDuration;
 
       // Increment time
       state.currentSecond++;
@@ -412,6 +416,10 @@ export class MatchTimerService extends EventEmitter {
       const elapsedMs = now.getTime() - matchStart.getTime();
       const elapsedMinutes = Math.floor(elapsedMs / 60000);
 
+      // Get match configuration
+      const matchDuration = match.duration || 90;
+      const halfDuration = matchDuration / 2;
+
       const state: MatchTimerState = {
         matchId,
         currentMinute: Math.max(1, elapsedMinutes),
@@ -425,7 +433,10 @@ export class MatchTimerService extends EventEmitter {
         isLive: (match.status as string) === 'LIVE',
         isHalftime: (match.status as string) === 'HALFTIME',
         automaticHalftimeTriggered: false,
-        automaticFulltimeTriggered: false
+        automaticFulltimeTriggered: false,
+        // Add match config to avoid database calls in timer loop
+        matchDuration,
+        halfDuration
       };
 
       this.matchStates.set(matchId, state);
