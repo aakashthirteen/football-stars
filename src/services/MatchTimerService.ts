@@ -151,18 +151,20 @@ export class MatchTimerService extends EventEmitter {
 
       state.serverTime = Date.now();
 
-      // Check for automatic halftime
+      // Check for automatic halftime (need to handle fractional minutes)
       const halfTimeMinute = halfDuration + state.addedTimeFirstHalf;
-      if (state.currentHalf === 1 && state.currentMinute >= halfTimeMinute && state.status === 'LIVE') {
-        console.log(`🟨 TIMER_SERVICE: Auto-triggering halftime for match ${matchId} at ${state.currentMinute}'`);
+      const currentTimeInMinutes = state.currentMinute + (state.currentSecond / 60);
+      
+      if (state.currentHalf === 1 && currentTimeInMinutes >= halfTimeMinute && state.status === 'LIVE') {
+        console.log(`🟨 TIMER_SERVICE: Auto-triggering halftime for match ${matchId} at ${state.currentMinute}:${state.currentSecond} (${currentTimeInMinutes.toFixed(1)} minutes)`);
         await this.triggerHalftime(matchId);
         return;
       }
 
-      // Check for automatic fulltime
+      // Check for automatic fulltime (handle fractional minutes)
       const fullTimeMinute = matchDuration + state.addedTimeSecondHalf;
-      if (state.currentHalf === 2 && state.currentMinute >= fullTimeMinute && state.status === 'LIVE') {
-        console.log(`🔴 TIMER_SERVICE: Auto-triggering fulltime for match ${matchId} at ${state.currentMinute}'`);
+      if (state.currentHalf === 2 && currentTimeInMinutes >= fullTimeMinute && state.status === 'LIVE') {
+        console.log(`🔴 TIMER_SERVICE: Auto-triggering fulltime for match ${matchId} at ${state.currentMinute}:${state.currentSecond} (${currentTimeInMinutes.toFixed(1)} minutes)`);
         await this.triggerFulltime(matchId);
         return;
       }
@@ -259,15 +261,18 @@ export class MatchTimerService extends EventEmitter {
       // Update database
       await database.updateMatch(matchId, { status: 'LIVE', second_half_start_time: new Date() });
       
-      // Calculate second half starting minute
-      const match = await database.getMatchById(matchId);
-      const halfDuration = (match?.duration || 90) / 2;
+      // Calculate second half starting minute (handle fractional durations)
+      const totalFirstHalfTime = state.halfDuration + state.addedTimeFirstHalf;
+      const secondHalfStartMinute = Math.floor(totalFirstHalfTime);
+      const secondHalfStartSecond = Math.round((totalFirstHalfTime % 1) * 60);
       
       // Update state for second half
       state.status = 'LIVE';
       state.currentHalf = 2;
-      state.currentMinute = halfDuration + state.addedTimeFirstHalf + 1; // Start at 46' typically
-      state.currentSecond = 0;
+      // For 5-min match: halfDuration=2.5, so second half starts at 3:00 (2.5 rounded up)
+      // For 90-min match: halfDuration=45, so second half starts at 46:00 (45+1)
+      state.currentMinute = secondHalfStartMinute + 1;
+      state.currentSecond = secondHalfStartSecond;
       state.isPaused = false;
       state.isLive = true;
       state.isHalftime = false;

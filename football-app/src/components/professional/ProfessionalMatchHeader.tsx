@@ -32,6 +32,7 @@ interface ProfessionalMatchHeaderProps {
   currentMinute?: number;
   currentSecond?: number;
   venue?: string;
+  duration?: number;
   competition?: string;
   onBack?: () => void;
   onEndMatch?: () => void;
@@ -46,6 +47,7 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
   currentMinute = 0,
   currentSecond = 0,
   venue,
+  duration = 90,
   competition = 'Grassroots League',
   onBack,
   onEndMatch,
@@ -232,6 +234,26 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
               {awayScore}
             </Text>
           </View>
+        </View>
+        
+        {/* Match Info Section */}
+        <View style={styles.matchInfoSection}>
+          {venue && (
+            <View style={styles.infoItem}>
+              <Ionicons name="location-outline" size={12} color={colors.text.tertiary} />
+              <Text style={styles.infoText}>{venue}</Text>
+            </View>
+          )}
+          <View style={styles.infoItem}>
+            <Ionicons name="time-outline" size={12} color={colors.text.tertiary} />
+            <Text style={styles.infoText}>{duration} min match</Text>
+          </View>
+          {status === 'HALFTIME' && (
+            <View style={styles.infoItem}>
+              <Ionicons name="pause-circle-outline" size={12} color={colors.accent.orange} />
+              <Text style={[styles.infoText, { color: colors.accent.orange }]}>Halftime Break</Text>
+            </View>
+          )}
         </View>
       </LinearGradient>
     </View>
@@ -422,5 +444,23 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     textTransform: 'uppercase',
     marginLeft: spacing.xxs,
+  },
+  matchInfoSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: spacing.sm,
+    gap: spacing.md,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xxs,
+  },
+  infoText: {
+    fontSize: typography.fontSize.caption,
+    color: colors.text.tertiary,
+    fontWeight: typography.fontWeight.medium,
   },
 });

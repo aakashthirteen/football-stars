@@ -1303,6 +1303,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             currentMinute={currentMinute}
             currentSecond={currentSecond}
             venue={match.venue}
+            duration={match.duration}
             onBack={() => navigation.goBack()}
           />
         </Animated.View>

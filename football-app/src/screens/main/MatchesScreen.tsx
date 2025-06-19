@@ -143,7 +143,7 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
   const getFilteredMatches = () => {
     switch (activeTab) {
       case 'live':
-        return matches.filter((match) => match.status === 'LIVE');
+        return matches.filter((match) => match.status === 'LIVE' || match.status === 'HALFTIME');
       case 'my':
         return matches.filter((match) => {
           const isCreator = match.createdBy === user?.id;

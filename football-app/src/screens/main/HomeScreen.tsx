@@ -99,8 +99,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         
         setAllMatches(matches);
         
-        // Start ticker animation if there are live matches
-        const liveMatches = matches.filter((m: any) => m.status === 'LIVE');
+        // Start ticker animation if there are live matches (including halftime)
+        const liveMatches = matches.filter((m: any) => m.status === 'LIVE' || m.status === 'HALFTIME');
         if (liveMatches.length > 0) {
           startTickerAnimation(liveMatches.length);
         }
@@ -235,6 +235,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
                 >
                   <Text style={styles.tickerMatch}>
                     {match.homeTeam?.name} {match.homeScore} - {match.awayScore} {match.awayTeam?.name}
+                    {match.status === 'HALFTIME' ? ' (HT)' : ''}
                   </Text>
                   <View style={styles.tickerSeparator} />
                 </TouchableOpacity>
