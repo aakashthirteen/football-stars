@@ -117,25 +117,34 @@ export class WebSocketService {
    */
   private handleMessage(clientId: string, data: Buffer): void {
     const client = this.clients.get(clientId);
-    if (!client) return;
+    if (!client) {
+      console.log(`❌ WEBSOCKET_SERVICE: Message received for unknown client ${clientId}`);
+      return;
+    }
 
     try {
+      console.log(`📨 WEBSOCKET_SERVICE: Processing message from client ${clientId}`);
       const message = JSON.parse(data.toString());
+      console.log(`📨 WEBSOCKET_SERVICE: Message type: ${message.type}, data:`, message);
       
       switch (message.type) {
         case 'SUBSCRIBE_MATCH':
+          console.log(`📨 WEBSOCKET_SERVICE: Processing SUBSCRIBE_MATCH for ${message.matchId}`);
           this.subscribeToMatch(clientId, message.matchId);
           break;
           
         case 'UNSUBSCRIBE_MATCH':
+          console.log(`📨 WEBSOCKET_SERVICE: Processing UNSUBSCRIBE_MATCH for ${message.matchId}`);
           this.unsubscribeFromMatch(clientId, message.matchId);
           break;
           
         case 'GET_MATCH_STATE':
+          console.log(`📨 WEBSOCKET_SERVICE: Processing GET_MATCH_STATE for ${message.matchId}`);
           this.sendMatchState(clientId, message.matchId);
           break;
           
         case 'PING':
+          console.log(`📨 WEBSOCKET_SERVICE: Processing PING from client ${clientId}`);
           client.lastPing = Date.now();
           this.sendToClient(clientId, { type: 'PONG', serverTime: Date.now() });
           break;
@@ -143,8 +152,20 @@ export class WebSocketService {
         default:
           console.warn(`⚠️ WEBSOCKET_SERVICE: Unknown message type: ${message.type}`);
       }
+      
+      console.log(`✅ WEBSOCKET_SERVICE: Successfully processed ${message.type} for client ${clientId}`);
     } catch (error) {
-      console.error('❌ WEBSOCKET_SERVICE: Error handling message:', error);
+      console.error(`❌ WEBSOCKET_SERVICE: Error handling message from client ${clientId}:`, error);
+      console.error(`❌ WEBSOCKET_SERVICE: Raw message data:`, data.toString());
+      // Don't close connection on message error, send error response
+      try {
+        this.sendToClient(clientId, {
+          type: 'ERROR',
+          message: 'Error processing message'
+        });
+      } catch (sendError) {
+        console.error(`❌ WEBSOCKET_SERVICE: Failed to send error message:`, sendError);
+      }
     }
   }
 
@@ -152,20 +173,25 @@ export class WebSocketService {
    * Subscribe client to match timer updates
    */
   private subscribeToMatch(clientId: string, matchId: string): void {
-    const client = this.clients.get(clientId);
-    if (!client) {
-      console.log(`❌ WEBSOCKET_SERVICE: No client found for ID ${clientId}`);
-      return;
-    }
+    try {
+      const client = this.clients.get(clientId);
+      if (!client) {
+        console.log(`❌ WEBSOCKET_SERVICE: No client found for ID ${clientId}`);
+        return;
+      }
 
-    console.log(`📺 WEBSOCKET_SERVICE: Subscribing client ${clientId} to match ${matchId}`);
-    client.subscribedMatches.add(matchId);
-    
-    // Send current match state immediately
-    console.log(`📺 WEBSOCKET_SERVICE: Sending current match state for ${matchId}...`);
-    this.sendMatchState(clientId, matchId);
-    
-    console.log(`✅ WEBSOCKET_SERVICE: Client ${client.userId} successfully subscribed to match ${matchId}`);
+      console.log(`📺 WEBSOCKET_SERVICE: Subscribing client ${clientId} to match ${matchId}`);
+      client.subscribedMatches.add(matchId);
+      
+      // Send current match state immediately
+      console.log(`📺 WEBSOCKET_SERVICE: Sending current match state for ${matchId}...`);
+      this.sendMatchState(clientId, matchId);
+      
+      console.log(`✅ WEBSOCKET_SERVICE: Client ${client.userId} successfully subscribed to match ${matchId}`);
+    } catch (error) {
+      console.error(`❌ WEBSOCKET_SERVICE: Error subscribing client ${clientId} to match ${matchId}:`, error);
+      // Don't crash the connection
+    }
   }
 
   /**
@@ -183,31 +209,41 @@ export class WebSocketService {
    * Send current match timer state to client
    */
   private sendMatchState(clientId: string, matchId: string): void {
-    console.log(`🔍 WEBSOCKET_SERVICE: Requesting timer state for match ${matchId}`);
-    const state = matchTimerService.getMatchState(matchId);
-    console.log(`🔍 WEBSOCKET_SERVICE: Timer state result:`, state ? `FOUND (${state.currentMinute}:${state.currentSecond})` : 'NOT FOUND');
-    
-    if (!state) {
-      console.log(`❌ WEBSOCKET_SERVICE: Match ${matchId} not found in timer service - sending MATCH_NOT_FOUND`);
-      this.sendToClient(clientId, {
-        type: 'MATCH_NOT_FOUND',
-        matchId,
-        message: 'Match not found or not active'
-      });
-      return;
-    }
+    try {
+      console.log(`🔍 WEBSOCKET_SERVICE: Requesting timer state for match ${matchId}`);
+      const state = matchTimerService.getMatchState(matchId);
+      console.log(`🔍 WEBSOCKET_SERVICE: Timer state result:`, state ? `FOUND (${state.currentMinute}:${state.currentSecond})` : 'NOT FOUND');
+      
+      if (!state) {
+        console.log(`❌ WEBSOCKET_SERVICE: Match ${matchId} not found in timer service - sending MATCH_NOT_FOUND`);
+        this.sendToClient(clientId, {
+          type: 'MATCH_NOT_FOUND',
+          matchId,
+          message: 'Match not found or not active'
+        });
+        return;
+      }
 
-    console.log(`✅ WEBSOCKET_SERVICE: Sending timer state for match ${matchId}:`, {
-      minute: state.currentMinute,
-      second: state.currentSecond,
-      status: state.status
-    });
-    this.sendToClient(clientId, {
-      type: 'MATCH_STATE',
-      matchId,
-      timerState: state,
-      serverTime: Date.now()
-    });
+      console.log(`✅ WEBSOCKET_SERVICE: Sending timer state for match ${matchId}:`, {
+        minute: state.currentMinute,
+        second: state.currentSecond,
+        status: state.status
+      });
+      this.sendToClient(clientId, {
+        type: 'MATCH_STATE',
+        matchId,
+        timerState: state,
+        serverTime: Date.now()
+      });
+    } catch (error) {
+      console.error(`❌ WEBSOCKET_SERVICE: Error sending match state for ${matchId}:`, error);
+      // Don't crash the connection, send error message instead
+      this.sendToClient(clientId, {
+        type: 'ERROR',
+        matchId,
+        message: 'Error retrieving match state'
+      });
+    }
   }
 
   /**
