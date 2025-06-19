@@ -839,7 +839,9 @@ export class PostgresDatabase {
     const result = await this.pool.query(`
       SELECT DISTINCT m.*, 
              ht.name as home_team_name,
-             at.name as away_team_name
+             ht.logo_url as home_team_logo_url,
+             at.name as away_team_name,
+             at.logo_url as away_team_logo_url
       FROM matches m
       LEFT JOIN teams ht ON m.home_team_id = ht.id
       LEFT JOIN teams at ON m.away_team_id = at.id
@@ -882,8 +884,14 @@ export class PostgresDatabase {
       matchDate: row.match_date,
       createdBy: row.created_by,
       createdAt: row.created_at,
-      homeTeam: { name: row.home_team_name || 'Unknown Home Team' },
-      awayTeam: { name: row.away_team_name || 'Unknown Away Team' },
+      homeTeam: { 
+        name: row.home_team_name || 'Unknown Home Team',
+        logo_url: row.home_team_logo_url
+      },
+      awayTeam: { 
+        name: row.away_team_name || 'Unknown Away Team',
+        logo_url: row.away_team_logo_url
+      },
       events: []
     }));
   }
@@ -894,7 +902,9 @@ export class PostgresDatabase {
     const result = await this.pool.query(`
       SELECT m.*, 
              ht.name as home_team_name,
-             at.name as away_team_name
+             ht.logo_url as home_team_logo_url,
+             at.name as away_team_name,
+             at.logo_url as away_team_logo_url
       FROM matches m
       LEFT JOIN teams ht ON m.home_team_id = ht.id
       LEFT JOIN teams at ON m.away_team_id = at.id
@@ -911,8 +921,16 @@ export class PostgresDatabase {
       homeTeamId: row.home_team_id,
       awayTeamId: row.away_team_id,
       matchDate: row.match_date,
-      homeTeam: { id: row.home_team_id, name: row.home_team_name },
-      awayTeam: { id: row.away_team_id, name: row.away_team_name },
+      homeTeam: { 
+        id: row.home_team_id, 
+        name: row.home_team_name,
+        logo_url: row.home_team_logo_url
+      },
+      awayTeam: { 
+        id: row.away_team_id, 
+        name: row.away_team_name,
+        logo_url: row.away_team_logo_url
+      },
       events: []
     }));
   }
