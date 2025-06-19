@@ -145,6 +145,29 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     };
   }, [matchId]);
 
+  // Fallback timer update (only if WebSocket fails)
+  useEffect(() => {
+    if (!isLive || !match) return;
+
+    // Start a fallback timer that updates every 2 seconds
+    const fallbackTimer = setInterval(() => {
+      if (match.match_date || match.matchDate) {
+        const matchStart = new Date(match.match_date || match.matchDate);
+        const now = new Date();
+        const elapsedMs = now.getTime() - matchStart.getTime();
+        const elapsedMinutes = Math.floor(elapsedMs / 60000);
+        const elapsedSeconds = Math.floor((elapsedMs % 60000) / 1000);
+        
+        // Only update if we haven't received WebSocket updates recently
+        // (This prevents fallback from overriding WebSocket updates)
+        setCurrentMinute(Math.max(1, elapsedMinutes));
+        setCurrentSecond(elapsedSeconds);
+      }
+    }, 2000);
+
+    return () => clearInterval(fallbackTimer);
+  }, [isLive, match]);
+
   const handleTimerUpdate = (update: MatchTimerUpdate) => {
     console.log('⏱️ PROFESSIONAL_TIMER: Received real-time update:', update);
     
@@ -303,7 +326,31 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       // If match is already live, request current timer state from server
       if (matchData.status === 'LIVE') {
         console.log('🔄 TIMER_DEBUG: Match is LIVE, requesting timer state from server...');
-        // The WebSocket subscription will provide the timer state
+        
+        // FALLBACK: Calculate timer from match start time while waiting for WebSocket
+        if (matchData.match_date || matchData.matchDate) {
+          const matchStart = new Date(matchData.match_date || matchData.matchDate);
+          const now = new Date();
+          const elapsedMs = now.getTime() - matchStart.getTime();
+          const elapsedMinutes = Math.floor(elapsedMs / 60000);
+          const elapsedSeconds = Math.floor((elapsedMs % 60000) / 1000);
+          
+          console.log('🔄 TIMER_DEBUG: Fallback calculation:', {
+            matchStart: matchStart.toISOString(),
+            elapsedMs,
+            fallbackMinute: Math.max(1, elapsedMinutes),
+            fallbackSecond: elapsedSeconds
+          });
+          
+          // Set fallback timer values (WebSocket will override when it connects)
+          if (elapsedMinutes > 0) {
+            setCurrentMinute(Math.max(1, elapsedMinutes));
+            setCurrentSecond(elapsedSeconds);
+            console.log('⏰ TIMER_DEBUG: Set fallback timer to', Math.max(1, elapsedMinutes), ':', elapsedSeconds);
+          }
+        }
+        
+        // The WebSocket subscription will provide the timer state and override fallback
       }
 
       // Load formation data
