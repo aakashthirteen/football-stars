@@ -155,9 +155,53 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     */
   }, [matchId]);
 
-  // Fallback timer update (only if WebSocket fails)
+  // Polling for match status updates (since WebSocket is disabled)
   useEffect(() => {
-    if (!isLive || !match) return;
+    if (!matchId || (!isLive && !isHalftime)) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        console.log('🔄 POLLING: Checking match status for server-side changes...');
+        const response = await apiService.getMatchById(matchId);
+        const serverMatch = response?.match;
+        
+        if (serverMatch) {
+          // Check if server status differs from local status
+          if (serverMatch.status !== match?.status) {
+            console.log(`🔄 POLLING: Status changed from ${match?.status} to ${serverMatch.status}`);
+            
+            if (serverMatch.status === 'HALFTIME' && match?.status === 'LIVE') {
+              console.log('🟨 POLLING: Server triggered halftime - updating UI');
+              showCommentary("⏱️ HALF-TIME! First half ends.");
+              await soundService.playHalftimeWhistle();
+            } else if (serverMatch.status === 'LIVE' && match?.status === 'HALFTIME') {
+              console.log('⚽ POLLING: Server started second half - updating UI');
+              showCommentary("⚽ SECOND HALF! Match resumes.");
+              await soundService.playSecondHalfWhistle();
+            } else if (serverMatch.status === 'COMPLETED') {
+              console.log('🏁 POLLING: Server ended match - updating UI');
+              showCommentary("📢 FULL-TIME! Match completed!");
+              await soundService.playFullTimeWhistle();
+            }
+            
+            // Reload full match details to sync everything
+            await loadMatchDetails();
+          }
+        }
+      } catch (error) {
+        console.error('❌ POLLING: Error checking match status:', error);
+      }
+    }, 5000); // Poll every 5 seconds
+
+    return () => {
+      console.log('🧹 POLLING: Cleaning up status polling');
+      clearInterval(pollInterval);
+    };
+  }, [matchId, isLive, isHalftime, match?.status]);
+
+  // Fallback timer update (only if WebSocket fails and not halftime)
+  useEffect(() => {
+    if (!isLive || !match || isHalftime) return;
 
     // Start a fallback timer that updates every second
     const fallbackTimer = setInterval(() => {
@@ -176,7 +220,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     }, 1000); // Update every second
 
     return () => clearInterval(fallbackTimer);
-  }, [isLive, match]);
+  }, [isLive, match, isHalftime]);
 
   const handleTimerUpdate = (update: MatchTimerUpdate) => {
     console.log('⏱️ PROFESSIONAL_TIMER: Received real-time update:', update);
