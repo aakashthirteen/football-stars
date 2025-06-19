@@ -35,10 +35,14 @@ export const sseAuthenticate = (req: AuthRequest, res: Response, next: NextFunct
     
     req.user = {
       id: decoded.id,
-      username: decoded.username
+      email: decoded.email || 'unknown',
+      name: decoded.name || decoded.username || 'Unknown User',
+      passwordHash: '',
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
     
-    console.log(`✅ SSE Auth: Token verified for user ${decoded.username}`);
+    console.log(`✅ SSE Auth: Token verified for user ${decoded.name || decoded.username || decoded.id}`);
     next();
   } catch (error) {
     console.error('❌ SSE Auth: Token verification failed:', error);
