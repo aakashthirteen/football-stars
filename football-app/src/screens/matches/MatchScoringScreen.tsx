@@ -306,14 +306,30 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   const handleStartSecondHalf = async () => {
     try {
+      console.log('⚽ SECOND_HALF: Starting second half for match:', matchId);
+      console.log('⚽ SECOND_HALF: Current match state:', {
+        status: match?.status,
+        isHalftime,
+        currentHalf: currentHalf,
+        currentMinute: currentMinute
+      });
+      
       setShowHalftimeModal(false);
-      await apiService.startSecondHalf(matchId);
+      
+      console.log('📡 SECOND_HALF: Calling API to start second half...');
+      const result = await apiService.startSecondHalf(matchId);
+      console.log('✅ SECOND_HALF: API call successful:', result);
+      
       await soundService.playSecondHalfWhistle();
       const secondHalfMinutes = match.second_half_minutes || (match.duration || 90) / 2;
       showCommentary(`⚽ SECOND HALF! The match resumes for the final ${secondHalfMinutes} minutes!`);
+      
+      console.log('🔄 SECOND_HALF: Reloading match details...');
       await loadMatchDetails();
+      console.log('✅ SECOND_HALF: Second half started successfully');
     } catch (error) {
-      Alert.alert('Error', 'Failed to start second half');
+      console.error('❌ SECOND_HALF: Failed to start second half:', error);
+      Alert.alert('Error', `Failed to start second half: ${error.message}`);
     }
   };
 
@@ -352,31 +368,40 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   // New Manual Control Handlers
   const handlePauseMatch = async () => {
     try {
-      await apiService.pauseMatch(matchId);
+      console.log('⏸️ PAUSE: Pausing match:', matchId);
+      const result = await apiService.pauseMatch(matchId);
+      console.log('✅ PAUSE: API call successful:', result);
       showCommentary('⏸️ Match paused by referee');
       await loadMatchDetails();
     } catch (error) {
-      Alert.alert('Error', 'Failed to pause match');
+      console.error('❌ PAUSE: Failed to pause match:', error);
+      Alert.alert('Error', `Failed to pause match: ${error.message}`);
     }
   };
 
   const handleResumeMatch = async () => {
     try {
-      await apiService.resumeMatch(matchId);
+      console.log('▶️ RESUME: Resuming match:', matchId);
+      const result = await apiService.resumeMatch(matchId);
+      console.log('✅ RESUME: API call successful:', result);
       showCommentary('▶️ Match resumed by referee');
       await loadMatchDetails();
     } catch (error) {
-      Alert.alert('Error', 'Failed to resume match');
+      console.error('❌ RESUME: Failed to resume match:', error);
+      Alert.alert('Error', `Failed to resume match: ${error.message}`);
     }
   };
 
   const handleManualHalftime = async () => {
     try {
-      await apiService.manualHalftime(matchId);
+      console.log('🟨 MANUAL_HT: Triggering manual halftime:', matchId);
+      const result = await apiService.manualHalftime(matchId);
+      console.log('✅ MANUAL_HT: API call successful:', result);
       showCommentary('🟨 HALF-TIME! Called by referee');
       await loadMatchDetails();
     } catch (error) {
-      Alert.alert('Error', 'Failed to trigger halftime');
+      console.error('❌ MANUAL_HT: Failed to trigger halftime:', error);
+      Alert.alert('Error', `Failed to trigger halftime: ${error.message}`);
     }
   };
 
