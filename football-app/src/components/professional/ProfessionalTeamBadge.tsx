@@ -60,11 +60,12 @@ export const ProfessionalTeamBadge: React.FC<ProfessionalTeamBadgeProps> = ({
           style={[
             styles.badgeImage,
             {
-              width: badgeSize * 0.75,
-              height: badgeSize * 0.75,
+              width: badgeSize,
+              height: badgeSize,
+              borderRadius: badgeSize / 2, // Make the image itself circular and fill entire badge
             }
           ]}
-          resizeMode="contain"
+          resizeMode="cover"
         />
       );
     }

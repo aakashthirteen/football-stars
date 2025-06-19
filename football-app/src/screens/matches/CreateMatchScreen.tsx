@@ -34,6 +34,8 @@ interface Team {
   id: string;
   name: string;
   players: any[];
+  logoUrl?: string;
+  logo_url?: string;
 }
 
 export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps) {
@@ -177,7 +179,11 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
       >
         {selectedTeam ? (
           <View style={styles.selectedTeamContent}>
-            <ProfessionalTeamBadge teamName={selectedTeam.name} size="medium" />
+            <ProfessionalTeamBadge 
+              teamName={selectedTeam.name} 
+              badgeUrl={selectedTeam.logoUrl || selectedTeam.logo_url}
+              size="medium" 
+            />
             <View style={styles.selectedTeamInfo}>
               <Text style={styles.selectedTeamName}>{selectedTeam.name}</Text>
               <Text style={styles.selectedTeamPlayers}>
@@ -233,7 +239,11 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
                 style={styles.modalTeamOption}
                 onPress={() => selectTeam(team)}
               >
-                <ProfessionalTeamBadge teamName={team.name} size="medium" />
+                <ProfessionalTeamBadge 
+                  teamName={team.name} 
+                  badgeUrl={team.logoUrl || team.logo_url}
+                  size="medium" 
+                />
                 <View style={styles.modalTeamInfo}>
                   <Text style={styles.modalTeamName}>{team.name}</Text>
                   <Text style={styles.modalTeamPlayers}>
@@ -393,7 +403,11 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
             <View style={styles.previewCard}>
               <View style={styles.previewTeams}>
                 <View style={styles.previewTeam}>
-                  <ProfessionalTeamBadge teamName={homeTeam.name} size="large" />
+                  <ProfessionalTeamBadge 
+                    teamName={homeTeam.name} 
+                    badgeUrl={homeTeam.logoUrl || homeTeam.logo_url}
+                    size="large" 
+                  />
                   <Text style={styles.previewTeamName}>{homeTeam.name}</Text>
                   <View style={styles.homeBadge}>
                     <Text style={styles.badgeText}>HOME</Text>
@@ -405,7 +419,11 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
                 </View>
                 
                 <View style={styles.previewTeam}>
-                  <ProfessionalTeamBadge teamName={awayTeam.name} size="large" />
+                  <ProfessionalTeamBadge 
+                    teamName={awayTeam.name} 
+                    badgeUrl={awayTeam.logoUrl || awayTeam.logo_url}
+                    size="large" 
+                  />
                   <Text style={styles.previewTeamName}>{awayTeam.name}</Text>
                   <View style={styles.awayBadge}>
                     <Text style={styles.badgeText}>AWAY</Text>

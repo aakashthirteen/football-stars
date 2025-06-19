@@ -9,6 +9,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import DesignSystem from '../../theme/designSystem';
+import { ProfessionalTeamBadge } from './ProfessionalTeamBadge';
 
 const { colors, typography, spacing, borderRadius, shadows } = DesignSystem;
 
@@ -16,10 +17,14 @@ interface ProfessionalMatchHeaderProps {
   homeTeam: {
     name: string;
     badge?: string;
+    logoUrl?: string;
+    logo_url?: string;
   };
   awayTeam: {
     name: string;
     badge?: string;
+    logoUrl?: string;
+    logo_url?: string;
   };
   homeScore: number;
   awayScore: number;
@@ -169,10 +174,13 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
         <View style={styles.scoreSection}>
           {/* Home Team */}
           <View style={styles.teamSection}>
-            <View style={styles.teamBadge}>
-              <Text style={styles.teamBadgeText}>
-                {homeTeam.name.substring(0, 3).toUpperCase()}
-              </Text>
+            <View style={styles.teamBadgeContainer}>
+              <ProfessionalTeamBadge
+                teamName={homeTeam.name}
+                badgeUrl={homeTeam.logoUrl || homeTeam.logo_url || homeTeam.badge}
+                size="large"
+                variant="minimal"
+              />
             </View>
             <Text style={styles.teamName} numberOfLines={1}>{homeTeam.name}</Text>
             <Text style={[
@@ -204,10 +212,13 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
           
           {/* Away Team */}
           <View style={styles.teamSection}>
-            <View style={styles.teamBadge}>
-              <Text style={styles.teamBadgeText}>
-                {awayTeam.name.substring(0, 3).toUpperCase()}
-              </Text>
+            <View style={styles.teamBadgeContainer}>
+              <ProfessionalTeamBadge
+                teamName={awayTeam.name}
+                badgeUrl={awayTeam.logoUrl || awayTeam.logo_url || awayTeam.badge}
+                size="large"
+                variant="minimal"
+              />
             </View>
             <Text style={styles.teamName} numberOfLines={1}>{awayTeam.name}</Text>
             <Text style={[
@@ -300,21 +311,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
-  teamBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  teamBadgeContainer: {
     marginBottom: spacing.sm,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  teamBadgeText: {
-    fontSize: typography.fontSize.large,
-    fontWeight: typography.fontWeight.bold,
-    color: '#FFFFFF',
   },
   teamName: {
     fontSize: typography.fontSize.small,

@@ -545,7 +545,9 @@ export class PostgresDatabase {
     const result = await this.pool.query(`
       SELECT m.*, 
              ht.name as home_team_name,
-             at.name as away_team_name
+             ht.logo_url as home_team_logo_url,
+             at.name as away_team_name,
+             at.logo_url as away_team_logo_url
       FROM matches m
       LEFT JOIN teams ht ON m.home_team_id = ht.id
       LEFT JOIN teams at ON m.away_team_id = at.id
@@ -554,8 +556,14 @@ export class PostgresDatabase {
     
     return result.rows.map(row => ({
       ...row,
-      homeTeam: { name: row.home_team_name || 'Unknown Home Team' },
-      awayTeam: { name: row.away_team_name || 'Unknown Away Team' },
+      homeTeam: { 
+        name: row.home_team_name || 'Unknown Home Team',
+        logo_url: row.home_team_logo_url
+      },
+      awayTeam: { 
+        name: row.away_team_name || 'Unknown Away Team',
+        logo_url: row.away_team_logo_url
+      },
       events: []
     }));
   }
@@ -569,8 +577,10 @@ export class PostgresDatabase {
              m.away_score,
              ht.name as home_team_name,
              ht.id as home_team_id,
+             ht.logo_url as home_team_logo_url,
              at.name as away_team_name,
-             at.id as away_team_id
+             at.id as away_team_id,
+             at.logo_url as away_team_logo_url
       FROM matches m
       JOIN teams ht ON m.home_team_id = ht.id
       JOIN teams at ON m.away_team_id = at.id
@@ -654,11 +664,13 @@ export class PostgresDatabase {
         homeTeam: { 
           id: match.home_team_id,
           name: match.home_team_name,
+          logo_url: match.home_team_logo_url,
           players: homeTeamPlayers
         },
         awayTeam: { 
           id: match.away_team_id,
           name: match.away_team_name,
+          logo_url: match.away_team_logo_url,
           players: awayTeamPlayers
         },
         events: []
