@@ -376,11 +376,11 @@ export function useMatchTimer(matchId: string) {
             return;
           }
           
-          console.log('📊 Polling: Timer data fetched:', {
-            status: match.status,
-            timerStartedAt: match.timer_started_at,
-            matchDate: match.match_date
-          });
+          // console.log('📊 Polling: Timer data fetched:', {
+          //   status: match.status,
+          //   timerStartedAt: match.timer_started_at,
+          //   matchDate: match.match_date
+          // });
           
           // If match is no longer live, stop polling
           if (match.status !== 'LIVE') {
@@ -452,7 +452,7 @@ export function useMatchTimer(matchId: string) {
             connectionStatus: 'disconnected' // Indicates we're using polling
           }));
           
-          console.log(`📊 Polling: Timer updated - ${adjustedMinute}:${currentSecond.toString().padStart(2, '0')}`);
+          // console.log(`📊 Polling: Timer updated - ${adjustedMinute}:${currentSecond.toString().padStart(2, '0')}`);
           
         } catch (pollingError) {
           console.error('❌ Polling error:', pollingError);

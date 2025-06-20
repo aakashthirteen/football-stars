@@ -94,15 +94,15 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const timerState = useMatchTimer(matchId);
   const { breakTimeDisplay, isBreakEnding } = useHalftimeBreakDisplay(timerState.halftimeBreakRemaining);
   
-  // Debug: Log timer state changes and reset manual flag when SSE confirms live status
+  // Debug: Log timer state changes and reset manual flag when timer confirms live status
   useEffect(() => {
-    console.log('🔍 SSE Screen: Timer state updated:', {
-      status: timerState.status,
-      connectionStatus: timerState.connectionStatus,
-      currentMinute: timerState.currentMinute,
-      currentSecond: timerState.currentSecond,
-      isHalftime: timerState.isHalftime
-    });
+    // console.log('🔍 SSE Screen: Timer state updated:', {
+    //   status: timerState.status,
+    //   connectionStatus: timerState.connectionStatus,
+    //   currentMinute: timerState.currentMinute,
+    //   currentSecond: timerState.currentSecond,
+    //   isHalftime: timerState.isHalftime
+    // });
     
     // Reset manual start flag once timer confirms live status (SSE or polling)
     if (matchStartRequested && timerState.status === 'LIVE') {
