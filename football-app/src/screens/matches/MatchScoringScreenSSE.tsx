@@ -151,6 +151,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   // Track if match has been manually started (to handle SSE delay)
   const [matchStartRequested, setMatchStartRequested] = useState(false);
   
+  // Safety timeout to prevent infinite loading
+  const [dataReadyTimeout, setDataReadyTimeout] = useState(false);
+  
   // Note: showLiveView is now computed via useMemo for instant updates
   
   // Modals
@@ -174,6 +177,14 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   useEffect(() => {
     loadMatchDetails();
+    
+    // Safety timeout - force data ready after 3 seconds to prevent infinite loading
+    const timeout = setTimeout(() => {
+      console.log('⏰ SAFETY TIMEOUT: Forcing data ready after 3 seconds');
+      setDataReadyTimeout(true);
+    }, 3000);
+    
+    return () => clearTimeout(timeout);
   }, []);
 
   // Handle halftime modal based on timer state
@@ -230,6 +241,45 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     
     return shouldShow;
   }, [routeIsLive, match?.status, matchStartRequested, timerState.status, timerState.isHalftime, routeMatchStatus]);
+
+  // Enhanced loading state: Keep loading until we have enough data to make correct view decision
+  const isDataReady = React.useMemo(() => {
+    // Safety timeout - force ready after 3 seconds to prevent infinite loading
+    if (dataReadyTimeout) {
+      console.log('⏰ FORCED DATA READY due to timeout');
+      return true;
+    }
+    
+    // If navigating to a live match from route params, wait for timer to confirm
+    if (routeIsLive === true || routeMatchStatus === 'LIVE') {
+      // For live matches, ensure timer has had a chance to update
+      // Timer starts as 'SCHEDULED', so wait until it's not that anymore OR
+      // we have match data that confirms it's live
+      const timerConfirmed = timerState.status !== 'SCHEDULED';
+      const matchConfirmed = match?.status === 'LIVE' || match?.status === 'HALFTIME';
+      const ready = match !== null && (timerConfirmed || matchConfirmed);
+      
+      console.log('🔍 DATA READY CHECK (Live Match):', {
+        matchLoaded: match !== null,
+        timerConfirmed,
+        matchConfirmed,
+        timerStatus: timerState.status,
+        matchStatus: match?.status,
+        isReady: ready
+      });
+      
+      return ready;
+    }
+    
+    // For non-live matches, just need match data
+    const ready = match !== null;
+    console.log('🔍 DATA READY CHECK (Scheduled Match):', {
+      matchLoaded: match !== null,
+      isReady: ready
+    });
+    
+    return ready;
+  }, [match, routeIsLive, routeMatchStatus, timerState.status, dataReadyTimeout]);
 
   // No state updates needed - using computed value directly for instant rendering
 
@@ -883,11 +933,13 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     }
   };
 
-  if (isLoading) {
+  if (isLoading || !isDataReady) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary.main} />
-        <Text style={styles.loadingText}>Loading match...</Text>
+        <Text style={styles.loadingText}>
+          {isLoading ? 'Loading match...' : 'Preparing live view...'}
+        </Text>
       </View>
     );
   }
