@@ -53,6 +53,10 @@ export const ProfessionalHeader: React.FC<ProfessionalHeaderProps> = ({
   rightElement,
   profileData,
 }) => {
+  // Validate profile data if provided
+  if (variant === 'profile' && profileData && (!profileData.name || typeof profileData.name !== 'string')) {
+    console.warn('ProfessionalHeader: profileData.name is required for profile variant');
+  }
   // Fixed heights for consistency - UNIFORM HEADER HEIGHT
   const getHeaderHeight = () => {
     switch (variant) {
@@ -136,8 +140,15 @@ export const ProfessionalHeader: React.FC<ProfessionalHeaderProps> = ({
     if (variant !== 'profile' || !profileData) return null;
 
     const getInitials = (name: string) => {
-      if (!name || typeof name !== 'string') return 'UN';
-      return name.split(' ').map(n => n[0] || '').join('').toUpperCase().substring(0, 2);
+      if (!name || typeof name !== 'string' || !name.trim()) return 'UN';
+      try {
+        const parts = name.split(' ').filter(part => part && typeof part === 'string' && part.trim().length > 0);
+        if (!Array.isArray(parts) || parts.length === 0) return 'UN';
+        return parts.map(n => (n && typeof n === 'string' && n[0]) ? n[0] : '').filter(initial => initial && typeof initial === 'string').join('').toUpperCase().substring(0, 2) || 'UN';
+      } catch (error) {
+        console.error('Error getting initials:', error);
+        return 'UN';
+      }
     };
 
     const getPositionColor = (position?: string) => {

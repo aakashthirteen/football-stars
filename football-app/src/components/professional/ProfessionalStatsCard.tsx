@@ -41,6 +41,16 @@ export const ProfessionalStatsCard: React.FC<ProfessionalStatsCardProps> = ({
   headerIcon,
   headerColor = colors.primary.main,
 }) => {
+  // Validate props
+  if (!title || typeof title !== 'string') {
+    console.warn('ProfessionalStatsCard: title prop is required and must be a string');
+    return null;
+  }
+  
+  if (!stats || !Array.isArray(stats)) {
+    console.warn('ProfessionalStatsCard: stats prop is required and must be an array');
+    return null;
+  }
   const getSizeStyles = () => {
     switch (size) {
       case 'small':
@@ -81,7 +91,7 @@ export const ProfessionalStatsCard: React.FC<ProfessionalStatsCardProps> = ({
 
       {/* Stats Grid */}
       <View style={styles.statsGrid}>
-        {(stats || []).map((stat, index) => (
+        {(Array.isArray(stats) && stats.length > 0 ? stats : []).map((stat, index) => (
           <View key={index} style={[styles.statItem, sizeStyles.stat]}>
             {stat.icon && (
               <View style={[styles.statIconContainer, { backgroundColor: (stat.color || colors.primary.main) + '15' }]}>

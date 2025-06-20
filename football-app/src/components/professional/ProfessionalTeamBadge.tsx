@@ -32,10 +32,12 @@ export const ProfessionalTeamBadge: React.FC<ProfessionalTeamBadgeProps> = ({
   variant = 'default',
   teamColor,
 }) => {
-  console.log('🏆 TEAM_BADGE: Rendering badge for team:', teamName);
-  console.log('🏆 TEAM_BADGE: badgeUrl:', badgeUrl);
-  console.log('🏆 TEAM_BADGE: badgeSource:', badgeSource);
-  console.log('🏆 TEAM_BADGE: All props:', { teamName, teamShortName, badgeUrl, badgeSource, size, showName, variant, teamColor });
+  // Early validation - allow empty team names as they'll fallback to 'TBD'
+  if (!teamName && !teamShortName && !badgeUrl && !badgeSource) {
+    console.warn('ProfessionalTeamBadge: At least one of teamName, teamShortName, badgeUrl, or badgeSource should be provided');
+  }
+  // Remove verbose logging to reduce console noise
+  // console.log('🏆 TEAM_BADGE: Rendering badge for team:', teamName);
   const getSizeValue = () => {
     switch (size) {
       case 'small':
@@ -53,8 +55,30 @@ export const ProfessionalTeamBadge: React.FC<ProfessionalTeamBadgeProps> = ({
 
   const badgeSize = getSizeValue();
   const fontSize = badgeSize * 0.35;
-  const initials = teamShortName?.substring(0, 3).toUpperCase() || 
-                   (teamName || 'TBD').split(' ').map(word => word[0] || '').join('').substring(0, 3).toUpperCase();
+  
+  // Ensure teamName is a string before using split
+  const getInitials = () => {
+    if (teamShortName && typeof teamShortName === 'string' && teamShortName.trim()) {
+      return teamShortName.substring(0, 3).toUpperCase();
+    }
+    
+    // Safe fallback for teamName
+    const name = (typeof teamName === 'string' && teamName.trim()) ? teamName : 'TBD';
+    
+    try {
+      // Extra safety for the split and map operations
+      const words = name.split(' ').filter(word => word && typeof word === 'string' && word.length > 0);
+      if (!Array.isArray(words) || words.length === 0) {
+        return 'TBD';
+      }
+      return words.map(word => (word && typeof word === 'string' && word[0]) ? word[0] : '').filter(initial => initial).join('').substring(0, 3).toUpperCase() || 'TBD';
+    } catch (error) {
+      console.warn('Error generating team initials:', error);
+      return 'TBD';
+    }
+  };
+  
+  const initials = getInitials();
 
   const renderBadgeContent = () => {
     if (badgeUrl || badgeSource) {

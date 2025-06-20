@@ -14,9 +14,13 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { MatchesStackParamList } from '../../navigation/MatchesStack';
-import { ProfessionalHeader } from '../../components/professional/ProfessionalHeader';
-import { ProfessionalMatchHeader } from '../../components/professional/ProfessionalMatchHeader';
-import DesignSystem from '../../theme/designSystem';
+console.log('🎯 ScheduledMatchScreen: Before professional imports');
+import { 
+  ProfessionalHeader, 
+  ProfessionalMatchHeader,
+  DesignSystem 
+} from '../../components/professional';
+console.log('🎯 ScheduledMatchScreen: After professional imports');
 import { apiService } from '../../services/api';
 import { Match } from '../../types';
 
@@ -36,31 +40,87 @@ interface MatchWithTeams extends Match {
   };
 }
 
+console.log('🎯 ScheduledMatchScreen: Before DesignSystem destructure');
 const { colors, gradients, spacing, typography } = DesignSystem;
+console.log('🎯 ScheduledMatchScreen: After DesignSystem destructure');
 
 type ScheduledMatchScreenRouteProp = RouteProp<MatchesStackParamList, 'ScheduledMatch'>;
 type ScheduledMatchScreenNavigationProp = StackNavigationProp<MatchesStackParamList>;
 
 export default function ScheduledMatchScreen() {
-  const navigation = useNavigation<ScheduledMatchScreenNavigationProp>();
-  const route = useRoute<ScheduledMatchScreenRouteProp>();
+  console.log('🎯 ScheduledMatchScreen: Starting render');
+  
+  let navigation;
+  let route;
+  
+  try {
+    navigation = useNavigation<ScheduledMatchScreenNavigationProp>();
+    route = useRoute<ScheduledMatchScreenRouteProp>();
+  } catch (error) {
+    console.error('❌ Error in navigation hooks:', error);
+    throw error;
+  }
+  
+  // Defensive check for route params
+  if (!route.params || !route.params.matchId) {
+    console.error('❌ ScheduledMatchScreen: No matchId in route params');
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>No match ID provided</Text>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+  
+  const { matchId } = route.params;
+  
+  console.log('🎯 ScheduledMatchScreen: Navigation and route initialized', { matchId });
+
   const [match, setMatch] = useState<MatchWithTeams | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isStartingMatch, setIsStartingMatch] = useState(false);
-  
-  const { matchId } = route.params || {};
-  
+  const [isMounted, setIsMounted] = useState(true);
+
   useEffect(() => {
-    if (matchId) {
-      loadMatchData();
-    }
+    console.log('🎯 ScheduledMatchScreen: useEffect triggered', { matchId });
+    setIsMounted(true);
+    loadMatchData();
+    
+    return () => {
+      console.log('🎯 ScheduledMatchScreen: Unmounting');
+      setIsMounted(false);
+    };
   }, [matchId]);
-  
+
   const loadMatchData = async () => {
     try {
-      console.log('Loading match data for ID:', matchId);
-      const matchData = await apiService.getMatchById(matchId);
-      console.log('Loaded match data:', matchData);
+      setIsLoading(true);
+      const response = await apiService.getMatchById(matchId);
+      
+      // Handle both response formats: direct match object or { match: matchData }
+      const matchData = response.match || response;
+      
+      console.log('📊 Loaded match data:', {
+        id: matchData.id,
+        status: matchData.status,
+        homeTeam: matchData.homeTeam,
+        awayTeam: matchData.awayTeam,
+        hasTeams: !!(matchData.homeTeam && matchData.awayTeam)
+      });
+      
+      // Only update state if component is still mounted
+      if (!isMounted) {
+        console.log('⚠️ Component unmounted, skipping state update');
+        return;
+      }
+      
       setMatch(matchData);
       
       // If match is actually live, navigate to LiveMatchScreen
@@ -87,7 +147,7 @@ export default function ScheduledMatchScreen() {
       const response = await apiService.startMatch(matchId);
       console.log('✅ Match started successfully:', response);
 
-      // Navigate to LiveMatchScreen
+      // Navigate to LiveMatchScreen (no flicker since we're explicitly navigating)
       navigation.replace('LiveMatch', { matchId });
       
     } catch (error) {
@@ -113,7 +173,7 @@ export default function ScheduledMatchScreen() {
       isNewMatch: false,
     });
   };
-  
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -137,33 +197,41 @@ export default function ScheduledMatchScreen() {
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <ProfessionalHeader 
-        title="Match Details"
-        onBack={() => navigation.goBack()}
-      />
-      
-      <ProfessionalMatchHeader 
-        homeTeam={{
-          name: match.homeTeam?.name || 'Home Team',
-          logoUrl: match.homeTeam?.logoUrl,
-        }}
-        awayTeam={{
-          name: match.awayTeam?.name || 'Away Team',
-          logoUrl: match.awayTeam?.logoUrl,
-        }}
-        homeScore={match.homeScore}
-        awayScore={match.awayScore}
-        status={match.status}
-        venue={match.venue}
-        duration={match.duration}
-      />
+  try {
+    console.log('🎯 ScheduledMatchScreen: Rendering main content', { 
+      hasMatch: !!match,
+      matchStatus: match?.status,
+      homeTeam: match?.homeTeam,
+      awayTeam: match?.awayTeam 
+    });
+
+    return (
+      <SafeAreaView style={styles.container}>
+        <ProfessionalHeader 
+          title="Match Details"
+          onBack={() => navigation.goBack()}
+        />
+        
+        <ProfessionalMatchHeader 
+          homeTeam={{
+            name: match.homeTeam?.name || 'Home Team',
+            logoUrl: match.homeTeam?.logoUrl || match.homeTeam?.logo_url,
+          }}
+          awayTeam={{
+            name: match.awayTeam?.name || 'Away Team',
+            logoUrl: match.awayTeam?.logoUrl || match.awayTeam?.logo_url,
+          }}
+          homeScore={match.homeScore || 0}
+          awayScore={match.awayScore || 0}
+          status={match.status || 'SCHEDULED'}
+          venue={match.venue}
+          duration={match.duration || 90}
+        />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Start Match Card */}
         <View style={styles.sectionContainer}>
-          <View style={styles.startMatchCard}>
+          <LinearGradient colors={gradients.primary} style={styles.startMatchCard}>
             <Ionicons name="football" size={64} color="#FFFFFF" />
             <Text style={styles.startMatchTitle}>Ready to Kick Off?</Text>
             <Text style={styles.startMatchSubtitle}>
@@ -181,7 +249,7 @@ export default function ScheduledMatchScreen() {
                 <Text style={styles.startMatchButtonText}>Start Match</Text>
               )}
             </TouchableOpacity>
-          </View>
+          </LinearGradient>
         </View>
 
         {/* Pre-Match Options */}
@@ -192,16 +260,14 @@ export default function ScheduledMatchScreen() {
             style={styles.optionCard} 
             onPress={navigateToPreMatchPlanning}
           >
-            <View style={styles.optionCardGradient}>
+            <LinearGradient colors={gradients.secondary} style={styles.optionCardGradient}>
               <View style={styles.optionCardContent}>
                 <Ionicons name="football-outline" size={24} color="#FFFFFF" />
-                <View style={styles.optionCardTextContainer}>
-                  <Text style={styles.optionCardTitle}>Set Formations</Text>
-                  <Text style={styles.optionCardSubtitle}>Configure team formations</Text>
-                </View>
+                <Text style={styles.optionCardTitle}>Set Formations</Text>
+                <Text style={styles.optionCardSubtitle}>Configure team formations</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
-            </View>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
 
@@ -227,6 +293,25 @@ export default function ScheduledMatchScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+  } catch (error) {
+    console.error('❌ ScheduledMatchScreen render error:', error);
+    console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
+    
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>An error occurred while rendering the match</Text>
+          <Text style={styles.errorSubtext}>{error instanceof Error ? error.message : 'Unknown error'}</Text>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 }
 
 const styles = StyleSheet.create({
@@ -260,7 +345,14 @@ const styles = StyleSheet.create({
     ...typography.title,
     color: colors.text.primary,
     textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  errorSubtext: {
+    ...typography.body,
+    color: colors.text.secondary,
+    textAlign: 'center',
     marginBottom: spacing.lg,
+    paddingHorizontal: spacing.lg,
   },
   backButton: {
     backgroundColor: colors.primary.main,
@@ -285,7 +377,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: spacing.xl,
     alignItems: 'center',
-    backgroundColor: colors.primary.main,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -332,23 +423,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.accent.blue,
   },
   optionCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  optionCardTextContainer: {
-    marginLeft: spacing.sm,
-  },
   optionCardTitle: {
     ...typography.subtitle,
     color: '#FFFFFF',
+    marginLeft: spacing.sm,
   },
   optionCardSubtitle: {
     ...typography.caption,
     color: 'rgba(255, 255, 255, 0.7)',
+    marginLeft: spacing.sm,
   },
   infoCard: {
     backgroundColor: colors.background.secondary,

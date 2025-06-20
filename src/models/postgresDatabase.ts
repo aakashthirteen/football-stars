@@ -682,13 +682,15 @@ export class PostgresDatabase {
         homeTeam: { 
           id: match.home_team_id,
           name: match.home_team_name,
-          logo_url: match.home_team_logo_url,
+          logoUrl: match.home_team_logo_url,  // Convert to camelCase for frontend
+          logo_url: match.home_team_logo_url,  // Keep snake_case for compatibility
           players: homeTeamPlayers
         },
         awayTeam: { 
           id: match.away_team_id,
           name: match.away_team_name,
-          logo_url: match.away_team_logo_url,
+          logoUrl: match.away_team_logo_url,  // Convert to camelCase for frontend
+          logo_url: match.away_team_logo_url,  // Keep snake_case for compatibility
           players: awayTeamPlayers
         },
         events: []

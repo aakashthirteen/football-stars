@@ -73,6 +73,8 @@ export interface MatchWithDetails extends Match {
   homeTeam?: {
     id: string;
     name: string;
+    logoUrl?: string;
+    logo_url?: string;
     players: Array<{
       id: string;
       name: string;
@@ -83,6 +85,8 @@ export interface MatchWithDetails extends Match {
   awayTeam?: {
     id: string;
     name: string;
+    logoUrl?: string;
+    logo_url?: string;
     players: Array<{
       id: string;
       name: string;

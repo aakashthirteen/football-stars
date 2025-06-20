@@ -37,6 +37,21 @@ export const ProfessionalPlayerStats: React.FC<ProfessionalPlayerStatsProps> = (
   playerImage,
   onPress,
 }) => {
+  // Validate required props
+  if (!playerName || typeof playerName !== 'string') {
+    console.warn('ProfessionalPlayerStats: playerName is required and must be a string');
+    return null;
+  }
+  
+  if (!position || typeof position !== 'string') {
+    console.warn('ProfessionalPlayerStats: position is required and must be a string');
+    return null;
+  }
+  
+  if (!stats || typeof stats !== 'object') {
+    console.warn('ProfessionalPlayerStats: stats is required and must be an object');
+    return null;
+  }
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -130,16 +145,26 @@ export const ProfessionalPlayerStats: React.FC<ProfessionalPlayerStatsProps> = (
   );
 
   const renderAchievements = () => {
-    const achievements = [];
-    if (stats.goals >= 10) achievements.push({ icon: 'football', color: colors.accent.gold, label: 'Goal Machine' });
-    if (stats.assists >= 5) achievements.push({ icon: 'trending-up', color: colors.accent.purple, label: 'Playmaker' });
-    if (stats.rating >= 8) achievements.push({ icon: 'star', color: colors.accent.gold, label: 'Top Performer' });
+    const achievements: { icon: string; color: string; label: string }[] = [];
     
-    if (achievements.length === 0) return null;
+    // Safe stats checking
+    if (stats && typeof stats === 'object') {
+      if (typeof stats.goals === 'number' && stats.goals >= 10) {
+        achievements.push({ icon: 'football', color: colors.accent.gold, label: 'Goal Machine' });
+      }
+      if (typeof stats.assists === 'number' && stats.assists >= 5) {
+        achievements.push({ icon: 'trending-up', color: colors.accent.purple, label: 'Playmaker' });
+      }
+      if (typeof stats.rating === 'number' && stats.rating >= 8) {
+        achievements.push({ icon: 'star', color: colors.accent.gold, label: 'Top Performer' });
+      }
+    }
+    
+    if (!Array.isArray(achievements) || achievements.length === 0) return null;
     
     return (
       <View style={styles.achievementsRow}>
-        {achievements.map((achievement, index) => (
+        {(Array.isArray(achievements) && achievements.length > 0 ? achievements : []).map((achievement, index) => (
           <View key={index} style={styles.achievementBadge}>
             <Ionicons name={achievement.icon as any} size={14} color={achievement.color} />
           </View>
