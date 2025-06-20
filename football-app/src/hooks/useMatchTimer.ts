@@ -176,55 +176,106 @@ export function useMatchTimer(matchId: string) {
         return;
       }
 
+      console.log(`📡 SSE: Attempting to connect to timer stream for match: ${matchId}`);
+      console.log(`🔑 SSE: Token available: ${token.substring(0, 20)}...${token.substring(token.length - 5)}`);
+      console.log(`🌐 SSE: API Base URL: ${API_BASE_URL}`);
+      console.log(`🔍 SSE: EventSource available:`, typeof EventSource !== 'undefined');
+      console.log(`🔍 SSE: EventSource constructor:`, EventSource);
+      console.log(`🔍 SSE: EventSource global:`, global.EventSource);
+
       // React Native EventSource doesn't support custom headers properly
       // Use query parameter method for authentication
       const url = `${API_BASE_URL}/sse/${matchId}/timer-stream?token=${encodeURIComponent(token)}`;
       
-      console.log(`📡 SSE: Connecting to ${API_BASE_URL}/sse/${matchId}/timer-stream`);
-      console.log(`🔑 SSE: Using token query param: ${token.substring(0, 20)}...`);
+      console.log(`📡 SSE: Full connection URL: ${url.replace(token, 'TOKEN_HIDDEN')}`);
       
-      // Use query parameter for authentication (React Native compatible)
+      // Close any existing connection first
+      if (eventSourceRef.current) {
+        console.log('🔄 SSE: Closing existing connection');
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+
+      // Set connecting status
+      setTimerState(prev => ({ ...prev, connectionStatus: 'connecting' }));
+      
+      // Create new EventSource connection
+      console.log('🚀 SSE: Creating new EventSource connection...');
       const eventSource = new EventSource(url);
       
       eventSourceRef.current = eventSource;
 
-      eventSource.onopen = () => {
-        console.log('✅ SSE: Connection established successfully');
+      // Set up connection timeout
+      const connectionTimeout = setTimeout(() => {
+        console.warn('⚠️ SSE: Connection timeout after 10 seconds');
+        if (eventSource.readyState !== EventSource.OPEN) {
+          eventSource.close();
+          setTimerState(prev => ({ ...prev, connectionStatus: 'error' }));
+        }
+      }, 10000);
+
+      eventSource.onopen = (event) => {
+        clearTimeout(connectionTimeout);
+        console.log('✅ SSE: Connection established successfully!');
+        console.log('🔍 SSE: Connection event:', event);
+        console.log('🔍 SSE: ReadyState:', eventSource.readyState);
         setTimerState(prev => ({ ...prev, connectionStatus: 'connected' }));
+        reconnectAttemptsRef.current = 0; // Reset reconnect counter on successful connection
       };
 
       eventSource.onmessage = (event) => {
         console.log('📨 SSE: Received message:', event.data);
+        console.log('📨 SSE: Message type:', event.type);
+        console.log('📨 SSE: Last event ID:', event.lastEventId);
         try {
           const data = JSON.parse(event.data) as SSEUpdate;
-          console.log('🔄 SSE: Parsed data:', data);
+          console.log('🔄 SSE: Parsed data:', JSON.stringify(data, null, 2));
           handleSSEUpdate(data);
         } catch (error) {
           console.error('❌ SSE: Failed to parse data:', error);
+          console.error('❌ SSE: Raw data was:', event.data);
         }
       };
 
       eventSource.onerror = (error) => {
-        console.error('❌ SSE: Connection error:', error);
+        clearTimeout(connectionTimeout);
+        console.error('❌ SSE: Connection error occurred');
+        console.error('❌ SSE: Error event:', error);
+        console.error('❌ SSE: ReadyState:', eventSource.readyState);
+        console.error('❌ SSE: URL was:', url.replace(token, 'TOKEN_HIDDEN'));
+        
         setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
         
         // Exponential backoff reconnection
         const backoffDelay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
         reconnectAttemptsRef.current++;
         
-        console.log(`🔄 SSE: Reconnecting in ${backoffDelay}ms (attempt ${reconnectAttemptsRef.current})`);
+        console.log(`🔄 SSE: Scheduling reconnection in ${backoffDelay}ms (attempt ${reconnectAttemptsRef.current})`);
         
         if (reconnectTimeoutRef.current) {
           clearTimeout(reconnectTimeoutRef.current);
         }
         
         reconnectTimeoutRef.current = setTimeout(() => {
+          console.log('🔄 SSE: Executing reconnection attempt...');
           eventSource.close();
           connectSSE();
         }, backoffDelay);
       };
+
+      // Log the readyState periodically for debugging
+      const readyStateLogger = setInterval(() => {
+        console.log(`🔍 SSE: ReadyState check - ${eventSource.readyState} (0=CONNECTING, 1=OPEN, 2=CLOSED)`);
+        if (eventSource.readyState === EventSource.CLOSED) {
+          clearInterval(readyStateLogger);
+        }
+      }, 2000);
+
+      // Clean up readyState logger after 30 seconds
+      setTimeout(() => clearInterval(readyStateLogger), 30000);
+
     } catch (error) {
-      console.error('Failed to connect SSE:', error);
+      console.error('❌ SSE: Exception during connection setup:', error);
       setTimerState(prev => ({ ...prev, connectionStatus: 'error' }));
     }
   }, [matchId, handleSSEUpdate]);
@@ -320,10 +371,52 @@ export function useMatchTimer(matchId: string) {
     return () => clearInterval(healthCheck);
   }, [timerState.status, startFallbackTimer]);
 
+  // Test SSE endpoint accessibility
+  const testSSEEndpoint = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        console.error('❌ SSE Test: No token available');
+        return;
+      }
+
+      console.log('🧪 SSE Test: Testing endpoint accessibility...');
+      
+      // Test regular HTTP request to SSE endpoint to check if it's reachable
+      const testUrl = `${API_BASE_URL}/sse/${matchId}/timer-stream?token=${encodeURIComponent(token)}`;
+      
+      fetch(testUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+        },
+      })
+      .then(response => {
+        console.log('🧪 SSE Test: Response status:', response.status);
+        console.log('🧪 SSE Test: Response headers:', response.headers);
+        console.log('🧪 SSE Test: Response ok:', response.ok);
+        
+        if (response.ok) {
+          console.log('✅ SSE Test: Endpoint is reachable via fetch');
+        } else {
+          console.error('❌ SSE Test: Endpoint returned error status:', response.status);
+        }
+      })
+      .catch(error => {
+        console.error('❌ SSE Test: Fetch failed:', error);
+      });
+
+    } catch (error) {
+      console.error('❌ SSE Test: Exception:', error);
+    }
+  }, [matchId]);
+
   return {
     ...timerState,
     isConnected: timerState.connectionStatus === 'connected',
-    reconnect: connectSSE
+    reconnect: connectSSE,
+    testSSEEndpoint // Expose for debugging
   };
 }
 

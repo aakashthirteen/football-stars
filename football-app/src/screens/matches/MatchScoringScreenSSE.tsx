@@ -267,11 +267,19 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       
       showCommentary("⚽ KICK-OFF! The referee blows the whistle and the match is underway!");
       
-      // Force a re-render by updating a state that triggers view change
-      setTimeout(() => {
+      // Force a reload of match data after SSE confirms the status
+      setTimeout(async () => {
         console.log('🔍 Timer state after start:', timerState.status, 'Match state:', match?.status);
         console.log('🔍 Will show live view?', (timerState.status === 'LIVE' || timerState.isHalftime || match?.status === 'LIVE'));
-      }, 2000);
+        
+        // Reload match data to ensure UI shows correct state
+        try {
+          await loadMatchDetails();
+          console.log('✅ Match data reloaded after start');
+        } catch (error) {
+          console.error('❌ Failed to reload match data:', error);
+        }
+      }, 3000);
       
       Vibration.vibrate(100);
     } catch (error) {
@@ -847,18 +855,47 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
           />
         </Animated.View>
         
-        {/* Discrete Connection Mode Indicator */}
+        {/* Enhanced Connection Status Indicator */}
         <View style={styles.discreteConnectionIndicator}>
           <View style={styles.discreteConnectionContent}>
             <View style={[
               styles.discreteConnectionDot,
               {
-                backgroundColor: timerState.connectionStatus === 'connected' ? colors.semantic.success : colors.semantic.warning
+                backgroundColor: 
+                  timerState.connectionStatus === 'connected' ? colors.semantic.success : 
+                  timerState.connectionStatus === 'connecting' ? colors.semantic.warning :
+                  timerState.connectionStatus === 'error' ? colors.semantic.error :
+                  colors.semantic.warning
               }
             ]} />
             <Text style={styles.discreteConnectionText}>
-              {timerState.connectionStatus === 'connected' ? 'Real-time' : 'Local timer'}
+              {timerState.connectionStatus === 'connected' ? 'Real-time connected' : 
+               timerState.connectionStatus === 'connecting' ? 'Connecting to SSE...' :
+               timerState.connectionStatus === 'error' ? 'Connection failed' :
+               'Connection lost - using local timer'}
             </Text>
+            {timerState.connectionStatus !== 'connected' && (
+              <TouchableOpacity 
+                onPress={() => {
+                  console.log('🔄 Manual reconnect triggered');
+                  timerState.reconnect();
+                }}
+                style={{ marginLeft: 10, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: colors.primary.main, borderRadius: 4 }}
+              >
+                <Text style={{ color: 'white', fontSize: 12 }}>Retry</Text>
+              </TouchableOpacity>
+            )}
+            {__DEV__ && (
+              <TouchableOpacity 
+                onPress={() => {
+                  console.log('🧪 SSE Test triggered');
+                  timerState.testSSEEndpoint?.();
+                }}
+                style={{ marginLeft: 10, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: colors.accent.purple, borderRadius: 4 }}
+              >
+                <Text style={{ color: 'white', fontSize: 12 }}>Test</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
         
