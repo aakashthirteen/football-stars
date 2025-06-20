@@ -54,7 +54,7 @@ export const ProfessionalTeamBadge: React.FC<ProfessionalTeamBadgeProps> = ({
   const badgeSize = getSizeValue();
   const fontSize = badgeSize * 0.35;
   const initials = teamShortName?.substring(0, 3).toUpperCase() || 
-                   (teamName || 'TBD').split(' ').map(word => word[0]).join('').substring(0, 3).toUpperCase();
+                   (teamName || 'TBD').split(' ').map(word => word[0] || '').join('').substring(0, 3).toUpperCase();
 
   const renderBadgeContent = () => {
     if (badgeUrl || badgeSource) {

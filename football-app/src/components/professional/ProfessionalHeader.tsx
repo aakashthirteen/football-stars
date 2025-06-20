@@ -28,6 +28,7 @@ interface ProfessionalHeaderProps {
   competition?: string;
   variant?: 'default' | 'match' | 'team' | 'profile';
   children?: React.ReactNode;
+  rightElement?: React.ReactNode;
   profileData?: {
     name: string;
     email: string;
@@ -49,6 +50,7 @@ export const ProfessionalHeader: React.FC<ProfessionalHeaderProps> = ({
   competition,
   variant = 'default',
   children,
+  rightElement,
   profileData,
 }) => {
   // Fixed heights for consistency - UNIFORM HEADER HEIGHT
@@ -91,6 +93,10 @@ export const ProfessionalHeader: React.FC<ProfessionalHeaderProps> = ({
   };
 
   const renderRightActions = () => {
+    if (rightElement) {
+      return rightElement;
+    }
+
     if (!showNotifications && !showProfile) {
       return <View style={styles.actionButton} />;
     }
@@ -130,7 +136,8 @@ export const ProfessionalHeader: React.FC<ProfessionalHeaderProps> = ({
     if (variant !== 'profile' || !profileData) return null;
 
     const getInitials = (name: string) => {
-      return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+      if (!name || typeof name !== 'string') return 'UN';
+      return name.split(' ').map(n => n[0] || '').join('').toUpperCase().substring(0, 2);
     };
 
     const getPositionColor = (position?: string) => {

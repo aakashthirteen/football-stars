@@ -224,18 +224,17 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
                 },
               ]}
             >
-              {tickerMatches.map((match, index) => (
+              {(tickerMatches || []).map((match, index) => (
                 <TouchableOpacity
                   key={`${match.id}-${index}`}
                   style={styles.tickerItem}
-                  onPress={() => navigation.getParent()?.navigate('Matches', { 
-                    screen: 'MatchScoring', 
-                    params: { 
-                      matchId: match.id,
-                      matchStatus: match.status,
-                      isLive: match.status === 'LIVE' || match.status === 'HALFTIME'
-                    } 
-                  })}
+                  onPress={() => {
+                    const targetScreen = (match.status === 'LIVE' || match.status === 'HALFTIME') ? 'LiveMatch' : 'ScheduledMatch';
+                    navigation.getParent()?.navigate('Matches', { 
+                      screen: targetScreen, 
+                      params: { matchId: match.id } 
+                    });
+                  }}
                 >
                   <Text style={styles.tickerMatch}>
                     {match.homeTeam?.name} {match.homeScore} - {match.awayScore} {match.awayTeam?.name}
@@ -369,21 +368,20 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
                 <Text style={styles.seeAllText}>See all</Text>
               </TouchableOpacity>
             </View>
-            {displayMatches.map((match) => (
+            {(displayMatches || []).map((match) => (
               <View key={match.id} style={styles.matchCardWrapper}>
                 <ProfessionalMatchCard
                   match={{
                     ...match,
                     competition: 'Grassroots League',
                   }}
-                  onPress={() => navigation.getParent()?.navigate('Matches', { 
-                    screen: 'MatchScoring', 
-                    params: { 
-                      matchId: match.id,
-                      matchStatus: match.status,
-                      isLive: match.status === 'LIVE' || match.status === 'HALFTIME'
-                    } 
-                  })}
+                  onPress={() => {
+                    const targetScreen = (match.status === 'LIVE' || match.status === 'HALFTIME') ? 'LiveMatch' : 'ScheduledMatch';
+                    navigation.getParent()?.navigate('Matches', { 
+                      screen: targetScreen, 
+                      params: { matchId: match.id } 
+                    });
+                  }}
                 />
               </View>
             ))}
@@ -393,21 +391,20 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         {upcomingMatches.length > 0 && (
           <View style={styles.matchesSection}>
             <Text style={styles.sectionTitle}>📅 Upcoming Matches</Text>
-            {upcomingMatches.map((match) => (
+            {(upcomingMatches || []).map((match) => (
               <View key={match.id} style={styles.matchCardWrapper}>
                 <ProfessionalMatchCard
                   match={{
                     ...match,
                     competition: 'Grassroots League',
                   }}
-                  onPress={() => navigation.getParent()?.navigate('Matches', { 
-                    screen: 'MatchScoring', 
-                    params: { 
-                      matchId: match.id,
-                      matchStatus: match.status,
-                      isLive: match.status === 'LIVE' || match.status === 'HALFTIME'
-                    } 
-                  })}
+                  onPress={() => {
+                    const targetScreen = (match.status === 'LIVE' || match.status === 'HALFTIME') ? 'LiveMatch' : 'ScheduledMatch';
+                    navigation.getParent()?.navigate('Matches', { 
+                      screen: targetScreen, 
+                      params: { matchId: match.id } 
+                    });
+                  }}
                 />
               </View>
             ))}

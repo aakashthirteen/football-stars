@@ -56,6 +56,8 @@ export interface Match {
   awayScore: number;
   liveStartTime?: Date;
   currentMinute?: number;
+  currentSecond?: number;
+  totalSecondsAtHalftime?: number;
   currentHalf?: 1 | 2;
   firstHalfMinutes?: number;
   secondHalfMinutes?: number;

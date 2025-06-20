@@ -118,11 +118,9 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
         {
           text: 'Start Match',
           onPress: () => {
-            navigation.replace('MatchScoring', { 
-              matchId: response.match.id,
-              isNewMatch: true,
-              matchStatus: 'SCHEDULED',
-              isLive: false
+            // Navigate to scheduled match screen since match was just created
+            navigation.replace('ScheduledMatch', { 
+              matchId: response.match.id
             });
           },
         },

@@ -157,14 +157,9 @@ export default function PreMatchPlanningScreen({ navigation, route }: PreMatchPl
         {
           text: 'Start Match',
           onPress: () => {
-            navigation.replace('MatchScoring', { 
-              matchId: matchId,
-              isNewMatch: true,
-              hasFormations: true,
-              matchStatus: 'SCHEDULED',
-              isLive: false,
-              homeFormation: homeFormation,
-              awayFormation: awayFormation
+            // Navigate to scheduled match screen since match hasn't started yet
+            navigation.replace('ScheduledMatch', { 
+              matchId: matchId
             });
           },
         },
@@ -359,12 +354,9 @@ export default function PreMatchPlanningScreen({ navigation, route }: PreMatchPl
           <TouchableOpacity
             style={styles.skipButton}
             onPress={() => {
-              navigation.replace('MatchScoring', { 
-                matchId: matchId,
-                isNewMatch: true,
-                hasFormations: false,
-                matchStatus: 'SCHEDULED',
-                isLive: false 
+              // Navigate to scheduled match screen since match hasn't started yet
+              navigation.replace('ScheduledMatch', { 
+                matchId: matchId
               });
             }}
           >

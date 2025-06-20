@@ -3,6 +3,8 @@ import { createStackNavigator } from '@react-navigation/stack';
 import MatchesScreen from '../screens/main/MatchesScreen';
 import CreateMatchScreen from '../screens/matches/CreateMatchScreen';
 import MatchScoringScreenSSE from '../screens/matches/MatchScoringScreenSSE';
+import ScheduledMatchScreen from '../screens/matches/ScheduledMatchScreen';
+import LiveMatchScreen from '../screens/matches/LiveMatchScreen';
 import MatchOverviewScreen from '../screens/matches/MatchOverviewScreen';
 import PlayerRatingScreen from '../screens/matches/PlayerRatingScreen';
 import MatchSummaryScreen from '../screens/matches/MatchSummaryScreen';
@@ -13,6 +15,8 @@ export type MatchesStackParamList = {
   MatchesList: undefined;
   CreateMatch: undefined;
   MatchScoring: { matchId: string; isNewMatch?: boolean; hasFormations?: boolean; matchStatus?: string; isLive?: boolean };
+  ScheduledMatch: { matchId: string };
+  LiveMatch: { matchId: string };
   MatchOverview: { matchId: string };
   PlayerRating: { 
     matchId: string; 
@@ -60,6 +64,8 @@ export default function MatchesStack() {
       <Stack.Screen name="CreateMatch" component={CreateMatchScreen} />
       <Stack.Screen name="PreMatchPlanning" component={PreMatchPlanningScreen} />
       <Stack.Screen name="MatchScoring" component={MatchScoringScreenSSE} />
+      <Stack.Screen name="ScheduledMatch" component={ScheduledMatchScreen} />
+      <Stack.Screen name="LiveMatch" component={LiveMatchScreen} />
       <Stack.Screen name="MatchOverview" component={MatchOverviewScreen} />
       <Stack.Screen name="PlayerRating" component={PlayerRatingScreen} />
       <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />

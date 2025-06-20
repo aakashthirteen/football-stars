@@ -81,7 +81,7 @@ export const ProfessionalStatsCard: React.FC<ProfessionalStatsCardProps> = ({
 
       {/* Stats Grid */}
       <View style={styles.statsGrid}>
-        {stats.map((stat, index) => (
+        {(stats || []).map((stat, index) => (
           <View key={index} style={[styles.statItem, sizeStyles.stat]}>
             {stat.icon && (
               <View style={[styles.statIconContainer, { backgroundColor: (stat.color || colors.primary.main) + '15' }]}>

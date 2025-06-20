@@ -132,6 +132,17 @@ export class PostgresDatabase {
         ALTER TABLE matches ADD COLUMN IF NOT EXISTS added_time_second_half INTEGER DEFAULT 0
       `);
 
+      // Add exact halftime timing fields for precise second half continuation
+      await client.query(`
+        ALTER TABLE matches ADD COLUMN IF NOT EXISTS current_minute INTEGER
+      `);
+      await client.query(`
+        ALTER TABLE matches ADD COLUMN IF NOT EXISTS current_second INTEGER
+      `);
+      await client.query(`
+        ALTER TABLE matches ADD COLUMN IF NOT EXISTS total_seconds_at_halftime INTEGER
+      `);
+
       // Update the status check constraint to include HALFTIME if it doesn't already
       try {
         await client.query(`
@@ -661,6 +672,13 @@ export class PostgresDatabase {
         matchDate: match.match_date,
         createdBy: match.created_by,
         createdAt: match.created_at,
+        // Timer state fields for exact halftime timing
+        currentMinute: match.current_minute,
+        currentSecond: match.current_second,
+        totalSecondsAtHalftime: match.total_seconds_at_halftime,
+        currentHalf: match.current_half,
+        addedTimeFirstHalf: match.added_time_first_half,
+        addedTimeSecondHalf: match.added_time_second_half,
         homeTeam: { 
           id: match.home_team_id,
           name: match.home_team_name,

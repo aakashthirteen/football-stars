@@ -80,7 +80,7 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
     try {
       const response = await apiService.getTeams();
       const teams = response.teams || [];
-      const teamIds = teams.map((team: any) => team.id);
+      const teamIds = (teams || []).map((team: any) => team.id);
       setMyTeams(teamIds);
     } catch (error) {
       console.error('Error loading teams:', error);
@@ -95,7 +95,7 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
       const matchesArray = response.matches || [];
       console.log('🏈 MATCHES_SCREEN: Matches array:', JSON.stringify(matchesArray, null, 2));
       
-      const normalizedMatches = matchesArray.map((match: any) => {
+      const normalizedMatches = (matchesArray || []).map((match: any) => {
         console.log('🏈 MATCHES_SCREEN: Processing match:', JSON.stringify(match, null, 2));
         const normalized = {
           ...match,
@@ -141,14 +141,17 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
   };
 
   const getFilteredMatches = () => {
+    // Add safety checks for undefined arrays
+    if (!matches || !Array.isArray(matches)) return [];
+    
     switch (activeTab) {
       case 'live':
         return matches.filter((match) => match.status === 'LIVE' || match.status === 'HALFTIME');
       case 'my':
         return matches.filter((match) => {
           const isCreator = match.createdBy === user?.id;
-          const isInHomeTeam = match.homeTeam?.id && myTeams.includes(match.homeTeam.id);
-          const isInAwayTeam = match.awayTeam?.id && myTeams.includes(match.awayTeam.id);
+          const isInHomeTeam = match.homeTeam?.id && (myTeams || []).includes(match.homeTeam.id);
+          const isInAwayTeam = match.awayTeam?.id && (myTeams || []).includes(match.awayTeam.id);
           return isCreator || isInHomeTeam || isInAwayTeam;
         });
       default:
@@ -157,14 +160,18 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
   };
 
   const handleMatchPress = (match: Match) => {
+    console.log('🎯 Navigation Decision:', { matchId: match.id, status: match.status });
+    
     if (match.status === 'COMPLETED') {
       navigation.navigate('MatchOverview', { matchId: match.id });
+    } else if (match.status === 'LIVE' || match.status === 'HALFTIME') {
+      // INSTANT navigation to live screen - no flicker!
+      console.log('⚡ Navigating directly to LiveMatch');
+      navigation.navigate('LiveMatch', { matchId: match.id });
     } else {
-      navigation.navigate('MatchScoring', { 
-        matchId: match.id, 
-        matchStatus: match.status,
-        isLive: match.status === 'LIVE' || match.status === 'HALFTIME'
-      });
+      // SCHEDULED matches go to dedicated scheduled screen
+      console.log('📅 Navigating to ScheduledMatch');
+      navigation.navigate('ScheduledMatch', { matchId: match.id });
     }
   };
 

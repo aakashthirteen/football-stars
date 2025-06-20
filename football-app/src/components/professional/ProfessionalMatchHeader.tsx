@@ -182,13 +182,13 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
           <View style={styles.teamSection}>
             <View style={styles.teamBadgeContainer}>
               <ProfessionalTeamBadge
-                teamName={homeTeam.name}
-                badgeUrl={homeTeam.logoUrl || homeTeam.logo_url || homeTeam.badge}
+                teamName={homeTeam?.name || 'Home Team'}
+                badgeUrl={homeTeam?.logoUrl || homeTeam?.logo_url || homeTeam?.badge}
                 size="large"
                 variant="minimal"
               />
             </View>
-            <Text style={styles.teamName} numberOfLines={1}>{homeTeam.name}</Text>
+            <Text style={styles.teamName} numberOfLines={1}>{homeTeam?.name || 'Home Team'}</Text>
             <Text style={[
               styles.score,
               status === 'COMPLETED' && homeScore > awayScore && styles.winnerScore
@@ -220,13 +220,13 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
           <View style={styles.teamSection}>
             <View style={styles.teamBadgeContainer}>
               <ProfessionalTeamBadge
-                teamName={awayTeam.name}
-                badgeUrl={awayTeam.logoUrl || awayTeam.logo_url || awayTeam.badge}
+                teamName={awayTeam?.name || 'Away Team'}
+                badgeUrl={awayTeam?.logoUrl || awayTeam?.logo_url || awayTeam?.badge}
                 size="large"
                 variant="minimal"
               />
             </View>
-            <Text style={styles.teamName} numberOfLines={1}>{awayTeam.name}</Text>
+            <Text style={styles.teamName} numberOfLines={1}>{awayTeam?.name || 'Away Team'}</Text>
             <Text style={[
               styles.score,
               status === 'COMPLETED' && awayScore > homeScore && styles.winnerScore
