@@ -86,16 +86,17 @@ export class SimpleEventSource {
   }
 }
 
-// Enhanced polyfill setup
+// Enhanced polyfill setup for React Native
 export function setupEventSourcePolyfill() {
   try {
-    // Use event-source-polyfill which is more compatible with React Native
-    const EventSourcePolyfill = require('event-source-polyfill').EventSourcePolyfill;
-    global.EventSource = EventSourcePolyfill;
-    console.log('✅ EventSource polyfill loaded successfully (event-source-polyfill)');
+    // Use react-native-event-source which is specifically designed for React Native
+    const RNEventSource = require('react-native-event-source').EventSource;
+    global.EventSource = RNEventSource;
+    console.log('✅ EventSource polyfill loaded successfully (react-native-event-source)');
+    console.log('🔍 EventSource constructor:', global.EventSource);
     return true;
   } catch (error) {
-    console.warn('⚠️ event-source-polyfill not available, using native or fallback');
+    console.warn('⚠️ react-native-event-source not available, trying fallback:', error);
     
     try {
       // Check if native EventSource is available

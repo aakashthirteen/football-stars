@@ -308,14 +308,27 @@ export function useMatchTimer(matchId: string) {
   }, [matchId, handleSSEUpdate]);
 
 
-  // Effect to manage SSE connection
+  // Effect to manage timer connection - try SSE first, fallback to polling quickly
   useEffect(() => {
     if (!matchId) return;
 
+    console.log('🚀 Timer Hook: Starting connection for match:', matchId);
+    
+    // Try SSE connection first
     connectSSE();
+    
+    // Also start polling fallback immediately as backup (will be replaced if SSE works)
+    const backupPollingTimeout = setTimeout(() => {
+      if (timerState.connectionStatus === 'connecting') {
+        console.log('⚡ Starting backup polling since SSE taking too long');
+        startPollingFallback();
+      }
+    }, 2000); // Start polling backup after 2 seconds
 
     // Cleanup
     return () => {
+      clearTimeout(backupPollingTimeout);
+      
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
@@ -328,7 +341,7 @@ export function useMatchTimer(matchId: string) {
       
       stopInterpolation();
     };
-  }, [matchId, connectSSE, stopInterpolation]);
+  }, [matchId, connectSSE, stopInterpolation, startPollingFallback]);
 
   // Enhanced polling fallback system
   const startPollingFallback = useCallback(async () => {
@@ -439,17 +452,17 @@ export function useMatchTimer(matchId: string) {
     }
   }, [matchId, formatTime, formatMinuteDisplay]);
 
-  // Monitor connection health and auto-start polling fallback
+  // Enhanced connection health monitoring with faster polling fallback
   useEffect(() => {
     const healthCheck = setInterval(() => {
       const timeSinceLastUpdate = Date.now() - lastUpdateRef.current;
       
-      // If SSE hasn't connected after 10 seconds, or no updates for 8 seconds
-      const isConnectionStalled = timeSinceLastUpdate > 8000 && timerState.connectionStatus === 'connecting';
-      const isUpdateStalled = timeSinceLastUpdate > 8000 && timerState.status === 'LIVE' && timerState.connectionStatus === 'connected';
+      // Much more aggressive fallback - if SSE hasn't connected after 3 seconds, switch to polling
+      const isConnectionStalled = timeSinceLastUpdate > 3000 && timerState.connectionStatus === 'connecting';
+      const isUpdateStalled = timeSinceLastUpdate > 5000 && timerState.status === 'LIVE' && timerState.connectionStatus === 'connected';
       
       if (isConnectionStalled || isUpdateStalled) {
-        console.warn('⚠️ SSE connection failed or stalled, starting polling fallback');
+        console.warn('⚠️ SSE connection failed or stalled, switching to polling fallback (faster)');
         
         // Close any existing SSE connection
         if (eventSourceRef.current) {
@@ -457,12 +470,13 @@ export function useMatchTimer(matchId: string) {
           eventSourceRef.current = null;
         }
         
-        // Start polling fallback if not already running
+        // Start polling fallback immediately
         if (!interpolationRef.current || timerState.connectionStatus !== 'disconnected') {
+          console.log('🔄 Starting enhanced polling fallback for reliable timer updates');
           startPollingFallback();
         }
       }
-    }, 3000); // Check every 3 seconds
+    }, 1000); // Check every 1 second for faster response
 
     return () => clearInterval(healthCheck);
   }, [timerState.status, timerState.connectionStatus, startPollingFallback]);
