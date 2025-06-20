@@ -184,3 +184,97 @@ curl -N https://football-stars-production.up.railway.app/api/sse/test
 ---
 
 **Resolution Summary**: The live screen transition issue has been completely resolved through a combination of polyfill upgrades, architectural improvements, and enhanced fallback mechanisms. The system now prioritizes reliability over real-time perfection, ensuring a smooth user experience regardless of connection conditions.
+
+
+Logs from latest run - still live match screen not poping up
+LOG  🔍 SSE Screen: Timer state updated: {"connectionStatus": "disconnected", "currentMinute": 0, "currentSecond": 0, "isHalftime": false, "status": "SCHEDULED"}
+ LOG  🎯 View Decision: {"connectionStatus": "disconnected", "isHalftime": false, "matchStartRequested": false, "matchStatus": "SCHEDULED", "timerStatus": "SCHEDULED", "willShowLiveView": false}
+ LOG  🔄 API Request: {"headers": {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI0MWUxNzE5NC1lNjAwLTQ3NGEtODM0YS05NThhMGE4M2FhMTYiLCJpYXQiOjE3NDk4MjI2MTksImV4cCI6MTc1MjQxNDYxOX0.PMPc8wpMlZj3JahAs69fIQEKoZTlT1SI-w6KYogTXxQ", "Content-Type": "application/json"}, "method": "GET", "url": "https://football-stars-production.up.railway.app/api/matches/eef2b47f-9be3-4900-947e-f39407389855"}
+ LOG  📡 API Response: {"status": 200, "statusText": "", "text": "{\"match\":{\"id\":\"eef2b47f-9be3-4900-947e-f39407389855\",\"home_team_id\":\"2063065b-208c-4592-8587-f0a7bf2ac416\",\"away_team_id\":\"4395a283-f76c-4fa7-b3bf-eaee1da44e83\",\"venue\":\"\",\"match_date\":\"2025-06-20T07"}
+ LOG  📊 Polling: Match no longer live, stopping polling
+ LOG  🏆 TEAM_BADGE: Rendering badge for team: Real Madrid
+ LOG  🏆 TEAM_BADGE: badgeUrl: https://res.cloudinary.com/dn8q22mlx/image/upload/v1750312432/football-stars/team-badges/team_badge_2063065b-208c-4592-8587-f0a7bf2ac416_1750312430763.jpg
+ LOG  🏆 TEAM_BADGE: badgeSource: undefined
+ LOG  🏆 TEAM_BADGE: All props: {"badgeSource": undefined, "badgeUrl": "https://res.cloudinary.com/dn8q22mlx/image/upload/v1750312432/football-stars/team-badges/team_badge_2063065b-208c-4592-8587-f0a7bf2ac416_1750312430763.jpg", "showName": false, "size": "large", "teamColor": undefined, "teamName": "Real Madrid", "teamShortName": undefined, "variant": "minimal"}
+ LOG  🏆 TEAM_BADGE: Rendering badge for team: Real Madrid
+ LOG  🏆 TEAM_BADGE: badgeUrl: undefined
+ LOG  🏆 TEAM_BADGE: badgeSource: undefined
+ LOG  🏆 TEAM_BADGE: All props: {"badgeSource": undefined, "badgeUrl": undefined, "showName": false, "size": "large", "teamColor": undefined, "teamName": "Real Madrid", "teamShortName": undefined, "variant": "minimal"}
+ LOG  🔍 SSE Screen: Timer state updated: {"connectionStatus": "disconnected", "currentMinute": 0, "currentSecond": 0, "isHalftime": false, "status": undefined}
+ LOG  🎯 View Decision: {"connectionStatus": "disconnected", "isHalftime": false, "matchStartRequested": false, "matchStatus": "SCHEDULED", "timerStatus": undefined, "willShowLiveView": false}
+ LOG  🎯 LIVE VIEW STATE UPDATE: {"currentShowLiveView": false, "hasStartBeenRequested": false, "isInHalftime": false, "isMatchLiveInDB": false, "isTimerLive": false, "shouldShowLive": false, "willUpdate": false}
+ LOG  🚀 Starting match: eef2b47f-9be3-4900-947e-f39407389855
+ LOG  🔍 Before start - Timer state: undefined Match state: SCHEDULED
+ LOG  ✅ Match start requested - showing live screen immediately
+ LOG  🏆 TEAM_BADGE: Rendering badge for team: Real Madrid
+ LOG  🏆 TEAM_BADGE: badgeUrl: https://res.cloudinary.com/dn8q22mlx/image/upload/v1750312432/football-stars/team-badges/team_badge_2063065b-208c-4592-8587-f0a7bf2ac416_1750312430763.jpg
+ LOG  🏆 TEAM_BADGE: badgeSource: undefined
+ LOG  🏆 TEAM_BADGE: All props: {"badgeSource": undefined, "badgeUrl": "https://res.cloudinary.com/dn8q22mlx/image/upload/v1750312432/football-stars/team-badges/team_badge_2063065b-208c-4592-8587-f0a7bf2ac416_1750312430763.jpg", "showName": false, "size": "large", "teamColor": undefined, "teamName": "Real Madrid", "teamShortName": undefined, "variant": "minimal"}
+ LOG  🏆 TEAM_BADGE: Rendering badge for team: Real Madrid
+ LOG  🏆 TEAM_BADGE: badgeUrl: undefined
+ LOG  🏆 TEAM_BADGE: badgeSource: undefined
+ LOG  🏆 TEAM_BADGE: All props: {"badgeSource": undefined, "badgeUrl": undefined, "showName": false, "size": "large", "teamColor": undefined, "teamName": "Real Madrid", "teamShortName": undefined, "variant": "minimal"}
+ LOG  🔍 SSE Screen: Timer state updated: {"connectionStatus": "disconnected", "currentMinute": 0, "currentSecond": 0, "isHalftime": false, "status": undefined}
+ LOG  🎯 LIVE VIEW STATE UPDATE: {"currentShowLiveView": false, "hasStartBeenRequested": true, "isInHalftime": false, "isMatchLiveInDB": false, "isTimerLive": false, "shouldShowLive": true, "willUpdate": true}
+ LOG  🔄 LIVE VIEW STATE CHANGED: false → true
+ LOG  🎵 Sound service initialized
+ LOG  🎵 Using system sounds for whistles
+ LOG  📡 Calling SSE start match API...
+ LOG  🏆 TEAM_BADGE: Rendering badge for team: Real Madrid
+ LOG  🏆 TEAM_BADGE: badgeUrl: https://res.cloudinary.com/dn8q22mlx/image/upload/v1750312432/football-stars/team-badges/team_badge_2063065b-208c-4592-8587-f0a7bf2ac416_1750312430763.jpg
+ LOG  🏆 TEAM_BADGE: badgeSource: undefined
+ LOG  🏆 TEAM_BADGE: All props: {"badgeSource": undefined, "badgeUrl": "https://res.cloudinary.com/dn8q22mlx/image/upload/v1750312432/football-stars/team-badges/team_badge_2063065b-208c-4592-8587-f0a7bf2ac416_1750312430763.jpg", "showName": false, "size": "large", "teamColor": undefined, "teamName": "Real Madrid", "teamShortName": undefined, "variant": "minimal"}
+ LOG  🏆 TEAM_BADGE: Rendering badge for team: Real Madrid
+ LOG  🏆 TEAM_BADGE: badgeUrl: undefined
+ LOG  🏆 TEAM_BADGE: badgeSource: undefined
+ LOG  🏆 TEAM_BADGE: All props: {"badgeSource": undefined, "badgeUrl": undefined, "showName": false, "size": "large", "teamColor": undefined, "teamName": "Real Madrid", "teamShortName": undefined, "variant": "minimal"}
+ LOG  🔄 API Request: {"headers": {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI0MWUxNzE5NC1lNjAwLTQ3NGEtODM0YS05NThhMGE4M2FhMTYiLCJpYXQiOjE3NDk4MjI2MTksImV4cCI6MTc1MjQxNDYxOX0.PMPc8wpMlZj3JahAs69fIQEKoZTlT1SI-w6KYogTXxQ", "Content-Type": "application/json"}, "method": "PATCH", "url": "https://football-stars-production.up.railway.app/api/sse/eef2b47f-9be3-4900-947e-f39407389855/start-sse"}
+ LOG  🔍 SSE Screen: Timer state updated: {"connectionStatus": "disconnected", "currentMinute": 0, "currentSecond": 0, "isHalftime": false, "status": undefined}
+ LOG  🎯 LIVE VIEW STATE UPDATE: {"currentShowLiveView": true, "hasStartBeenRequested": true, "isInHalftime": false, "isMatchLiveInDB": false, "isTimerLive": false, "shouldShowLive": true, "willUpdate": false}
+ LOG  📡 API Response: {"status": 200, "statusText": "", "text": "{\"success\":true,\"timerState\":{\"matchId\":\"eef2b47f-9be3-4900-947e-f39407389855\",\"currentMinute\":0,\"currentSecond\":0,\"totalSeconds\":0,\"status\":\"LIVE\",\"currentHalf\":1,\"addedTimeFirstHalf\":0,\"addedTimeSec"}
+ LOG  ✅ SSE start response: {"message": "Match started with SSE timer service", "success": true, "timerState": {"addedTimeFirstHalf": 0, "addedTimeSecondHalf": 0, "currentHalf": 1, "currentMinute": 0, "currentSecond": 0, "halfDuration": 45, "isHalftime": false, "isPaused": false, "matchDuration": 90, "matchId": "eef2b47f-9be3-4900-947e-f39407389855", "serverTime": 1750405623192, "status": "LIVE", "totalPausedDuration": 0, "totalSeconds": 0}}
+ LOG  🎵 Playing match start whistle (vibration)
+ LOG  🏆 TEAM_BADGE: Rendering badge for team: Real Madrid
+ LOG  🏆 TEAM_BADGE: badgeUrl: https://res.cloudinary.com/dn8q22mlx/image/upload/v1750312432/football-stars/team-badges/team_badge_2063065b-208c-4592-8587-f0a7bf2ac416_1750312430763.jpg
+ LOG  🏆 TEAM_BADGE: badgeSource: undefined
+ LOG  🏆 TEAM_BADGE: All props: {"badgeSource": undefined, "badgeUrl": "https://res.cloudinary.com/dn8q22mlx/image/upload/v1750312432/football-stars/team-badges/team_badge_2063065b-208c-4592-8587-f0a7bf2ac416_1750312430763.jpg", "showName": false, "size": "large", "teamColor": undefined, "teamName": "Real Madrid", "teamShortName": undefined, "variant": "minimal"}
+ LOG  🏆 TEAM_BADGE: Rendering badge for team: Real Madrid
+ LOG  🏆 TEAM_BADGE: badgeUrl: undefined
+ LOG  🏆 TEAM_BADGE: badgeSource: undefined
+ LOG  🏆 TEAM_BADGE: All props: {"badgeSource": undefined, "badgeUrl": undefined, "showName": false, "size": "large", "teamColor": undefined, "teamName": "Real Madrid", "teamShortName": undefined, "variant": "minimal"}
+ LOG  🔍 SSE Screen: Timer state updated: {"connectionStatus": "disconnected", "currentMinute": 0, "currentSecond": 0, "isHalftime": false, "status": undefined}
+ LOG  🔍 Reloading match data after start...
+ LOG  🔍 SSE Screen: Timer state updated: {"connectionStatus": "disconnected", "currentMinute": 0, "currentSecond": 0, "isHalftime": false, "status": undefined}
+ LOG  🔄 API Request: {"headers": {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI0MWUxNzE5NC1lNjAwLTQ3NGEtODM0YS05NThhMGE4M2FhMTYiLCJpYXQiOjE3NDk4MjI2MTksImV4cCI6MTc1MjQxNDYxOX0.PMPc8wpMlZj3JahAs69fIQEKoZTlT1SI-w6KYogTXxQ", "Content-Type": "application/json"}, "method": "GET", "url": "https://football-stars-production.up.railway.app/api/matches/eef2b47f-9be3-4900-947e-f39407389855"}
+ LOG  📡 API Response: {"status": 200, "statusText": "", "text": "{\"match\":{\"id\":\"eef2b47f-9be3-4900-947e-f39407389855\",\"home_team_id\":\"2063065b-208c-4592-8587-f0a7bf2ac416\",\"away_team_id\":\"4395a283-f76c-4fa7-b3bf-eaee1da44e83\",\"venue\":\"\",\"match_date\":\"2025-06-20T07"}
+ LOG  🧮 Loading formation data for match: eef2b47f-9be3-4900-947e-f39407389855
+ LOG  🔄 API Request: {"headers": {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI0MWUxNzE5NC1lNjAwLTQ3NGEtODM0YS05NThhMGE4M2FhMTYiLCJpYXQiOjE3NDk4MjI2MTksImV4cCI6MTc1MjQxNDYxOX0.PMPc8wpMlZj3JahAs69fIQEKoZTlT1SI-w6KYogTXxQ", "Content-Type": "application/json"}, "method": "GET", "url": "https://football-stars-production.up.railway.app/api/matches/eef2b47f-9be3-4900-947e-f39407389855/teams/2063065b-208c-4592-8587-f0a7bf2ac416/formation"}
+ LOG  🔄 API Request: {"headers": {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI0MWUxNzE5NC1lNjAwLTQ3NGEtODM0YS05NThhMGE4M2FhMTYiLCJpYXQiOjE3NDk4MjI2MTksImV4cCI6MTc1MjQxNDYxOX0.PMPc8wpMlZj3JahAs69fIQEKoZTlT1SI-w6KYogTXxQ", "Content-Type": "application/json"}, "method": "GET", "url": "https://football-stars-production.up.railway.app/api/matches/eef2b47f-9be3-4900-947e-f39407389855/teams/4395a283-f76c-4fa7-b3bf-eaee1da44e83/formation"}
+ LOG  🔍 SSE Screen: Timer state updated: {"connectionStatus": "disconnected", "currentMinute": 0, "currentSecond": 0, "isHalftime": false, "status": undefined}
+ LOG  🔍 SSE Screen: Match state updated: {"awayScore": 0, "homeScore": 0, "status": "LIVE"}
+ LOG  🎯 View Decision: {"connectionStatus": "disconnected", "isHalftime": false, "matchStartRequested": true, "matchStatus": "LIVE", "timerStatus": undefined, "willShowLiveView": true}
+ LOG  🎯 LIVE VIEW STATE UPDATE: {"currentShowLiveView": true, "hasStartBeenRequested": true, "isInHalftime": false, "isMatchLiveInDB": true, "isTimerLive": false, "shouldShowLive": true, "willUpdate": false}
+ LOG  📡 API Response: {"status": 404, "statusText": "", "text": "{\"error\":\"Formation not found\"}"}
+ ERROR  ❌ API Error: [Error: Formation not found]
+ ERROR  Error loading formation data: [Error: Formation not found]
+ LOG  ✅ Match data reloaded - should now show LIVE status
+ LOG  🏆 TEAM_BADGE: Rendering badge for team: Real Madrid
+ LOG  🏆 TEAM_BADGE: badgeUrl: https://res.cloudinary.com/dn8q22mlx/image/upload/v1750312432/football-stars/team-badges/team_badge_2063065b-208c-4592-8587-f0a7bf2ac416_1750312430763.jpg
+ LOG  🏆 TEAM_BADGE: badgeSource: undefined
+ LOG  🏆 TEAM_BADGE: All props: {"badgeSource": undefined, "badgeUrl": "https://res.cloudinary.com/dn8q22mlx/image/upload/v1750312432/football-stars/team-badges/team_badge_2063065b-208c-4592-8587-f0a7bf2ac416_1750312430763.jpg", "showName": false, "size": "large", "teamColor": undefined, "teamName": "Real Madrid", "teamShortName": undefined, "variant": "minimal"}
+ LOG  🏆 TEAM_BADGE: Rendering badge for team: Real Madrid
+ LOG  🏆 TEAM_BADGE: badgeUrl: undefined
+ LOG  🏆 TEAM_BADGE: badgeSource: undefined
+ LOG  🏆 TEAM_BADGE: All props: {"badgeSource": undefined, "badgeUrl": undefined, "showName": false, "size": "large", "teamColor": undefined, "teamName": "Real Madrid", "teamShortName": undefined, "variant": "minimal"}
+ LOG  🔍 SSE Screen: Timer state updated: {"connectionStatus": "disconnected", "currentMinute": 0, "currentSecond": 0, "isHalftime": false, "status": undefined}
+ LOG  📡 API Response: {"status": 404, "statusText": "", "text": "{\"error\":\"Formation not found\"}"}
+ ERROR  ❌ API Error: [Error: Formation not found]
+ LOG  🏆 TEAM_BADGE: Rendering badge for team: Real Madrid
+ LOG  🏆 TEAM_BADGE: badgeUrl: https://res.cloudinary.com/dn8q22mlx/image/upload/v1750312432/football-stars/team-badges/team_badge_2063065b-208c-4592-8587-f0a7bf2ac416_1750312430763.jpg
+ LOG  🏆 TEAM_BADGE: badgeSource: undefined
+ LOG  🏆 TEAM_BADGE: All props: {"badgeSource": undefined, "badgeUrl": "https://res.cloudinary.com/dn8q22mlx/image/upload/v1750312432/football-stars/team-badges/team_badge_2063065b-208c-4592-8587-f0a7bf2ac416_1750312430763.jpg", "showName": false, "size": "large", "teamColor": undefined, "teamName": "Real Madrid", "teamShortName": undefined, "variant": "minimal"}
+ LOG  🏆 TEAM_BADGE: Rendering badge for team: Real Madrid
+ LOG  🏆 TEAM_BADGE: badgeUrl: undefined
+ LOG  🏆 TEAM_BADGE: badgeSource: undefined
+ LOG  🏆 TEAM_BADGE: All props: {"badgeSource": undefined, "badgeUrl": undefined, "showName": false, "size": "large", "teamColor": undefined, "teamName": "Real Madrid", "teamShortName": undefined, "variant": "minimal"}
+ LOG  🔍 SSE Screen: Timer state updated: {"connectionStatus": "disconnected", "currentMinute": 0, "currentSecond": 0, "isHalftime": false, "status": undefined}

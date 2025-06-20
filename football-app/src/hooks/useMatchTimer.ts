@@ -319,15 +319,24 @@ export function useMatchTimer(matchId: string) {
     
     // Also start polling fallback immediately as backup (will be replaced if SSE works)
     const backupPollingTimeout = setTimeout(() => {
-      if (timerState.connectionStatus === 'connecting') {
-        console.log('⚡ Starting backup polling since SSE taking too long');
+      if (timerState.connectionStatus === 'connecting' || timerState.status === undefined) {
+        console.log('⚡ Starting backup polling since SSE taking too long or timer not initialized');
         startPollingFallback();
       }
     }, 2000); // Start polling backup after 2 seconds
+    
+    // Even more aggressive - start polling immediately if timer status is undefined
+    const immediatePollingCheck = setTimeout(() => {
+      if (timerState.status === undefined || timerState.status === 'SCHEDULED') {
+        console.log('🚨 IMMEDIATE: Timer status undefined/SCHEDULED - forcing polling start');
+        startPollingFallback();
+      }
+    }, 500); // Check after 500ms
 
     // Cleanup
     return () => {
       clearTimeout(backupPollingTimeout);
+      clearTimeout(immediatePollingCheck);
       
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
@@ -359,12 +368,19 @@ export function useMatchTimer(matchId: string) {
       const pollingInterval = setInterval(async () => {
         try {
           // Get match data from API
-          const match = await apiService.getMatchById(matchId);
+          const response = await apiService.getMatchById(matchId);
+          const match = response?.match;
           if (!match) {
             console.warn('⚠️ Polling: Match not found, stopping polling');
             clearInterval(pollingInterval);
             return;
           }
+          
+          console.log('📊 Polling: Timer data fetched:', {
+            status: match.status,
+            timerStartedAt: match.timer_started_at,
+            matchDate: match.match_date
+          });
           
           // If match is no longer live, stop polling
           if (match.status !== 'LIVE') {
@@ -460,9 +476,10 @@ export function useMatchTimer(matchId: string) {
       // Much more aggressive fallback - if SSE hasn't connected after 3 seconds, switch to polling
       const isConnectionStalled = timeSinceLastUpdate > 3000 && timerState.connectionStatus === 'connecting';
       const isUpdateStalled = timeSinceLastUpdate > 5000 && timerState.status === 'LIVE' && timerState.connectionStatus === 'connected';
+      const isTimerNotStarted = timerState.status === undefined && timerState.connectionStatus === 'disconnected';
       
-      if (isConnectionStalled || isUpdateStalled) {
-        console.warn('⚠️ SSE connection failed or stalled, switching to polling fallback (faster)');
+      if (isConnectionStalled || isUpdateStalled || isTimerNotStarted) {
+        console.warn('⚠️ SSE connection failed or timer not started, switching to polling fallback');
         
         // Close any existing SSE connection
         if (eventSourceRef.current) {
