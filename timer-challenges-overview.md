@@ -1,211 +1,90 @@
-Robust Real-Time Football Match Timer: Analysis & Redesign
-Current Implementation Issues
-Multiple Competing Timer Systems: The project currently maintains both a WebSocket-based timer (MatchTimerService) and an SSE-based timer (SSEMatchTimerService), plus an older “simple” timer. Running these in parallel has introduced complexity and potential state conflicts. Indeed, the server startup initializes both WebSocket servers and timer loops for testing
+Understanding the SSE Connection Issue
+Recap of the Current Situation
+You have implemented Server-Sent Events (SSE) in your app and made several script changes, but the SSE connection still isn’t accessible from the React Native client. The logs you provided show the following sequence when testing the SSE endpoints from the app:
+The app attempts to open an EventSource to the SSE test endpoint.
+Debug logs confirm the EventSource polyfill (RNEventSource) is loaded (showing as a function).
+The EventSource is created, but no onopen event fires within 8 seconds, leading to a “Connection timeout” message
 GitHub
-, meaning a match could inadvertently be tracked by multiple services. This duplication makes the system brittle and hard to debug. WebSocket Reliability Problems: The WebSocket approach has proven unstable in the deployment environment. Logs indicate that the Railway hosting proxy immediately drops WebSocket connections (code 1001)
+.
+A subsequent fetch to the SSE health endpoint returns a JSON response indicating “SSE routes are working” (HTTP 200 OK).
+Finally, the test SSE connection is auto-closed after 15 seconds by your client code.
+In summary, the SSE health check succeeds (proving the server routes are up), but the SSE stream connection doesn’t establish (timing out instead of opening).
+Server-Side SSE Endpoint Verification
+On the server (Railway), the SSE endpoints appear correctly set up:
+/api/sse/health: A simple HTTP GET that returns a JSON { success: true, message: "SSE routes are working", ... } and is not protected by auth. Your logs show this returns 200 OK, confirming the route is deployed and reachable.
+/api/sse/test: A test SSE stream (no auth) that should keep a connection open and send periodic events. The server code for this endpoint sets the appropriate SSE headers (Content-Type, Cache-Control, Connection keep-alive) and CORS headers. Notably, it allows any origin (Access-Control-Allow-Origin: *) and permits the Cache-Control header in requests
 GitHub
-. Additionally, maintaining a custom reconnection/ping mechanism adds complexity. Since the timer updates are one-way (server → clients), the bidirectional overhead of WebSockets is unnecessary
-GitHub
-. Initial SSE Integration Challenges: While SSE is conceptually simpler and more firewall-friendly, the first SSE rollout didn’t work as expected. In testing, the backend would start a match (setting status to "LIVE"), but the frontend timer remained stuck at "SCHEDULED" due to the SSE stream not actually connecting
-GitHub
-. The likely culprits were deployment issues (SSE route not deployed or mis-routed), the React Native EventSource polyfill not working, or auth token mishandling
-GitHub
-. This left the new SSE-based system in a non-functional state initially. State Not Persisting Across Restarts: The SSE timer service does not currently restore running matches on server reboot. The older WebSocket timer had logic to reload active matches from the DB on startup
-GitHub
-, but the SSE service isn’t invoked similarly. If the server restarts mid-game, an ongoing match started via SSE would not resume (its state is lost in memory). In fact, the legacy WebSocket matchTimerService might accidentally pick it up from the DB (since the match status is still "LIVE") and start its own interval, causing confusion. This gap undermines reliability – a robust system must recover the match clock after crashes or deploys. Pause/Resume and Drift Handling: There are signs the pause functionality isn’t fully accounted for in time calculations. When pausing, the SSE service records a timer_paused_at timestamp in the DB
-GitHub
-, but on resume it doesn’t adjust the elapsed time or total_paused_duration. Consequently, a long pause would make the displayed clock lose sync with actual play time (since the code simply stops incrementing during pause, but still calculates elapsed time from the original start). The database schema has a total_paused_duration field for tracking this
-GitHub
-, yet the code never uses it. This is a weakness: without subtracting paused intervals, any reconnection or fallback that computes elapsed time as now - start will overshoot the correct match time if pauses occurred. Automatic vs Manual Control: The current design forces certain automations that admins might want to control manually. For example, the system automatically triggers half-time at 45’+added time and even auto-starts the second half after 15 minutes
-GitHub
-GitHub
-. There’s a config flag AUTO_START_SECOND_HALF set to false
-GitHub
-, but it isn’t honored – the code always starts the second half when the break timer elapses. The backend even logs “Second half is now automatic – handled by timer service”
-GitHub
-, indicating no manual trigger is expected. Similarly, full-time is auto-triggered at 90’+added time. This removes flexibility for cases like extended halftime shows or referee delays. The user specifically requested optional manual control for starting halves and extra time, which the current implementation doesn’t cleanly support. Lack of Extra Time Handling: While not explicitly coded, extra time (for knockout matches) isn’t fully supported. The system assumes a two-half match with a total duration (e.g. 90 min). If a match can go into extra time, the timer would need to handle a third and fourth half (or a 120 min total). As-is, the first implementation would likely mark the match completed at 90’ if not configured otherwise. There’s no logic to seamlessly extend the match duration or manage extra time kickoff and half-time. This is a design gap compared to FIFA/UEFA matches which have two extra 15-minute halves. Client Synchronization and Fallbacks: On the frontend, the useMatchTimer hook attempts to keep the UI in sync via SSE updates and a local interval. However, due to the SSE connection issues mentioned, the hook often had to fall back to a local timer. The fallback simply calculates elapsed = now - matchStartTime every second
-GitHub
-, which (as noted) fails if the match was paused or at halftime (the hook does check match.status before running fallback
-GitHub
-, so it won’t erroneously run during halftime, but it also won’t show a halftime countdown). The fallback is a good idea for resilience, but it’s an approximation and can drift if left running too long. It also won’t know about added stoppage time unless the client fetched updated match data. Frequent reliance on this fallback suggests the real-time channel wasn’t stable. Ideally, the real-time feed should rarely drop; if it does, the system should recover quickly and correct any drift. Code Maintainability: Maintaining two nearly parallel timer services (WebSocket vs SSE) doubles the work and risk of inconsistency. For example, the WebSocket MatchTimerService computes the second-half start minute slightly differently than the SSE service (one uses a ceiling, one a floor+1 logic). These small differences could lead to inconsistent behavior. The duplication also complicates testing. The migration guide even explicitly suggests removing the WebSocket code after SSE is proven
-GitHub
-. Until that happens, developers must keep both in sync, which is error-prone. Moreover, much of the timing logic is embedded in long functions, making it harder to unit test. There’s room to refactor for clarity (e.g. separate pure timing calculations from network delivery). In summary, the current timer suffers from architectural complexity (multiple concurrent implementations), reliability issues in delivering updates (WebSocket instability and initial SSE misconfiguration), and some logical gaps (pause time accounting, manual override options, extra time). These issues prevent it from achieving the robustness of a FIFA or Google Live tracker. Below, we outline a redesigned solution addressing these points.
-Proposed Robust Timer Solution
-Unified Backend Timer Service
-Choose a Single Real-Time Channel: Simplify the architecture by consolidating on one real-time mechanism. Given the environment and one-way update needs, Server-Sent Events (SSE) is a good choice. SSE operates over standard HTTP, avoiding proxy issues and offering automatic reconnect out of the box
-GitHub
-. This matches the migration plan which notes SSE’s better compatibility with Railway and lower overhead for our use case
-GitHub
-GitHub
-. The WebSocket code can be retired once SSE is fully functional (this is even recommended post-migration
-GitHub
-). Eliminating the WebSocket path will remove a whole layer of complexity – no more parallel services or dual maintenance. Reliable SSE Endpoint: Ensure the SSE /timer-stream endpoint is properly deployed and accessible in production. Double-check CORS and auth middleware so that clients can connect without hindrance. The sseRoutes in Express should be mounted correctly (e.g. under /api/sse as done in app.ts
-GitHub
-). If the React Native EventSource polyfill was problematic, consider alternatives or updates (the guide’s troubleshooting steps
-GitHub
- are useful). In case SSE continues to struggle on some platforms, a contingency is to use a lightweight Socket.io or Pusher channel for those clients – but ideally we stick to SSE and fix any integration bugs. Single Source of Truth for Timer State: Use a singleton service (like SSEMatchTimerService) to manage all match clocks. This service will hold the authoritative state for each live match and be the only component updating the timer. We should remove or disable the old MatchTimerService in production to avoid dueling timers. All control actions (start, pause, add time, etc.) should route into this one service. State Persistence & Recovery: Modify the backend to persist essential timer state and recover from restarts. We have database fields for timer_started_at, timer_paused_at, halftime_started_at, etc., which can be leveraged. Upon server startup, the timer service should query for any matches that are still in progress (status = LIVE or HALFTIME) and reinitialize their timers. For example, implement a startup routine that does something like:
-for each match in matches where status IN ('LIVE','HALFTIME'):
-    sseMatchTimerService.initializeFromDatabase(match.id)
-This will compute the current elapsed time from timer_started_at (minus any paused durations) and resume ticking
-GitHub
-GitHub
-. By doing this, if the server restarts in minute 30 of a match, clients reconnecting will get the correct ~30’ reading rather than resetting to 0. It’s critical to also handle the halftime state: if the server was down during halftime, we might auto-trigger second half on startup if the 15-minute break expired, or require manual intervention. This could be handled by comparing halftime_started_at to current time; if >15 minutes passed and current_half=1, auto-start the second half on init. (Alternatively, simply mark an overdue halftime and wait for the ref to manually resume, to be safe.) Accurate Timekeeping (Avoiding Drift): The timer service should base its calculations on actual time differences wherever possible, rather than purely counting intervals. Using setInterval every 1000ms is fine for regular ticks, but we can enhance accuracy by checking the real elapsed time. A good practice is to store a reference lastTickTime (e.g. using process.hrtime() or Date.now()) and on each tick compute the delta from the previous tick. If the interval lagged (say 1.2s passed), we add the full delta in seconds to the totalSeconds. This prevents slow event-loop hiccups from cumulatively delaying the clock. In normal conditions this delta will be ~1.0s each tick. The idea is to have the server’s notion of match time be anchored to wall-clock (monotonic time) rather than purely count of ticks. This makes it behave more like an official stopwatch. Additionally, when pausing and resuming, explicitly account for the pause gap. For instance, when a pause is initiated, record timer_paused_at (already done) and when resumed, calculate the pause duration = resume_time - timer_paused_at. Then add that to total_paused_duration (and update the DB field). This way, the effective play clock excludes paused time. The next tick’s computation of elapsed can use (Date.now() - timer_started_at) - total_paused_duration to figure out how many seconds of play have actually happened. This approach ensures no time “slips through the cracks” during pauses. It also means the fallback mechanism (which uses match.timer_started_at and current time) will be accurate if it subtracts total_paused_duration (we can modify the API to include this in match data). Real-Time Broadcast: The SSEMatchTimerService already pushes out updates to all connected clients each second (and on important events). We should keep these updates minimal but sufficient. Every second is fine for a live clock (the payload is small JSON). For efficiency, we could broadcast “major” updates (like goals, state changes) immediately and consider throttling pure timer ticks to, say, every 1 second or 2 seconds. (The current WebSocket service emitted updates every 2 seconds
-GitHub
- to reduce traffic). Given we interpolate on the client, even a 2-second interval for broadcasts would look smooth. However, a one-second SSE interval is usually acceptable and simpler – modern SSE can handle it for the number of clients expected. In any case, ensure every broadcast includes the full authoritative state (minute, second, half, etc.) so clients can resync if they missed something. Scaling and Concurrency: For now, a single Node instance can handle dozens of matches and many clients. If we anticipate scale (multiple server instances, or very high load), we can integrate a pub/sub mechanism. For example, the timer service can publish timer updates to a Redis channel, and all app servers can subscribe and forward to their SSE clients. This way, even if clients connect to different servers, they all get the same updates. We already have Redis integrated (caching state with a short TTL
-GitHub
-); we could expand that usage to pub/sub or at least to allow any server to fetch the latest state on-demand. Also, with a single authoritative service, we avoid race conditions – at most one interval updates a given match’s state. That state can be locked or synchronized internally (Node’s single-threaded nature ensures our interval function is atomic per tick).
-Comprehensive Timer Logic (Start, Pause, Halftime, Fulltime, Extra Time)
-Match Start: Starting a match should initialize the state in memory and persist key info to the DB. The SSE service already sets status to LIVE and records timer_started_at in the DB
-GitHub
-. That provides a baseline for recovery and reference. We should ensure the match duration (total minutes) is known – e.g., 90 for standard, or shorter for youth matches (the code uses match.duration from DB). The service then begins its 1-second tick loop and immediately broadcasts a START update to all clients so they transition from “Scheduled” to the live clock UI. (Currently it uses type 'status_change' for the start event
-GitHub
-, which is fine.) Pause/Resume: Implement the pause and resume endpoints to reliably stop and restart the clock. In the SSE service, pausing currently just flips an isPaused flag and broadcasts a status change
-GitHub
-. We should also stop incrementing the timer while paused – the updateTimer loop already checks state.isPaused and returns early
-GitHub
-, which is good. On resume, simply unset the flag and perhaps broadcast a 'resumed' message
-GitHub
-. The critical part, as noted, is adjusting the start or pause offsets so that the clock doesn’t count the paused interval. One approach: when pausing, record timer_paused_at (already done in DB) and also keep a copy in memory in the state. On resume, compute pausedInterval = Date.now() - timer_paused_at and add that to an accumulated totalPaused for the match state (and update total_paused_duration in DB). Then clear timer_paused_at. This way, the next tick will effectively skip the paused time. (Alternatively, we could shift the timer_started_at forward by the pause interval, achieving the same effect in calculating elapsed time). By doing this, the server’s internal clock remains accurate. For example, if a match was paused at 30:00 for 5 minutes, when resumed the server will still broadcast ~30:01 as the current time (not 35:01), and will only hit half-time after 15 more minutes of play, not 10. Automatic Halftime: The service should continue to detect halftime automatically if enabled. The current logic triggers halftime when currentHalf == 1 and currentMinute >= halfDuration + addedTimeFirstHalf
-GitHub
-. That works for normal circumstances. We should however integrate this with manual control options. Specifically, if the league/ref wants to control the start of second half, we can stop the automatic second-half kickoff. To do this, make the halftime trigger set status to HALFTIME and pause the timer, but do not immediately schedule the second half. For instance, we can introduce a flag AUTO_START_SECOND_HALF (already in config) to decide behavior.
-If auto-start is enabled (e.g. for lower-level games or testing), continue the current behavior: start a 15:00 countdown and call startSecondHalf when it hits 0
-GitHub
-, broadcasting a “⚽ SECOND HALF” message
+. This means CORS is not likely blocking the request. On connection, the server logs should show messages like “Client connected to test endpoint” and it will immediately send an initial SSE message followed by heartbeats every 2 seconds
 GitHub
 GitHub
 .
-If auto-start is disabled (our default for professional mode), then at halftime we broadcast a HALFTIME event and do not start the countdown timer. In this mode, the isPaused stays true and isHalftime true indefinitely until a human triggers the second half. We can still leverage halftimeBreakRemaining to show a timer if desired (perhaps counting how long halftime has been), but it won’t auto-expire. The referee (or admin) would then manually call the “start second half” endpoint when ready.
-By making this change, we give control to handle scenarios like extended halftime shows or weather delays. The manual startSecondHalf endpoint is already defined in the routes and calls sseMatchTimerService.startSecondHalf()
+/api/sse/:id/timer-stream: The real match timer SSE endpoint (requires auth via sseAuthenticate middleware). This route also sets proper SSE and CORS headers (including allowing Authorization headers)
 GitHub
- – we just need to ensure the service doesn’t already auto-trigger it. On manual start, the service will calculate the second half start time correctly (continuing from 45 + stoppage minutes) and resume the clock
+. In your implementation, the client adds the JWT token as a query parameter (?token=) to avoid issues with custom headers, which the server’s auth middleware should handle. So, once the basic SSE connection works, auth should not be a blocker for the timer stream.
+What to check on the server logs: When you trigger the SSE test from the app, see if the Railway logs show the connection. You should expect logs like “🧪 SSE Test: Client connected…” if the request reaches the Express server
 GitHub
-. We should double-check that calculation: currently it does currentMinute = ceil(firstHalfDuration + addedTimeFirstHalf)
+. If no such log appears during your app test, it means the SSE HTTP request never actually hit your server – pointing to a client-side issue or network proxy issue before the request can connect.
+Client-Side Considerations (React Native + Expo)
+On the client side, you’re using React Native (Expo) with the react-native-event-source polyfill. The logs confirm global.EventSource is set to the RNEventSource constructor, so the polyfill is initialized correctly. The fact that you see EventSource type: function and no “EventSource not available” error means the setup in App.tsx (importing and assigning RNEventSource to global) was successful. Key observation: The EventSource in the app never transitions to the OPEN state. We don’t see the log “✅ SSE Test: Connection opened” from eventSource.onopen in your output, meaning onopen was never called before the 8-second timeout
 GitHub
-. In a 45’ half with, say, 2’ added, that sets currentMinute = ceil(47) = 47, then resets seconds to 0. This means the second half clock starts at “47:00” and will run to 90. This is a bit counter-intuitive, since one might expect the second half to start at 45:00 (45+). However, many trackers continue the minute count into the second half (46’, 47’, etc.), effectively treating the match clock as continuous. The approach here is fine – it means at 46’ on the display it’s actually 1’ into second half. To avoid confusion, we might simply document that currentMinute is the match minute (not the minute of the half). Alternatively, we could reset currentMinute to 45 and count up from there for the second half, but then we’d need to distinguish in UI. It’s simpler to use continuous minute count as done. Just ensure the UI format shows “45+2’” for anything beyond 45 in first half (already handled by formatMinuteDisplay in the hook) and similarly “90+x’” for beyond 90. Stoppage Time Adjustments: The system already allows adding stoppage time minutes via an API (add-time-sse). The SSE service’s addStoppageTime method increments the appropriate half’s addedTime counter and broadcasts an update
-GitHub
-GitHub
-. We should use this single source of truth for stoppage rather than manually updating the DB from elsewhere. (The current matchController.addStoppageTime endpoint directly updates the DB
-GitHub
-, which could desync the in-memory state if the SSE service isn’t aware. Ideally, that controller should call the service’s method, similar to how start/end are done via getTimerService() dispatch
-GitHub
-GitHub
-.) We will refactor so that any stoppage time addition goes through the timer service, which will update both its state and the DB. This keeps everything consistent. With this in place, the auto halftime/fulltime checks already factor in added time
-GitHub
-GitHub
-, so the match won’t end until that added time has elapsed. One improvement: allow adding stoppage even during the added period. In real matches, a referee might decide to add an extra minute if an injury happens during stoppage time. Our service can handle this – calling addStoppageTime will increase the threshold and the next tick will still see currentMinute < halfDuration + addedTime, preventing the whistle. Full-Time and Extra Time: At the end of second half, if the match is not meant to continue, the service will trigger full-time: set status to COMPLETED, stop the clock, and broadcast FULL_TIME
-GitHub
-GitHub
-GitHub
-. We should ensure that when full-time is reached, the timer loop is cleared (clearInterval) and no further ticks happen
-GitHub
-. The UI should display “90+X’” (or “FT”) at this point. For matches that can draw and end (like league matches), that’s all. However, for tournaments requiring a winner, we need to handle extra time. We have two main ways to do this:
-Predefine 120 min duration: If we know beforehand that extra time is possible, we could set match.duration = 120 from the start. The timer would then treat 60’ as “halftime” and 120’ as full-time. This is a bit hacky because it makes the “half-time” event actually occur at 60 (45+15) instead of 45. Not ideal for normal matches, and it would confuse the UI for matches that might not actually go to extra time.
-Dynamic extra time trigger: A better approach is to use the full-time event as a decision point. When the clock hits 90’ (plus stoppage) with the score tied and if the match format calls for extra time, we do not finalize the match. Instead, we could intercept the full-time trigger. The service might have a hook like shouldTriggerFulltime() that we can extend: if conditions for extra time are met (e.g. match.allowExtraTime == true and score tied), then skip calling triggerFulltime() and instead do something like a new method startExtraTime(). This startExtraTime() would essentially mirror what a new match half would do:
-Set matchDuration = 120 (so that fulltime now is at 120’).
-Set halfDuration = 15 (for the extra time half – though actually there are two 15-min halves with a brief break).
-Possibly set a state flag like inExtraTime = true and currentHalf = 3 (to denote "first extra half").
-Reset addedTimeFirstHalf and addedTimeSecondHalf to 0 for the extra periods.
-Call a method similar to startSecondHalf, but semantically it’s “start first extra half”. This would resume the timer from minute 90 (or 90+ stoppage) and run until 105.
-Auto-trigger half-time at 105’ (with any added time), then handle the second extra half similar to the normal second half.
-This is complex to implement fully, but we can simplify: treat extra time as just an extension of the second half in terms of clock. For example, if we updated match.duration to 120 at 90’, the existing loop would naturally continue counting up to 120. We could then intercept at 105’ to mark a "half-time (ET)" event. Perhaps easier: simply broadcast a special message at 90’ indicating “End of regulation – extra time begins” instead of full-time. Then continue the clock to 105, trigger a break, and then to 120. Due to time constraints, a straightforward recommendation is:
-Manual control for extra time: When the regulation ends in a draw, provide a button for the admin/referee to extend match. This could call a new endpoint like /api/matches/:id/start-extra-time that sets up the extra time. Internally, that could do: timerState.matchDuration = 120; timerState.halfDuration = 15; timerState.currentHalf = 2; (treating the next portion as continuation of second half but with extra 30 minutes). Also it might set a flag so UI knows it’s ET. Then simply call resume if the timer was stopped at 90. This approach avoids adding new half indices. It effectively says: full-time is now 120. We would likely need to broadcast a status update like 'STATUS_CHANGE': '🏁 End of Regulation - Extra Time' to inform clients. Then the clock keeps ticking. At 105, the service would trigger the halftime logic again (since currentHalf is still 2 in this scheme, we might trick it by resetting currentHalf to 1 and inExtraTime flag so that it triggers “HALFTIME” at 105).
-There are multiple ways to implement ET; the key is to plan for it. For now, we can note that the system should allow manual initiation of extra time. This ensures alignment with systems like FIFA’s, where officials explicitly start extra time. Once in extra time, the same structure of two halves and possibly penalties comes into play, which could be an extension of this timer or handled as separate if needed. Since the user specifically asked for extra time support, we should include this in design even if not fully coded yet.
-Frontend Synchronization & UI Updates
-SSE Connection Management: On the frontend (React Native app), use the useMatchTimer hook (or an improved equivalent) to manage the SSE connection. The current hook already sets up the EventSource with an auth token and handles open, message, error events
-GitHub
-GitHub
-. We should keep the exponential backoff logic for reconnection and perhaps even speed it up slightly if desired (currently it backs off to max 30s
-GitHub
-, which is fine). One improvement is to ensure that multiple rapid reconnect attempts don’t stack up. The code resets reconnectTimeoutRef properly, so that’s handled. We should also make absolutely sure the auth token is included. The current solution to attach it as a query param is acceptable (since RN EventSource didn’t support headers)
-GitHub
-. We must verify that on the server side, the sseAuthenticate middleware reads that token (likely it does via query param). This avoids unauthorized access and ensures referees vs spectators only get the streams they should. If the SSE polyfill is still unreliable on RN, an alternative is to use a WebSocket as transport on the app side while the server still broadcasts SSE. For example, a small Node proxy or using Socket.io client which connects to an engine.io endpoint could be done. However, given that SSE is simpler, we prefer to solve any RN issues (perhaps using an upgraded library or confirming that the polyfill is properly installed as documented
-GitHub
-). Smooth Client Timer & Drift Correction: The frontend’s approach of updating the UI every 100ms between server messages is a good way to achieve a smooth ticking clock
-GitHub
-GitHub
-. We will retain this. Each time an SSE timer_update arrives, we set the state to the exact server minute:second, then start a local setInterval that updates the displayed time by 0.1s steps, until the next server update arrives
-GitHub
-. This gives the illusion of a continuously running clock and hides network jitter. To further prevent drift: The hook can compare its local time against the server time occasionally. We have serverTime in the state (the server’s timestamp when it sent the update)
-GitHub
-GitHub
-. We could use this to adjust the interpolation if needed. For example, if we detect that the local clock has deviated by more than, say, 500ms from what it should be (which can happen if the phone was suspended or the app was backgrounded), we can resync. In practice, since we get fresh server data every second, the error should never accumulate that much. So the current scheme is likely sufficient. Connection Status and Fallback: The UI state includes connectionStatus (connecting, connected, disconnected, error)
-GitHub
-. We will utilize this to inform users or trigger fallback logic. The hook already sets connectionStatus: 'disconnected' and starts a fallback timer if no update is received for 10 seconds during live play
-GitHub
-GitHub
-. This is a good safety net. We might tighten the threshold to, say, 5 seconds to minimize time without updates, but 10s is conservative to avoid flapping on minor network hiccups. When fallback kicks in, the UI continues updating based on its own calculation (using match.match_date as start)
-GitHub
-. We should update that logic to account for paused matches: if the match status is LIVE but timer_paused_at exists (we could send a flag in the match data), the fallback should probably not advance the clock. However, since match.status would likely be 'PAUSED' or still 'LIVE' with isPaused=true, perhaps a better approach is to not start fallback at all if the server indicated isPaused or isHalftime. The current check if (match.status !== 'LIVE') return
-GitHub
- covers halftime (status HALFTIME) and completed, so it won’t erroneously run then. If a match is paused but status remains LIVE, the fallback will unfortunately continue counting – this is a corner case to fix. We can improve by also checking the last known timerState.isPaused. If the last server update said the match was paused, the fallback interval should not increment time. Instead, it could simply keep showing the same time until a resume event arrives. Implementing this is straightforward: do not increment elapsedSeconds in fallback if timerState.isPaused is true. As soon as SSE reconnects and delivers an update, the hook stops the fallback interval (stopInterpolation() clears it, since it shares the same ref)
-GitHub
-GitHub
-. The state is then corrected by the server data. This ensures any drift while on fallback is corrected. From a user experience perspective, we can display a subtle indicator when in fallback mode (perhaps the connectionStatus could be shown as an icon or text like “(offline mode)”). This is optional, but it helps to be transparent if the clock is running without live confirmation. User Interface Improvements: The UI should clearly reflect match status transitions:
-When the match is in LIVE play, show the running clock (mm:ss). The displayTime and displayMinute formatting in the hook is already handling normal vs added time formatting (e.g. "45+2'")
-GitHub
-GitHub
-. We should ensure that for second half, once minutes >= 90, it shows "90+X'".
-At HALFTIME, the timer should stop and perhaps show "HALF-TIME" instead of a numeric clock. We can use timerState.status which becomes 'HALFTIME' to trigger UI text. The hook provides isHalftime and even a halftimeBreakRemaining count
-GitHub
-. We can display a countdown like "Kick-off in 10:00" during the break. The helper useHalftimeBreakDisplay is provided to format this
-GitHub
-GitHub
-. If manual second-half start is enabled (auto disabled), the break timer might not count all the way down, or we might ignore it and just say "Halftime" until resumed.
-When second half starts, the UI should automatically switch back to the running clock. This happens because the server will send a status_change event and the hook will set status back to 'LIVE' with currentHalf=2, so the component can update labels (e.g. maybe show "Second Half" somewhere and resume the clock).
-At FULL-TIME, once status becomes 'COMPLETED', the UI should stop the clock and perhaps show "FULL-TIME" or "FT". We might freeze the clock at the final time (e.g. "90+3'") and display a label indicating full time. It’s good to explicitly handle this so users know the match ended. The status: 'COMPLETED' in timerState can drive this.
-For extra time, if implemented, we should reflect that in the UI as well. For example, if extra time starts, we could change the status to 'LIVE' (still) but maybe use currentHalf=3 or a flag to indicate it's extra. Alternatively, we keep currentHalf=2 but have an inExtraTime boolean. The UI could then show "ET" or "After Extra Time" accordingly. This is an advanced detail – initially we can simply let the clock run past 90’ and the plus-time formatting will show 90+… which might be confused with stoppage. So indicating "ET" in text would be helpful. This can be achieved by a simple condition: if minute >= 90 and match not completed yet, and maybe a flag from server, display "ET" somewhere (like "105+2' ET"). Manual Control Interface: Provide a dedicated interface (likely for admins/referees only) to control the timer. This could be a part of the admin app or a special mode in the RN app. The controls should include:
-Start Match – already there (calls PATCH /matches/:id/start-sse). This would typically be a button that the referee hits at kickoff.
-Pause/Resume – to handle events like injuries or other stoppages where the ref chooses to pause the official clock (rare in soccer, but your system supports it). These would call the /pause-sse and /resume-sse endpoints. The UI should reflect paused state clearly (maybe blinking "PAUSED" text and the clock frozen).
-End Half / Start Next Half – In manual mode, at 45’ the referee might blow the whistle early or late. If early, they could hit a "End First Half" button which simply pauses the timer and sets status to HALFTIME (your system would also auto do it at 45, but manual could override earlier). More realistically, if auto-half is off, once halftime is reached or whenever the ref decides, they press "Start Second Half" (calls the endpoint which we have) to begin the next half. The app can display a confirmation to avoid accidental triggers.
-Add Stoppage Time – a control to increment the added time. This can just call the /add-time-sse with a chosen number of minutes (maybe default 1). The UI might allow multiple presses or a number input if needed. When this is used, all clients will get an update (e.g. “+1 minute added” message)
-GitHub
-GitHub
- and the clock will simply continue past 45 or 90 as needed.
-End Match – a manual override to immediately end the match (in case of abandonment or referee decision). The backend has endMatch in the controller which calls timerService.endMatch() to stop the timer and mark completed
-GitHub
-. This should broadcast a 'MATCH_END' event (the WebSocket service did this
-GitHub
-GitHub
-). We should implement similar in SSE (currently fulltime event covers natural end; for manual early end we could reuse the same complete logic and just broadcast a message like "Match ended by referee"). The admin UI would have an End Match button for this.
-By providing these controls, we mirror the functionality of professional systems where the referee’s decisions drive the timing. Testing the Frontend: Once the system is implemented, test various scenarios thoroughly:
-Start a match and let it run without intervention: ensure the clock hits 45:00, then automatically goes to halftime (if auto mode) and stops at exactly the right time with the correct displayed “+” minutes.
-Test manual mode: turn off auto-second-half and verify that at halftime the clock stops and waits, and only on pressing "Start Second Half" does it resume.
-Simulate poor network: perhaps disable the network on a device mid-match to see that the fallback kicks in and the clock still moves, then re-enable and ensure it resyncs (the clock might jump a bit to correct to server time).
-Multi-client sync: start a match and have multiple devices (one as referee, one as spectator) and perform actions (pause, add time, etc.) on the referee device – confirm the spectator’s UI reflects those changes within a second or two via SSE. The added time announcements, pause states, etc., should appear for all.
-Code Improvements & Maintainability
-Remove Redundant Code: As noted, eliminating the WebSocket timer code (both server and client side) once SSE is stable will greatly simplify maintenance. The codebase already segregated them behind a feature flag
-GitHub
-. We can safely remove or disable the WebSocket server initialization and related client calls (e.g. the webSocketService in the RN app) once we confirm SSE works across all devices. This prevents any accidental double updates or confusion. It also reduces the surface area for bugs – one timer logic to debug instead of two. The migration guide explicitly lists this as step 1 after migrating
-GitHub
-. Refactor Timer Logic into Modules: Consider splitting the timer service logic into smaller, testable modules:
-A TimerEngine class (or set of functions) responsible purely for time calculations. It would handle ticking, and things like “should we trigger halftime/fulltime?”. This could be a pure TypeScript module that we can unit test by feeding it different scenarios (e.g. 5-minute match vs 90-minute, various added times, etc.).
-A MatchTimerService class that manages the state map and interval scheduling, and delegates to TimerEngine for logic. In practice, SSEMatchTimerService is already doing this, but it mixes logic with SSE client management. We could separate concerns: one part deals with updating the state, another with broadcasting to SSE clients.
-The SSE broadcaster as a thin layer that just takes updates and writes to the HTTP response streams.
-This separation would make it easier to write tests. For example, we could simulate 90 minutes of updates in memory without worrying about SSE connections, and verify that the state transitions ('LIVE' -> 'HALFTIME' -> 'LIVE' -> 'COMPLETED') happen at the correct times, that addedTime is honored, etc. Use Config and Constants: Define constants for things like regulation half length (45 min) and default halftime break (15 min) in one place (could even be in a config JSON sent from server to client so the client knows, for instance, how long the break is). The timerConfig.ts already contains some of these
-GitHub
-. Ensure the code uses those values rather than hardcoding 45 or 15 elsewhere, to avoid inconsistency. For example, HALFTIME_BREAK_DURATION_SEC is set in SSE service
-GitHub
- – tie that to the config value so that changing it (for testing a shorter break) is easy. Also, fully implement the AUTO_START_SECOND_HALF flag logic as discussed, so it truly toggles behavior. This way, testing both modes is just flipping one config value. Testing: Write unit tests for critical timing logic:
-Verify that after 45 minutes of simulated ticks, the state status becomes HALFTIME and isPaused=true.
-Verify that if addedTimeFirstHalf is set (simulate referee adding 2 minutes at 44’), halftime does not trigger until 47’.
-Test pause/resume: start a timer, advance 10 minutes, pause, wait some time, resume, advance another 35 minutes – ensure that halftime triggers 35 minutes after resume (total 45 of play, not including the pause gap).
-Test the edge of fulltime: e.g. with a 5-minute test match (as in your dev tests
-GitHub
-), ensure it ends at 5:00, and that the final SSE event marks status COMPLETED.
-If possible, test concurrent matches (start two matches and tick them in interwoven fashion) to ensure the service can handle multiple games independently (the state maps should keep them separate, and clients should only get updates for their match).
-Drift tests: Intentionally delay the tick (simulating a busy event loop) and see if our adjustment mechanism keeps the clock roughly correct. For example, if we skip an interval, does the code compensate by fast-forwarding an extra second? These scenarios are rare but good to validate if we implement delta-based ticking. Manual triggers tests: Simulate calling the manual endpoints (startSecondHalf, addStoppageTime, etc.) and ensure the state updates appropriately. The SSE service functions are mostly synchronous updates to state plus DB – we can call them in a test and inspect the state map. Logging and Monitoring: Keep the logging for critical events but perhaps tone down per-second debug logs in production. The current code logs every tick for debugging (TIMER_DEBUG logs)
-GitHub
-. We can guard these with a debug flag to avoid log spam in production (they can flood logs at 1Hz per match). Instead, log state changes: match start, pause, resume, half-time, full-time, etc., with match IDs and timestamps. This will help us verify in real matches that the timeline of events is correct (the migration guide gives examples of such log messages to watch for
-GitHub
-). Use of Redis: Since Redis is available, use it to enhance robustness. The SSE service currently caches state in Redis with a 5-second TTL
-GitHub
-, likely to enable quick fetches of recent state. We can leverage that for redundancy – e.g., if a new SSE client connects and our in-memory state doesn’t have the match (perhaps due to a restart), we could check Redis for a cached state before defaulting to DB. Also, if we had multiple server instances, one could publish a message to Redis when a timer update occurs so that others can pick it up (alternatively, all instances share the Redis cache so any can respond to a new client with the latest state). Cleaning Up Old Code: Remove the “simpleMatchTimer” if it’s no longer used. It was a nice prototype, but the SSEMatchTimerService has superseded it with more features. Likewise, any temporary debugging endpoints (like /api/test-basic-timer or /api/debug-timer) can be removed or disabled in production to avoid confusion. Focus on the primary /api/matches/:id/* endpoints for control and /api/sse/:id/timer-stream for data. By implementing the above recommendations, we will end up with a single, authoritative timer system that is easier to maintain and aligns with best practices:
-Robust synchronization: All clients get updates from one source and use interpolation to stay in lockstep. If a client falls behind or disconnects, it catches up on reconnect, and any local drift is corrected on the next server message. This is similar to how broadcast TV graphics or Google’s match tracker work – one authoritative clock drives all displays, and periodic sync ensures consistency.
-Accurate timing: By basing the clock on real elapsed time (accounting for pauses and using system time as reference), we prevent slowdowns or speed-ups of the clock. It will match real-world time progression closely (within the granularity of one second or better). This mimics an “atomic clock” approach
-GitHub
-, as referenced in the professional timer comments, giving us ESPN-level precision.
-Scalability: SSE scales to many clients with minimal overhead (just HTTP connections). Using Redis and proper stateless design, we can horizontally scale the server if needed. Each additional server can handle SSE for some clients while the master timer logic could run on one or be coordinated – but even on a single process, the load of ticking a few matches and streaming text events is low.
-Flexibility for officials: Optional manual control ensures that edge cases (long delays, etc.) can be handled. For example, if something like a VAR check pauses the game beyond normal, the referee could pause the timer, and all displays would freeze the clock – something even TV broadcasts sometimes do. You now have the ability to emulate such professional control, but by default the system can run automatically for simplicity.
-Ease of Testing and Maintenance: With a unified service, we can write comprehensive tests for it and have confidence that the same code runs in all cases (no divergence between SSE vs WebSocket paths). The code will be cleaner with the removal of deprecated approaches. Key configurable aspects (like half duration, auto/manual) are centralized, making it straightforward to adjust if rules change or to create custom game formats (e.g., a 5-min half for testing or a youth match of 30-min halves).
-In conclusion, this redesigned system will be much more robust and real-time accurate. All connected referees, admins, and spectators will see a synchronized clock that automatically handles normal match flow (kickoff, halftime, fulltime) while allowing overrides when needed. By drawing inspiration from FIFA/ESPN trackers and adhering to best practices (single source of truth, time sync, fail-safes on network issues, and thorough testing), we can ensure the timer is reliable even under suboptimal conditions and scalable as the platform grows. The result will be a professional-grade match timer that enhances the credibility and user experience of the football application. 
+. This suggests that the HTTP stream either:
+Never successfully connected to the server OR
+Connected but the client did not receive the expected stream data to trigger onopen.
+Given that opening the same SSE URL in a browser works (no 404, and presumably it streams events), the server is functioning. The difference must be in the client environment. Two main areas to examine:
+1. Expo Dev Mode Network Interception
+Since you are testing on Expo (the user-agent in the health check includes Expo/… CFNetwork Darwin), a known issue can interfere with SSE in development mode. Expo’s debugging network interceptor can block SSE responses in debug builds. In fact, Expo’s ExpoRequestCdpInterceptor tries to peek at response bodies for the DevTools, which is incompatible with streaming responses like SSE
+github.com
+. The result is that Server-Sent Events do not get through in Expo’s debug environment
+github.com
+. This is a documented Expo issue: “SSE (EventSource) are not getting through while app is in debug variant.” The interceptor reads the stream and prevents events from reaching the JS runtime, unless patched
+github.com
+. Implication: If you are running the app in Expo Go or an Expo dev build, SSE streams may be blocked by the debug middleware. This would explain why your server sees no connection or why the client doesn’t get onopen – the stream is essentially hijacked or never properly established in debug mode. Expo merged a fix for this issue in mid-2024, but if your project is on SDK 50 or an affected version, you might still encounter the bug
+github.com
 .
+2. React Native EventSource Polyfill Behavior
+The react-native-event-source library is based on @remy’s EventSource polyfill and, being a purely JS implementation, it relies on the native networking APIs under the hood. Some things to note:
+No built-in reconnection logic in debug logs: We see the manual timeout and close in your SSETestButton component. The library itself likely doesn’t report an error; it’s your code timing out. If Expo’s interceptor blocked the stream, the request might be stalled. The polyfill’s readyState showing as undefined initially is peculiar (we’d expect 0 = CONNECTING). It could be that the polyfill doesn’t set it until later, or it’s a quirk of RNEventSource.
+Headers and CORS: The test endpoint doesn’t require any special headers or auth, and your server allows Cache-Control and uses Access-Control-Allow-Origin: *
+GitHub
+. The polyfill by default likely sends a simple GET with Accept: text/event-stream. (If it didn’t, the server still responds as SSE regardless.) So CORS is likely not the culprit, especially since the health check (regular GET) succeeded and the SSE test works in browser. There’s no evidence of a CORS preflight failing.
+Auth for protected endpoint: Though not directly causing the current failure (since /sse/test needs no auth), keep in mind for the real timer endpoint you append ?token=<JWT> in the URL
+GitHub
+. This avoids custom header issues. Ensure the token query param approach matches what sseAuthenticate expects (likely it checks req.query.token or similar). This approach is correct given the RNEventSource polyfill doesn’t easily allow custom Authorization headers without a separate config.
+Diagnosing the Root Cause
+From the above, the strongest suspect is the Expo development environment blocking the SSE. To confirm this:
+Check Railway Logs for /sse/test: Did a client connection log appear when you pressed “Test SSE Connection” in the app? If no logs at all, it means the request never fully reached your server. This aligns with the Expo debug interception problem (the request might be opened by the native layer but never completed/handed off). If you do see logs of a client connecting and even heartbeats being sent from the server, then the client’s JS is not receiving the events – also likely due to the interceptor consuming them. In either case, the behavior points to the Expo debug issue rather than your code or Railway.
+Railway Proxy: Railway generally supports SSE out-of-the-box (especially with the X-Accel-Buffering: no header you set to disable buffering). The fact that the SSE test works via browser and the health endpoint works via fetch indicates Railway is not blocking SSE. So we can rule out a proxy issue on Railway’s side.
+Timing vs. onopen: Your app logged “⏰ SSE Test: Connection timeout” after 8 seconds
+GitHub
+. The code set this timeout to close the connection if onopen hasn’t fired in that time. In a normal scenario, the server’s immediate send of an initial message
+GitHub
+ should trigger the client’s onmessage (or at least onopen) quickly. The fact that 8 seconds passed with nothing suggests the client never got that first event. Again, this is consistent with the Expo dev issue or a network hang-up.
+Next Steps and Solutions
+1. Test in Production Mode (Disable Expo Debug): A quick way to verify the cause is to run your app in production mode. For Expo, you can start it without remote debugging and in production JS mode. For example, run expo start --no-dev --minify, or in the Expo Go app shake the device and toggle off “Debug JS Remotely” and enable “Production mode”. This will remove the development network interception. Then try the SSE connection again. If it connects successfully (you should see “✅ SSE Test: Connection opened” in logs and maybe an initial message event), that confirms the Expo debug interceptor was the culprit. In production mode, SSE should work since the devtools aren’t sniffing the response. 2. Update Expo SDK (if applicable): If you’re on an older Expo SDK, consider upgrading to the latest version. The SSE blocking issue in Expo’s network layer was addressed in a patch merged around June 28, 2024
+github.com
+. Newer SDK versions (SDK 51+, and certainly SDK 52/53 if available) include this fix. Upgrading Expo might remove the need for the above workaround and let you develop with SSE in debug mode. Always refer to Expo’s release notes for any mention of SSE fixes. 3. Use a Custom Dev Client or Bare Workflow: If immediate upgrading is not feasible, another approach is to create a custom development build of your app (using EAS Build) with the react-native-event-source library included. Expo Go (the standard client) might not include this native module by default if it had any native code. However, since react-native-event-source appears to be pure JavaScript, Expo Go can run it. The main interference was the debug network layer. A custom dev client built with Expo Config Plugins (if needed) or switching to the bare React Native CLI could avoid some Expo-specific constraints. This is more involved, so try the easier checks first. 4. Monitor Actual SSE Events: Once you get past the connection issue, keep an eye on the content of events:
+The test endpoint sends a JSON like {"message":"SSE test connection established!", "type":"connection", ...} as the first event
+GitHub
+. Your onmessage handler should log this. In the SSETestButton, it tries to JSON.parse(event.data) and update status
+GitHub
+. You should see a “📨 SSE Test: Message received: …” log if onmessage fires.
+For the real /timer-stream endpoint, on a successful connection you’ll get an initial "type":"connection" event and possibly an "initial_state" event immediately
+GitHub
+GitHub
+. Ensure your useMatchTimer hook handles those (it looks like it parses any incoming message as JSON and then calls handleSSEUpdate for state updates).
+5. Double-Check Middleware for Timer Stream: Since the match timer stream requires auth, make sure the sseAuthenticate middleware is not rejecting the request. You chose to send the token via query param. Verify on the server side that sseAuthenticate checks req.query.token. If it was expecting an Authorization header, you might need to adjust it to read from the query or alter your approach. The logs on server would show if an unauthorized attempt was blocked. From your earlier summary, it sounds like you intentionally bypassed the header requirement by using the query token method (the comment in code notes “React Native EventSource doesn't support custom headers properly”
+GitHub
+). This is fine as long as the server knows to honor it. 6. Temporary Fallbacks: In case you cannot get SSE working immediately in the client (for example, if you need time to upgrade Expo or figure out the environment), you have a couple of options:
+Use the fallback timer logic you implemented (updating the timer state from match start time if SSE is not connected). This ensures the UI isn’t completely broken while you sort out SSE. It seems you already prepared such a fallback in the MatchScoringScreenSSE (as suggested in your fix guide).
+Revert to WebSocket temporarily by toggling the feature flag (if TIMER_CONFIG.USE_SSE_TIMER exists)
+GitHub
+. Since your backend still likely has the old WebSocket service, you could use it until SSE is confirmed working. This is more of a last resort, since SSE on Railway is preferable and you’re very close to getting it working.
+7. Further Debugging: If after disabling Expo debug mode the SSE still doesn’t connect, consider the following:
+Test on a different platform (if you were using iOS, try Android, or vice versa) to see if behavior differs. The Expo issue was more pronounced on Android, but it’s good to compare.
+Use device logs or proxy tools to see if the HTTP request to /api/sse/test is being made. For example, you could intercept traffic with a proxy (like using expo-network-profiler or a tool like Wireshark on the simulator) to confirm the GET request goes out.
+Ensure that API_BASE_URL is exactly the same domain as what works in curl/browser. (It looks correct in your logs.)
+Although unlikely, confirm that no firewall or corporate network setting is cutting off the event stream. Some environments might kill long-held HTTP connections. Testing on a different network or using a VPN can rule this out. Since the browser test worked on presumably the same network, this is probably fine.
+Conclusion
+All evidence points to the client-side environment as the reason the SSE connection is not opening. The Expo development mode’s network inspector is a known culprit for SSE issues, causing the behavior you’re seeing where the connection silently fails in debug mode
+github.com
+. The server is configured correctly (CORS open, SSE headers set, routes deployed) and the endpoint is reachable (health check passes, browser can connect). By running the app in production mode or upgrading Expo (to incorporate the fix that skips intercepting text/event-stream responses), you should find that the SSE connection establishes successfully. Once you confirm that, you can proceed with full integration of the SSE-based timer, confident that it wasn’t your implementation at fault but rather the development tooling. Keep us updated on whether switching off Expo debug mode allows the SSE stream to come through – that will validate this diagnosis. Good luck, and happy streaming! 🚀
