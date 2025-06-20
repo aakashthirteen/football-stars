@@ -69,18 +69,16 @@ export const SSETestButton: React.FC = () => {
       console.log('🔍 EventSource constructor:', EventSource);
       console.log('🔍 Global EventSource:', global.EventSource);
       
-      // Check if EventSource is available (check both local and global)
-      const ESConstructor = typeof EventSource !== 'undefined' ? EventSource : global.EventSource;
-      
-      if (!ESConstructor) {
+      // Check if EventSource is available
+      if (typeof EventSource === 'undefined') {
         console.error('❌ EventSource not available');
-        setStatus('EventSource not available - polyfill failed');
+        setStatus('EventSource not available');
         return;
       }
       
-      console.log('✅ Using EventSource constructor:', ESConstructor);
+      console.log('✅ EventSource constructor available:', typeof EventSource);
       
-      const eventSource = new ESConstructor(url);
+      const eventSource = new EventSource(url);
       let timeoutRef: NodeJS.Timeout;
       
       console.log('🔍 EventSource created, readyState:', eventSource.readyState);

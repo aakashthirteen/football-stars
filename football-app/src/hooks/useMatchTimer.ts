@@ -373,7 +373,7 @@ export function useMatchTimer(matchId: string) {
         interpolationRef.current = null;
       }
       
-      // Poll server every 1 second for timer state
+      // Poll server every 2 seconds for timer state
       const pollingInterval = setInterval(async () => {
         try {
           // Get match data from API
@@ -467,7 +467,7 @@ export function useMatchTimer(matchId: string) {
           console.error('❌ Polling error:', pollingError);
           // Don't stop polling on single error, just log it
         }
-      }, 1000); // Poll every 1 second for smooth updates
+      }, 2000); // Poll every 2 seconds
       
       // Store interval reference for cleanup
       interpolationRef.current = pollingInterval;
