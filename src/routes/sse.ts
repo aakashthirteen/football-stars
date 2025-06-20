@@ -7,37 +7,76 @@ import { AuthRequest } from '../types';
 const router = Router();
 
 /**
+ * Simple HTTP test endpoint to verify basic connectivity
+ * GET /api/sse/health
+ */
+router.get('/health', (req, res: Response) => {
+  console.log('🏥 SSE Health: Endpoint accessed');
+  res.json({
+    success: true,
+    message: 'SSE routes are working',
+    timestamp: Date.now(),
+    headers: req.headers
+  });
+});
+
+/**
  * Simple SSE test endpoint to verify connectivity
  * GET /api/sse/test
  */
 router.get('/test', (req, res: Response) => {
   console.log('🧪 SSE Test: Client connected to test endpoint');
+  console.log('🧪 SSE Test: Request headers:', req.headers);
+  console.log('🧪 SSE Test: User agent:', req.get('User-Agent'));
   
-  // Set SSE headers
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
-    'X-Accel-Buffering': 'no' // Disable proxy buffering
+  // Railway-compatible SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+  
+  // Explicitly set status
+  res.status(200);
+  
+  // Send initial connection confirmation
+  const initialData = JSON.stringify({
+    message: "SSE test connection established!",
+    timestamp: Date.now(),
+    type: "connection"
   });
+  res.write(`data: ${initialData}\n\n`);
+  console.log('🧪 SSE Test: Sent initial message');
   
-  // Send initial message
-  res.write('data: {"message": "SSE test connection established!", "timestamp": ' + Date.now() + '}\n\n');
-  
-  // Send time updates every second
+  // Send heartbeat every 2 seconds
+  let counter = 0;
   const interval = setInterval(() => {
-    const data = {
-      type: 'test',
+    counter++;
+    const data = JSON.stringify({
+      type: 'heartbeat',
+      counter: counter,
       time: new Date().toISOString(),
       timestamp: Date.now()
-    };
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
-  }, 1000);
+    });
+    
+    try {
+      res.write(`data: ${data}\n\n`);
+      console.log(`🧪 SSE Test: Sent heartbeat ${counter}`);
+    } catch (error) {
+      console.error('🧪 SSE Test: Write error:', error);
+      clearInterval(interval);
+    }
+  }, 2000);
   
   // Clean up on client disconnect
   req.on('close', () => {
     console.log('🧪 SSE Test: Client disconnected');
+    clearInterval(interval);
+  });
+  
+  req.on('error', (error) => {
+    console.error('🧪 SSE Test: Request error:', error);
     clearInterval(interval);
   });
 });
@@ -55,18 +94,28 @@ router.get('/:id/timer-stream', sseAuthenticate, async (req: AuthRequest, res: R
   }
 
   console.log(`📡 SSE: Client connecting to match ${matchId} timer stream`);
+  console.log(`📡 SSE: Request headers:`, req.headers);
 
-  // Set SSE headers
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-transform',
-    'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no', // Disable Nginx buffering
-    'Access-Control-Allow-Origin': '*',
+  // Railway-compatible SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Cache-Control, Authorization');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+  
+  // Explicitly set status
+  res.status(200);
+
+  // Send initial connection success with data
+  const connectionData = JSON.stringify({
+    type: 'connection',
+    message: 'Timer stream connected',
+    matchId,
+    timestamp: Date.now()
   });
-
-  // Send initial connection success
-  res.write(':ok\n\n');
+  res.write(`data: ${connectionData}\n\n`);
+  console.log(`📡 SSE: Sent connection confirmation for match ${matchId}`);
 
   // Get current timer state and send if available
   const currentState = sseMatchTimerService.getMatchState(matchId);

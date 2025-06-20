@@ -6,6 +6,29 @@ export const SSETestButton: React.FC = () => {
   const [status, setStatus] = useState<string>('Not connected');
   const [lastMessage, setLastMessage] = useState<string>('');
   
+  const testHealthEndpoint = async () => {
+    try {
+      console.log('🏥 Testing SSE health endpoint...');
+      const url = `${API_BASE_URL}/sse/health`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      console.log('🏥 Health response:', data);
+      
+      if (response.ok) {
+        setStatus('Health OK - routes working');
+        console.log('✅ SSE routes are accessible');
+      } else {
+        setStatus(`Health failed: ${response.status}`);
+        console.error('❌ SSE health check failed:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ Health test failed:', error);
+      setStatus('Health failed - ' + (error as Error).message);
+    }
+  };
+
   const testFetchConnection = async () => {
     try {
       console.log('🧪 Testing fetch connection to SSE endpoint...');
@@ -115,7 +138,10 @@ export const SSETestButton: React.FC = () => {
   
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.button} onPress={testFetchConnection}>
+      <TouchableOpacity style={styles.button} onPress={testHealthEndpoint}>
+        <Text style={styles.buttonText}>Test Health</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[styles.button, {marginTop: 5}]} onPress={testFetchConnection}>
         <Text style={styles.buttonText}>Test Fetch</Text>
       </TouchableOpacity>
       <TouchableOpacity style={[styles.button, {marginTop: 5}]} onPress={testSSEConnection}>
