@@ -20,8 +20,8 @@ export const TIMER_CONFIG = {
   // Halftime settings
   HALFTIME_BREAK_DURATION_MINUTES: 15,
   AUTO_START_SECOND_HALF: false, // Set to true for automatic
-  AUTO_TRIGGER_HALFTIME: false, // Set to true for automatic halftime at 45'
-  AUTO_TRIGGER_FULLTIME: false, // Set to true for automatic fulltime at 90'
+  AUTO_TRIGGER_HALFTIME: true, // Set to true for automatic halftime at 45'
+  AUTO_TRIGGER_FULLTIME: true, // Set to true for automatic fulltime at 90'
   
   // Debug settings
   DEBUG_LOGS: process.env.NODE_ENV === 'development',

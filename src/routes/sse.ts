@@ -307,11 +307,37 @@ router.patch('/:id/fulltime-sse', authenticateToken, async (req: AuthRequest, re
     
     // Call the private method via the service
     const state = sseMatchTimerService.getMatchState(matchId);
-    if (!state || state.status !== 'LIVE' || state.currentHalf !== 2) {
+    if (!state) {
+      // If no timer state, try to initialize from database
+      console.log(`⚡ No timer state found for match ${matchId}, attempting to initialize from database`);
+      try {
+        await sseMatchTimerService.initializeFromDatabase(matchId);
+        const newState = sseMatchTimerService.getMatchState(matchId);
+        if (!newState) {
+          res.status(400).json({ 
+            error: 'Cannot trigger fulltime - match not found in timer service or database',
+            matchId
+          });
+          return;
+        }
+      } catch (initError) {
+        console.error('Failed to initialize timer state from database:', initError);
+        res.status(400).json({ 
+          error: 'Cannot trigger fulltime - failed to initialize match state',
+          matchId
+        });
+        return;
+      }
+    }
+    
+    const currentState = sseMatchTimerService.getMatchState(matchId);
+    // Allow ending from LIVE or HALFTIME status, any half
+    if (!currentState || (currentState.status !== 'LIVE' && currentState.status !== 'HALFTIME')) {
       res.status(400).json({ 
-        error: 'Cannot trigger fulltime for this match',
-        currentStatus: state?.status,
-        currentHalf: state?.currentHalf
+        error: 'Cannot trigger fulltime for this match - invalid status',
+        currentStatus: currentState?.status,
+        currentHalf: currentState?.currentHalf,
+        allowedStatuses: ['LIVE', 'HALFTIME']
       });
       return;
     }

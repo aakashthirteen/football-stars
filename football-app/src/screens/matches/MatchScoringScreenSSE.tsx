@@ -100,44 +100,24 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const timerState = useMatchTimer(matchId);
   const { breakTimeDisplay, isBreakEnding } = useHalftimeBreakDisplay(timerState.halftimeBreakRemaining);
   
-  // Debug: Log timer state changes and reset manual flag when timer confirms live status
+  // CONSOLIDATED: Single effect for timer state management (prevents multiple re-renders)
   useEffect(() => {
-    // console.log('🔍 SSE Screen: Timer state updated:', {
-    //   status: timerState.status,
-    //   connectionStatus: timerState.connectionStatus,
-    //   currentMinute: timerState.currentMinute,
-    //   currentSecond: timerState.currentSecond,
-    //   isHalftime: timerState.isHalftime
-    // });
-    
     // Reset manual start flag once timer confirms live status (SSE or polling)
     if (matchStartRequested && timerState.status === 'LIVE') {
       console.log('✅ Timer confirmed live status, resetting manual flag');
       setMatchStartRequested(false);
     }
-  }, [timerState, matchStartRequested]);
-
-  // Debug: Log match state changes
-  useEffect(() => {
-    console.log('🔍 SSE Screen: Match state updated:', {
-      status: match?.status,
-      homeScore: match?.homeScore,
-      awayScore: match?.awayScore
-    });
-  }, [match]);
-
-  // Debug: Log view rendering decision
-  useEffect(() => {
-    const shouldShowLiveView = (timerState.status === 'LIVE' || timerState.isHalftime || match?.status === 'LIVE' || matchStartRequested);
-    console.log('🎯 View Decision:', {
+    
+    // Debug logging (consolidated)
+    console.log('🔍 CONSOLIDATED State Update:', {
       timerStatus: timerState.status,
       isHalftime: timerState.isHalftime,
       matchStatus: match?.status,
       matchStartRequested: matchStartRequested,
-      willShowLiveView: shouldShowLiveView,
-      connectionStatus: timerState.connectionStatus
+      connectionStatus: timerState.connectionStatus,
+      currentMinute: timerState.currentMinute
     });
-  }, [timerState.status, timerState.isHalftime, match?.status, matchStartRequested, timerState.connectionStatus]);
+  }, [timerState.status, timerState.isHalftime, match?.status, matchStartRequested, timerState.connectionStatus, timerState.currentMinute]);
   
   // Formation data
   const [homeFormation, setHomeFormation] = useState<any>(null);
@@ -283,13 +263,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   // No state updates needed - using computed value directly for instant rendering
 
-  // Trigger polling immediately for live matches
-  useEffect(() => {
-    if (match?.status === 'LIVE' && timerState.status !== 'LIVE') {
-      console.log('🚀 INSTANT: Live match detected, starting timer immediately');
-      timerState.startPolling?.();
-    }
-  }, [match?.status, timerState.status]);
+  // REMOVED: Manual polling trigger (timer hook now handles SSE-first approach)
 
   const loadMatchDetails = async () => {
     try {

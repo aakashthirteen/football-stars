@@ -57,27 +57,123 @@ export const endMatch = async (req: AuthRequest, res: Response): Promise<void> =
     
     console.log('🏁 MATCH_CONTROLLER: Ending match with professional timer service:', id);
     
-    // End match using timer service
+    // End match using timer service with enhanced error handling
     const timerService = getTimerService();
-    const timerState = await timerService.endMatch(id);
+    
+    // Check if timer state exists, initialize if needed
+    let timerState = timerService.getMatchState(id);
+    if (!timerState) {
+      console.log(`⚡ No timer state found for match ${id}, attempting to initialize from database`);
+      try {
+        await timerService.initializeFromDatabase(id);
+        timerState = timerService.getMatchState(id);
+        if (!timerState) {
+          res.status(400).json({ 
+            error: 'Cannot end match - match not found in timer service or database',
+            matchId: id
+          });
+          return;
+        }
+      } catch (initError) {
+        console.error('Failed to initialize timer state from database:', initError);
+        res.status(400).json({ 
+          error: 'Cannot end match - failed to initialize match state',
+          matchId: id
+        });
+        return;
+      }
+    }
+    
+    // Check current status before ending
+    const currentState = timerService.getMatchState(id);
+    if (!currentState || (currentState.status !== 'LIVE' && currentState.status !== 'HALFTIME')) {
+      // For debugging: try to end match even if timer state is missing/invalid
+      console.log(`⚠️ WARNING: Attempting to end match with invalid timer state:`, {
+        currentStatus: currentState?.status,
+        currentHalf: currentState?.currentHalf,
+        hasTimerState: !!currentState
+      });
+      
+      // Check if match exists in database and is not already completed
+      const dbMatch = await database.getMatchById(id);
+      if (!dbMatch) {
+        res.status(404).json({ error: 'Match not found in database' });
+        return;
+      }
+      
+      if (dbMatch.status === 'COMPLETED') {
+        res.status(400).json({ 
+          error: 'Match is already completed',
+          currentStatus: dbMatch.status
+        });
+        return;
+      }
+      
+      // Force end the match by updating database directly
+      console.log(`🚨 FORCE ENDING: Match ${id} - updating database directly`);
+      try {
+        // Use the existing updateMatch method to set status to COMPLETED
+        const updateData = {
+          ...dbMatch,
+          status: 'COMPLETED',
+          end_time: new Date().toISOString()
+        };
+        
+        await database.updateMatch(id, updateData);
+        const finalMatch = await database.getMatchById(id);
+        
+        res.json({
+          match: finalMatch,
+          timerState: null,
+          message: 'Match ended successfully (forced database update)',
+          warning: 'Timer state was invalid - used direct database update'
+        });
+        return;
+      } catch (forceError) {
+        console.error('❌ Failed to force end match:', forceError);
+        res.status(500).json({ 
+          error: 'Cannot end match - timer state invalid and database update failed',
+          currentStatus: currentState?.status,
+          dbStatus: dbMatch.status,
+          details: forceError instanceof Error ? forceError.message : 'Unknown error'
+        });
+        return;
+      }
+    }
+    
+    // Trigger fulltime
+    await timerService.triggerFulltime(id);
+    
+    // Get updated timer state
+    const finalTimerState = timerService.getMatchState(id);
     
     // Get updated match data
     const updatedMatch = await database.getMatchById(id);
     if (!updatedMatch) {
-      res.status(404).json({ error: 'Match not found' });
+      res.status(404).json({ error: 'Match not found after ending' });
       return;
     }
 
-    console.log('🎉 MATCH_CONTROLLER: Match ended successfully with timer service:', timerState);
+    console.log('🎉 MATCH_CONTROLLER: Match ended successfully with timer service:', finalTimerState);
 
     res.json({
       match: updatedMatch,
-      timerState,
+      timerState: finalTimerState,
       message: 'Match ended successfully with professional timer service',
     });
   } catch (error) {
     console.error('❌ End match error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    
+    // Provide more detailed error information
+    if (error instanceof Error) {
+      res.status(500).json({ 
+        error: 'Failed to end match',
+        message: error.message,
+        details: error.stack?.split('\n')[0] // First line of stack trace
+      });
+    } else {
+      res.status(500).json({ error: 'Internal server error ending match' });
+    }
   }
 };
 
@@ -838,7 +934,10 @@ export const manualHalftime = async (req: AuthRequest, res: Response): Promise<v
     console.log(`🟨 MATCH_CONTROLLER: Manual halftime for match ${id}`);
     
     const timerService = getTimerService();
-    const timerState = await timerService.manualHalftime(id);
+    await timerService.triggerHalftime(id);
+    
+    // Get updated timer state
+    const timerState = timerService.getMatchState(id);
     
     res.json({
       timerState,

@@ -313,39 +313,36 @@ export function useMatchTimer(matchId: string) {
   }, [matchId, handleSSEUpdate, startPollingFallback]);
 
 
-  // Effect to manage timer connection - try SSE first, fallback to polling quickly
+  // Effect to manage timer connection - TRY SSE FIRST with quick polling fallback
   useEffect(() => {
     if (!matchId) return;
 
     console.log('🚀 Timer Hook: Starting connection for match:', matchId);
     
-    // For now, use polling-only mode to ensure reliability
-    console.log('⚡ Using polling-only mode for maximum reliability');
-    startPollingFallback();
+    // FIXED: Try SSE first (has the automatic halftime/fulltime logic)
+    console.log('📡 Attempting SSE connection first (has auto halftime/fulltime)');
+    connectSSE();
     
-    // Optionally try SSE as enhancement (commented out for stability)
-    // connectSSE();
-    
-    // Also start polling fallback immediately as backup (will be replaced if SSE works)
-    const backupPollingTimeout = setTimeout(() => {
-      if (timerState.connectionStatus === 'connecting' || timerState.status === undefined) {
-        console.log('⚡ Starting backup polling since SSE taking too long or timer not initialized');
+    // Quick fallback to polling if SSE fails
+    const sseTimeout = setTimeout(() => {
+      if (timerState.connectionStatus !== 'connected') {
+        console.log('⚡ SSE timeout - falling back to polling');
         startPollingFallback();
       }
-    }, 1000); // Start polling backup after 1 second
+    }, 3000); // Give SSE 3 seconds to connect
     
-    // Even more aggressive - start polling immediately if timer status is undefined
-    const immediatePollingCheck = setTimeout(() => {
-      if (timerState.status === undefined || timerState.status === 'SCHEDULED') {
-        console.log('🚨 IMMEDIATE: Timer status undefined/SCHEDULED - forcing polling start');
+    // Emergency polling if nothing works
+    const emergencyPolling = setTimeout(() => {
+      if (timerState.status === 'SCHEDULED' && timerState.connectionStatus !== 'connected') {
+        console.log('🚨 EMERGENCY: No connection established - forcing polling');
         startPollingFallback();
       }
-    }, 500); // Check after 500ms
+    }, 5000); // Emergency after 5 seconds
 
     // Cleanup
     return () => {
-      clearTimeout(backupPollingTimeout);
-      clearTimeout(immediatePollingCheck);
+      clearTimeout(sseTimeout);
+      clearTimeout(emergencyPolling);
       
       if (eventSourceRef.current) {
         eventSourceRef.current.close();

@@ -40,6 +40,7 @@ router.post('/:id/events', addMatchEvent);
 router.patch('/:id/pause', pauseMatch);
 router.patch('/:id/resume', resumeMatch);
 router.patch('/:id/manual-halftime', manualHalftime);
+router.patch('/:id/manual-fulltime', endMatch); // Alias for ending match manually
 
 // Formation routes
 router.post('/:matchId/teams/:teamId/formation', saveFormationForMatch);
