@@ -319,34 +319,12 @@ export function useMatchTimer(matchId: string) {
 
     console.log('🚀 Timer Hook: Starting connection for match:', matchId);
     
-    // For now, use polling-only mode to ensure reliability
-    console.log('⚡ Using polling-only mode for maximum reliability');
+    // Use polling-only mode for reliability (single instance)
+    console.log('⚡ Starting single polling instance for timer updates');
     startPollingFallback();
-    
-    // Optionally try SSE as enhancement (commented out for stability)
-    // connectSSE();
-    
-    // Also start polling fallback immediately as backup (will be replaced if SSE works)
-    const backupPollingTimeout = setTimeout(() => {
-      if (timerState.connectionStatus === 'connecting' || timerState.status === undefined) {
-        console.log('⚡ Starting backup polling since SSE taking too long or timer not initialized');
-        startPollingFallback();
-      }
-    }, 2000); // Start polling backup after 2 seconds
-    
-    // Even more aggressive - start polling immediately if timer status is undefined
-    const immediatePollingCheck = setTimeout(() => {
-      if (timerState.status === undefined || timerState.status === 'SCHEDULED') {
-        console.log('🚨 IMMEDIATE: Timer status undefined/SCHEDULED - forcing polling start');
-        startPollingFallback();
-      }
-    }, 500); // Check after 500ms
 
     // Cleanup
     return () => {
-      clearTimeout(backupPollingTimeout);
-      clearTimeout(immediatePollingCheck);
-      
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
@@ -364,14 +342,14 @@ export function useMatchTimer(matchId: string) {
   // Enhanced polling fallback system
   const startPollingFallback = useCallback(async () => {
     try {
+      // Prevent multiple polling instances
+      if (interpolationRef.current) {
+        console.log('🔄 Polling already active, skipping duplicate start');
+        return;
+      }
+      
       console.log('🔄 Starting polling fallback for match:', matchId);
       setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
-      
-      // Clear any existing intervals
-      if (interpolationRef.current) {
-        clearInterval(interpolationRef.current);
-        interpolationRef.current = null;
-      }
       
       // Poll server every 1 second for timer state
       const pollingInterval = setInterval(async () => {
