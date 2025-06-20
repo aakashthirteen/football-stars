@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { simpleMatchTimer } from '../services/SimpleMatchTimer';
+import { sseMatchTimerService } from '../services/sse/SSEMatchTimerService';
 
 /**
  * Simple match controller for testing timer functionality
@@ -21,8 +21,8 @@ export const startSimpleMatch = async (req: SimpleMatchRequest, res: Response): 
     
     console.log(`⚽ SimpleController: Starting match ${id}`);
     
-    // Start the timer
-    const timerState = simpleMatchTimer.startMatch(id);
+    // Start the timer using SSE service
+    const timerState = await sseMatchTimerService.startMatch(id);
     
     console.log(`✅ SimpleController: Match ${id} started successfully`);
     
@@ -51,8 +51,8 @@ export const stopSimpleMatch = async (req: SimpleMatchRequest, res: Response): P
     
     console.log(`🛑 SimpleController: Stopping match ${id}`);
     
-    // Stop the timer
-    simpleMatchTimer.stopMatch(id);
+    // Stop the timer using SSE service (trigger fulltime)
+    await sseMatchTimerService.triggerFulltime(id);
     
     console.log(`✅ SimpleController: Match ${id} stopped successfully`);
     
@@ -78,7 +78,7 @@ export const getSimpleMatchState = async (req: SimpleMatchRequest, res: Response
   try {
     const { id } = req.params;
     
-    const timerState = simpleMatchTimer.getState(id);
+    const timerState = sseMatchTimerService.getMatchState(id);
     
     res.json({
       success: true,
@@ -101,7 +101,8 @@ export const getSimpleMatchState = async (req: SimpleMatchRequest, res: Response
  */
 export const getActiveSimpleMatches = async (req: Request, res: Response): Promise<void> => {
   try {
-    const activeMatches = simpleMatchTimer.getActiveMatches();
+    // SSE service doesn't have getActiveMatches, so return empty for now
+    const activeMatches: any[] = [];
     
     res.json({
       success: true,

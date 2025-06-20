@@ -30,11 +30,7 @@ export const TIMER_CONFIG = {
 
 // Helper to get timer service based on config
 export function getTimerService() {
-  if (TIMER_CONFIG.USE_SSE_TIMER) {
-    const { sseMatchTimerService } = require('../services/sse/SSEMatchTimerService');
-    return sseMatchTimerService;
-  } else {
-    const { matchTimerService } = require('../services/MatchTimerService');
-    return matchTimerService;
-  }
+  // Always use SSE timer service now (WebSocket removed)
+  const { sseMatchTimerService } = require('../services/sse/SSEMatchTimerService');
+  return sseMatchTimerService;
 }
