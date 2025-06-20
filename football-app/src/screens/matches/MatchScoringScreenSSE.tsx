@@ -79,7 +79,13 @@ const COMMENTARY_TEMPLATES = {
 };
 
 export default function MatchScoringScreen({ navigation, route }: MatchScoringScreenProps) {
-  const { matchId } = route?.params || {};
+  const { matchId, matchStatus: routeMatchStatus, isLive: routeIsLive } = route?.params || {};
+  
+  console.log('🚀 INSTANT: Screen opened with params:', {
+    matchId,
+    routeMatchStatus,
+    routeIsLive
+  });
   const [match, setMatch] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Actions');
@@ -145,8 +151,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   // Track if match has been manually started (to handle SSE delay)
   const [matchStartRequested, setMatchStartRequested] = useState(false);
   
-  // Computed state for showing live view
-  const [showLiveView, setShowLiveView] = useState(false);
+  // Note: showLiveView is now computed via useMemo for instant updates
   
   // Modals
   const [showPlayerModal, setShowPlayerModal] = useState(false);
@@ -199,36 +204,42 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     }
   }, [timerState.status]);
 
-  // Update live view state based on conditions
-  useEffect(() => {
-    const isMatchLiveInDB = match?.status === 'LIVE';
+  // INSTANT: Calculate live view state synchronously (no delays)
+  const shouldShowLiveView = React.useMemo(() => {
+    // FIRST PRIORITY: Route params for instant navigation (no API wait)
+    const isLiveFromRoute = routeIsLive === true;
+    const isMatchLiveInDB = match?.status === 'LIVE' || match?.status === 'HALFTIME';
     const hasStartBeenRequested = matchStartRequested === true;
     const isTimerLive = timerState.status === 'LIVE';
     const isInHalftime = timerState.isHalftime;
     
-    const shouldShowLive = isMatchLiveInDB || hasStartBeenRequested || isTimerLive || isInHalftime;
+    // Priority: Route params > DB status > Manual request > Timer status
+    const shouldShow = isLiveFromRoute || isMatchLiveInDB || hasStartBeenRequested || isTimerLive || isInHalftime;
     
-    console.log('🎯 LIVE VIEW STATE UPDATE:', {
+    console.log('⚡ INSTANT VIEW DECISION:', {
+      isLiveFromRoute,
       isMatchLiveInDB,
       hasStartBeenRequested,
       isTimerLive,
       isInHalftime,
-      shouldShowLive,
-      currentShowLiveView: showLiveView,
-      willUpdate: shouldShowLive !== showLiveView
+      shouldShow,
+      routeStatus: routeMatchStatus,
+      matchStatus: match?.status,
+      timerStatus: timerState.status
     });
     
-    if (shouldShowLive !== showLiveView) {
-      setShowLiveView(shouldShowLive);
-      console.log(`🔄 LIVE VIEW STATE CHANGED: ${showLiveView} → ${shouldShowLive}`);
-    }
-    
-    // If match is live in DB but timer isn't live yet, trigger polling immediately
-    if (isMatchLiveInDB && timerState.status !== 'LIVE' && timerState.connectionStatus === 'connecting') {
-      console.log('⚡ Match is LIVE in DB but timer not started - triggering immediate polling');
+    return shouldShow;
+  }, [routeIsLive, match?.status, matchStartRequested, timerState.status, timerState.isHalftime, routeMatchStatus]);
+
+  // No state updates needed - using computed value directly for instant rendering
+
+  // Trigger polling immediately for live matches
+  useEffect(() => {
+    if (match?.status === 'LIVE' && timerState.status !== 'LIVE') {
+      console.log('🚀 INSTANT: Live match detected, starting timer immediately');
       timerState.startPolling?.();
     }
-  }, [match?.status, matchStartRequested, timerState.status, timerState.isHalftime, showLiveView]);
+  }, [match?.status, timerState.status]);
 
   const loadMatchDetails = async () => {
     try {
@@ -599,7 +610,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       case 'Actions':
         return (
           <View style={styles.tabContent}>
-            {showLiveView ? (
+            {shouldShowLiveView ? (
               <View style={styles.sectionContainer}>
                 {/* Time Controls Bar */}
                 <View style={styles.timeControlsBar}>

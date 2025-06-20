@@ -120,7 +120,9 @@ export default function CreateMatchScreen({ navigation }: CreateMatchScreenProps
           onPress: () => {
             navigation.replace('MatchScoring', { 
               matchId: response.match.id,
-              isNewMatch: true 
+              isNewMatch: true,
+              matchStatus: 'SCHEDULED',
+              isLive: false
             });
           },
         },

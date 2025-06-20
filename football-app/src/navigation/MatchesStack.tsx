@@ -12,7 +12,7 @@ import PreMatchPlanningScreen from '../screens/matches/PreMatchPlanningScreen';
 export type MatchesStackParamList = {
   MatchesList: undefined;
   CreateMatch: undefined;
-  MatchScoring: { matchId: string; isNewMatch?: boolean; hasFormations?: boolean };
+  MatchScoring: { matchId: string; isNewMatch?: boolean; hasFormations?: boolean; matchStatus?: string; isLive?: boolean };
   MatchOverview: { matchId: string };
   PlayerRating: { 
     matchId: string; 

@@ -230,7 +230,11 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
                   style={styles.tickerItem}
                   onPress={() => navigation.getParent()?.navigate('Matches', { 
                     screen: 'MatchScoring', 
-                    params: { matchId: match.id } 
+                    params: { 
+                      matchId: match.id,
+                      matchStatus: match.status,
+                      isLive: match.status === 'LIVE' || match.status === 'HALFTIME'
+                    } 
                   })}
                 >
                   <Text style={styles.tickerMatch}>
@@ -374,7 +378,11 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
                   }}
                   onPress={() => navigation.getParent()?.navigate('Matches', { 
                     screen: 'MatchScoring', 
-                    params: { matchId: match.id } 
+                    params: { 
+                      matchId: match.id,
+                      matchStatus: match.status,
+                      isLive: match.status === 'LIVE' || match.status === 'HALFTIME'
+                    } 
                   })}
                 />
               </View>
@@ -394,7 +402,11 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
                   }}
                   onPress={() => navigation.getParent()?.navigate('Matches', { 
                     screen: 'MatchScoring', 
-                    params: { matchId: match.id } 
+                    params: { 
+                      matchId: match.id,
+                      matchStatus: match.status,
+                      isLive: match.status === 'LIVE' || match.status === 'HALFTIME'
+                    } 
                   })}
                 />
               </View>

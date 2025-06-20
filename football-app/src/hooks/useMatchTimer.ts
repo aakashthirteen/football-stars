@@ -300,7 +300,7 @@ export function useMatchTimer(matchId: string) {
         if (eventSource.readyState === EventSource.CLOSED) {
           clearInterval(readyStateLogger);
         }
-      }, 2000);
+      }, 1000);
 
       // Clean up readyState logger after 30 seconds
       setTimeout(() => clearInterval(readyStateLogger), 30000);
@@ -332,7 +332,7 @@ export function useMatchTimer(matchId: string) {
         console.log('⚡ Starting backup polling since SSE taking too long or timer not initialized');
         startPollingFallback();
       }
-    }, 2000); // Start polling backup after 2 seconds
+    }, 1000); // Start polling backup after 1 second
     
     // Even more aggressive - start polling immediately if timer status is undefined
     const immediatePollingCheck = setTimeout(() => {
@@ -391,19 +391,38 @@ export function useMatchTimer(matchId: string) {
           //   matchDate: match.match_date
           // });
           
-          // If match is no longer live, stop polling
-          if (match.status !== 'LIVE') {
-            console.log('📊 Polling: Match no longer live, stopping polling');
+          // Only stop polling for completed matches, keep polling for SCHEDULED and HALFTIME
+          if (match.status === 'COMPLETED') {
+            console.log('📊 Polling: Match completed, stopping polling');
             clearInterval(pollingInterval);
             setTimerState(prev => ({ 
               ...prev, 
-              status: match.status as TimerState['status'],
+              status: 'COMPLETED',
               connectionStatus: 'disconnected' 
             }));
             return;
           }
           
-          // Calculate timer from match start time
+          // Update timer state with current match status (SCHEDULED, LIVE, HALFTIME)
+          if (match.status !== timerState.status) {
+            console.log(`📊 Polling: Match status changed from ${timerState.status} to ${match.status}`);
+          }
+          
+          // For SCHEDULED matches, just update status without timer calculation
+          if (match.status === 'SCHEDULED') {
+            setTimerState(prev => ({
+              ...prev,
+              status: 'SCHEDULED',
+              currentMinute: 0,
+              currentSecond: 0,
+              displayTime: '00:00',
+              displayMinute: '0\'',
+              connectionStatus: 'disconnected'
+            }));
+            return;
+          }
+          
+          // Calculate timer from match start time for LIVE/HALFTIME matches
           const startTime = new Date(match.timer_started_at || match.match_date).getTime();
           const now = Date.now();
           const elapsedSeconds = Math.floor((now - startTime) / 1000);
@@ -467,7 +486,7 @@ export function useMatchTimer(matchId: string) {
           console.error('❌ Polling error:', pollingError);
           // Don't stop polling on single error, just log it
         }
-      }, 2000); // Poll every 2 seconds
+      }, 1000); // Poll every 1 second
       
       // Store interval reference for cleanup
       interpolationRef.current = pollingInterval;

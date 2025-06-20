@@ -161,6 +161,8 @@ export default function PreMatchPlanningScreen({ navigation, route }: PreMatchPl
               matchId: matchId,
               isNewMatch: true,
               hasFormations: true,
+              matchStatus: 'SCHEDULED',
+              isLive: false,
               homeFormation: homeFormation,
               awayFormation: awayFormation
             });
@@ -360,7 +362,9 @@ export default function PreMatchPlanningScreen({ navigation, route }: PreMatchPl
               navigation.replace('MatchScoring', { 
                 matchId: matchId,
                 isNewMatch: true,
-                hasFormations: false 
+                hasFormations: false,
+                matchStatus: 'SCHEDULED',
+                isLive: false 
               });
             }}
           >

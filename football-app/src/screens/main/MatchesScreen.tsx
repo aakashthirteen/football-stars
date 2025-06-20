@@ -160,7 +160,11 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
     if (match.status === 'COMPLETED') {
       navigation.navigate('MatchOverview', { matchId: match.id });
     } else {
-      navigation.navigate('MatchScoring', { matchId: match.id });
+      navigation.navigate('MatchScoring', { 
+        matchId: match.id, 
+        matchStatus: match.status,
+        isLive: match.status === 'LIVE' || match.status === 'HALFTIME'
+      });
     }
   };
 

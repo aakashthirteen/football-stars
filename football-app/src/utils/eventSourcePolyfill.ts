@@ -90,8 +90,9 @@ export class SimpleEventSource {
 export function setupEventSourcePolyfill() {
   try {
     // Use react-native-event-source which is specifically designed for React Native
-    const RNEventSource = require('react-native-event-source').EventSource;
-    global.EventSource = RNEventSource;
+    // Fix: EventSource is the default export, not a named property
+    const RNEventSource = require('react-native-event-source');
+    global.EventSource = RNEventSource.default || RNEventSource;
     console.log('✅ EventSource polyfill loaded successfully (react-native-event-source)');
     return true;
   } catch (error) {
