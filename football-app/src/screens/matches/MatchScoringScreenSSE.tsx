@@ -560,22 +560,31 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         return (
           <View style={styles.tabContent}>
             {(() => {
-              const shouldShowLive = (
-                timerState.status === 'LIVE' || 
-                timerState.isHalftime || 
-                match?.status === 'LIVE' || 
-                matchStartRequested
-              );
+              // FORCED LOGIC: If match status is LIVE, ALWAYS show live screen
+              const isMatchLiveInDB = match?.status === 'LIVE';
+              const hasStartBeenRequested = matchStartRequested === true;
+              const isTimerLive = timerState.status === 'LIVE';
+              const isInHalftime = timerState.isHalftime;
               
-              console.log('🔍 Live Screen Decision:', {
-                timerStatus: timerState.status,
-                isHalftime: timerState.isHalftime,
-                matchStatus: match?.status,
-                matchStartRequested: matchStartRequested,
-                shouldShowLive: shouldShowLive
+              const shouldShowLive = isMatchLiveInDB || hasStartBeenRequested || isTimerLive || isInHalftime;
+              
+              console.log('🔍 CRITICAL - Live Screen Decision:', {
+                isMatchLiveInDB: isMatchLiveInDB,
+                hasStartBeenRequested: hasStartBeenRequested,
+                isTimerLive: isTimerLive,
+                isInHalftime: isInHalftime,
+                shouldShowLive: shouldShowLive,
+                aboutToRender: shouldShowLive ? 'LIVE_SCREEN' : 'START_SCREEN'
               });
               
-              return shouldShowLive;
+              // Force show live screen if any condition is true
+              if (shouldShowLive) {
+                console.log('✅ RENDERING LIVE SCREEN NOW');
+                return true;
+              } else {
+                console.log('❌ RENDERING START SCREEN - WHY?');
+                return false;
+              }
             })() ? (
               <View style={styles.sectionContainer}>
                 {/* Time Controls Bar */}
