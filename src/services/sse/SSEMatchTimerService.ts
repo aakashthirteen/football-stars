@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { Response } from 'express';
 import { database } from '../../models/databaseFactory';
 import { redis } from '../redisClient'; // You'll need to set up Redis
+import { TIMER_CONFIG } from '../../config/timerConfig';
 
 export interface SSETimerState {
   matchId: string;
@@ -18,6 +19,8 @@ export interface SSETimerState {
   serverTime: number;
   matchDuration: number;
   halfDuration: number;
+  pausedAt?: number; // Timestamp when paused
+  totalPausedDuration: number; // Total milliseconds paused
 }
 
 export interface SSETimerUpdate {
@@ -128,7 +131,8 @@ export class SSEMatchTimerService extends EventEmitter {
         isHalftime: false,
         serverTime: Date.now(),
         matchDuration,
-        halfDuration
+        halfDuration,
+        totalPausedDuration: 0
       };
 
       this.matchStates.set(matchId, state);
@@ -166,16 +170,23 @@ export class SSEMatchTimerService extends EventEmitter {
     }
     state.serverTime = Date.now();
 
-    // Check for automatic halftime
-    if (this.shouldTriggerHalftime(state)) {
+    // Check for automatic halftime (if enabled)
+    if (TIMER_CONFIG.AUTO_TRIGGER_HALFTIME && this.shouldTriggerHalftime(state)) {
       await this.triggerHalftime(matchId);
       return;
     }
 
-    // Check for automatic fulltime
-    if (this.shouldTriggerFulltime(state)) {
+    // Check for automatic fulltime (if enabled)
+    if (TIMER_CONFIG.AUTO_TRIGGER_FULLTIME && this.shouldTriggerFulltime(state)) {
       await this.triggerFulltime(matchId);
       return;
+    }
+    
+    // Log milestones when auto-triggers are disabled
+    if (!TIMER_CONFIG.AUTO_TRIGGER_HALFTIME && this.shouldTriggerHalftime(state)) {
+      console.log(`⏰ SSE Timer: Match ${matchId} reached halftime (45'), waiting for manual trigger`);
+    } else if (!TIMER_CONFIG.AUTO_TRIGGER_FULLTIME && this.shouldTriggerFulltime(state)) {
+      console.log(`⏰ SSE Timer: Match ${matchId} reached fulltime (90'), waiting for manual trigger`);
     }
 
     // Update state
@@ -213,9 +224,9 @@ export class SSEMatchTimerService extends EventEmitter {
   }
 
   /**
-   * Trigger halftime
+   * Trigger halftime (can be called manually)
    */
-  private async triggerHalftime(matchId: string): Promise<void> {
+  public async triggerHalftime(matchId: string): Promise<void> {
     const state = this.matchStates.get(matchId);
     if (!state) return;
 
@@ -260,10 +271,15 @@ export class SSEMatchTimerService extends EventEmitter {
         this.broadcastUpdate(matchId, 'timer_update');
       }
 
-      // Auto-start second half when break ends
-      if (state.halftimeBreakRemaining <= 0) {
+      // Auto-start second half when break ends (if enabled)
+      if (state.halftimeBreakRemaining <= 0 && TIMER_CONFIG.AUTO_START_SECOND_HALF) {
         clearInterval(breakTimer);
+        console.log(`🤖 SSE Timer: Auto-starting second half for match ${matchId}`);
         await this.startSecondHalf(matchId);
+      } else if (state.halftimeBreakRemaining <= 0) {
+        clearInterval(breakTimer);
+        console.log(`⏸️ SSE Timer: Halftime break ended for match ${matchId}, waiting for manual start`);
+        // Just stop the countdown, don't auto-start
       }
     }, 1000);
   }
@@ -309,9 +325,9 @@ export class SSEMatchTimerService extends EventEmitter {
   }
 
   /**
-   * Trigger fulltime
+   * Trigger fulltime (can be called manually)
    */
-  private async triggerFulltime(matchId: string): Promise<void> {
+  public async triggerFulltime(matchId: string): Promise<void> {
     const state = this.matchStates.get(matchId);
     if (!state) return;
 
@@ -341,7 +357,11 @@ export class SSEMatchTimerService extends EventEmitter {
     if (!state) throw new Error('Match state not found');
 
     state.isPaused = true;
-    await database.updateMatch(matchId, { timer_paused_at: new Date() });
+    state.pausedAt = Date.now();
+    
+    await database.updateMatch(matchId, { 
+      timer_paused_at: new Date(state.pausedAt) 
+    });
     
     this.broadcastUpdate(matchId, 'status_change', '⏸️ Match paused');
     await this.cacheState(matchId, state);
@@ -356,6 +376,19 @@ export class SSEMatchTimerService extends EventEmitter {
     const state = this.matchStates.get(matchId);
     if (!state) throw new Error('Match state not found');
 
+    // Calculate pause duration and update total
+    if (state.pausedAt) {
+      const pauseDuration = Date.now() - state.pausedAt;
+      state.totalPausedDuration = (state.totalPausedDuration || 0) + pauseDuration;
+      state.pausedAt = undefined;
+      
+      // Update database with total paused duration
+      await database.updateMatch(matchId, { 
+        timer_paused_at: null,
+        total_paused_duration: Math.floor(state.totalPausedDuration / 1000) // Store in seconds
+      });
+    }
+    
     state.isPaused = false;
     
     this.broadcastUpdate(matchId, 'status_change', '▶️ Match resumed');
@@ -466,7 +499,8 @@ export class SSEMatchTimerService extends EventEmitter {
       // Reconstruct timer state from database
       const timerStarted = new Date((match as any).timer_started_at || match.matchDate);
       const now = new Date();
-      const elapsedMs = now.getTime() - timerStarted.getTime();
+      const totalPausedMs = ((match as any).total_paused_duration || 0) * 1000; // Convert from seconds to ms
+      const elapsedMs = now.getTime() - timerStarted.getTime() - totalPausedMs;
       const elapsedSeconds = Math.floor(elapsedMs / 1000);
 
       const state: SSETimerState = {
@@ -478,11 +512,13 @@ export class SSEMatchTimerService extends EventEmitter {
         currentHalf: (match as any).current_half || 1,
         addedTimeFirstHalf: (match as any).added_time_first_half || 0,
         addedTimeSecondHalf: (match as any).added_time_second_half || 0,
-        isPaused: false,
+        isPaused: !!(match as any).timer_paused_at,
         isHalftime: (match.status as string) === 'HALFTIME',
         serverTime: Date.now(),
         matchDuration: match.duration || 90,
-        halfDuration: (match.duration || 90) / 2
+        halfDuration: (match.duration || 90) / 2,
+        totalPausedDuration: totalPausedMs,
+        pausedAt: (match as any).timer_paused_at ? new Date((match as any).timer_paused_at).getTime() : undefined
       };
 
       this.matchStates.set(matchId, state);

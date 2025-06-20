@@ -208,6 +208,84 @@ router.patch('/:id/resume-sse', authenticateToken, async (req: AuthRequest, res:
 });
 
 /**
+ * Manually trigger halftime
+ * PATCH /api/matches/:id/halftime-sse
+ */
+router.patch('/:id/halftime-sse', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id: matchId } = req.params;
+    
+    console.log(`🟨 Manual halftime trigger for match ${matchId}`);
+    
+    // Call the private method via the service
+    const state = sseMatchTimerService.getMatchState(matchId);
+    if (!state || state.status !== 'LIVE' || state.currentHalf !== 1) {
+      res.status(400).json({ 
+        error: 'Cannot trigger halftime for this match',
+        currentStatus: state?.status,
+        currentHalf: state?.currentHalf
+      });
+      return;
+    }
+    
+    // Trigger halftime manually
+    await (sseMatchTimerService as any).triggerHalftime(matchId);
+    const timerState = sseMatchTimerService.getMatchState(matchId);
+    
+    res.json({
+      success: true,
+      timerState,
+      message: 'Halftime triggered manually'
+    });
+  } catch (error) {
+    console.error('Failed to trigger halftime:', error);
+    res.status(500).json({ 
+      error: 'Failed to trigger halftime',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * Manually trigger fulltime
+ * PATCH /api/matches/:id/fulltime-sse
+ */
+router.patch('/:id/fulltime-sse', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id: matchId } = req.params;
+    
+    console.log(`🏁 Manual fulltime trigger for match ${matchId}`);
+    
+    // Call the private method via the service
+    const state = sseMatchTimerService.getMatchState(matchId);
+    if (!state || state.status !== 'LIVE' || state.currentHalf !== 2) {
+      res.status(400).json({ 
+        error: 'Cannot trigger fulltime for this match',
+        currentStatus: state?.status,
+        currentHalf: state?.currentHalf
+      });
+      return;
+    }
+    
+    // Trigger fulltime manually
+    await (sseMatchTimerService as any).triggerFulltime(matchId);
+    const timerState = sseMatchTimerService.getMatchState(matchId);
+    
+    res.json({
+      success: true,
+      timerState,
+      message: 'Fulltime triggered manually'
+    });
+  } catch (error) {
+    console.error('Failed to trigger fulltime:', error);
+    res.status(500).json({ 
+      error: 'Failed to trigger fulltime',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
  * Add stoppage time
  * PATCH /api/matches/:id/add-time-sse
  */

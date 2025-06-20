@@ -1,5 +1,6 @@
 import app from './app';
 import { database } from './models/databaseFactory';
+import { recoverActiveTimers, cleanupStaleTimers } from './services/sse/timerRecovery';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
@@ -101,6 +102,14 @@ async function startServer() {
 
     // SSE timer service is initialized automatically when matches start
     console.log('✅ Server started successfully! SSE timer service ready.');
+    
+    // Recover active timers after server startup
+    setTimeout(async () => {
+      console.log('🔄 Starting timer recovery process...');
+      await cleanupStaleTimers();
+      await recoverActiveTimers();
+      console.log('✅ Timer recovery completed');
+    }, 2000); // Wait 2 seconds for server to fully initialize
 
     // Graceful shutdown handlers
     process.on('SIGTERM', () => {
