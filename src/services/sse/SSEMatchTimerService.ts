@@ -217,14 +217,15 @@ export class SSEMatchTimerService extends EventEmitter {
   private shouldTriggerFulltime(state: SSETimerState): boolean {
     if (state.currentHalf !== 2 || state.status !== 'LIVE') return false;
     
-    // CRITICAL FIX: In second half, currentMinute is relative to second half start (~45-90)
-    // We need to calculate total match time, not just current half time
+    // CRITICAL FIX: Second half timer continues from where first half ended
+    // currentMinute starts at ~45 and goes to ~90+
+    // Fulltime should trigger at 90 + second half stoppage time
     const totalMinutes = state.currentMinute + (state.currentSecond / 60);
-    const secondHalfEnd = state.halfDuration + state.addedTimeSecondHalf; // 45 + stoppage
+    const fullMatchEnd = state.matchDuration + state.addedTimeSecondHalf; // 90 + stoppage
     
-    console.log(`🕐 FULLTIME CHECK: currentMinute=${state.currentMinute}, secondHalfEnd=${secondHalfEnd}, shouldTrigger=${totalMinutes >= secondHalfEnd}`);
+    console.log(`🕐 FULLTIME CHECK: currentMinute=${state.currentMinute}, fullMatchEnd=${fullMatchEnd}, shouldTrigger=${totalMinutes >= fullMatchEnd}`);
     
-    return totalMinutes >= secondHalfEnd;
+    return totalMinutes >= fullMatchEnd;
   }
 
   /**
