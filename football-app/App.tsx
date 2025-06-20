@@ -1,16 +1,12 @@
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import RootNavigator from './src/navigation/RootNavigator';
+import { setupEventSourcePolyfill } from './src/utils/eventSourcePolyfill';
 
-// Polyfill for EventSource in React Native
-// This enables Server-Sent Events (SSE) support
-try {
-  const RNEventSource = require('react-native-event-source').default;
-  global.EventSource = RNEventSource;
-  console.log('✅ EventSource polyfill loaded successfully');
-} catch (error) {
-  console.warn('⚠️ EventSource polyfill not available. SSE timer will not work.');
-  console.warn('Please run: npm install react-native-event-source');
+// Enhanced EventSource polyfill setup
+const polyfillSuccess = setupEventSourcePolyfill();
+if (!polyfillSuccess) {
+  console.error('❌ EventSource polyfill setup failed. SSE timer will not work.');
 }
 
 export default function App() {

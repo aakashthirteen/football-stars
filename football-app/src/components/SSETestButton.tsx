@@ -6,17 +6,65 @@ export const SSETestButton: React.FC = () => {
   const [status, setStatus] = useState<string>('Not connected');
   const [lastMessage, setLastMessage] = useState<string>('');
   
+  const testFetchConnection = async () => {
+    try {
+      console.log('🧪 Testing fetch connection to SSE endpoint...');
+      const url = `${API_BASE_URL}/sse/test`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/event-stream',
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      console.log('📡 Fetch response status:', response.status);
+      console.log('📡 Fetch response headers:', response.headers);
+      
+      if (response.ok) {
+        setStatus('Fetch OK - endpoint reachable');
+        console.log('✅ SSE endpoint is reachable via fetch');
+      } else {
+        setStatus(`Fetch failed: ${response.status}`);
+        console.error('❌ SSE endpoint returned error:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ Fetch test failed:', error);
+      setStatus('Fetch failed - ' + (error as Error).message);
+    }
+  };
+  
   const testSSEConnection = () => {
     try {
       console.log('🧪 Testing SSE connection...');
       const url = `${API_BASE_URL}/sse/test`;
       console.log('🧪 SSE Test URL:', url);
       
+      // Debug polyfill status
+      console.log('🔍 EventSource type:', typeof EventSource);
+      console.log('🔍 EventSource constructor:', EventSource);
+      console.log('🔍 Global EventSource:', global.EventSource);
+      
+      // Check if EventSource is available
+      if (typeof EventSource === 'undefined') {
+        console.error('❌ EventSource not available');
+        setStatus('EventSource not available');
+        return;
+      }
+      
+      console.log('✅ EventSource constructor available:', typeof EventSource);
+      
       const eventSource = new EventSource(url);
+      let timeoutRef: NodeJS.Timeout;
+      
+      console.log('🔍 EventSource created, readyState:', eventSource.readyState);
+      setStatus('Connecting...');
       
       eventSource.onopen = () => {
         console.log('✅ SSE Test: Connection opened');
         setStatus('Connected');
+        clearTimeout(timeoutRef);
       };
       
       eventSource.onmessage = (event) => {
@@ -32,26 +80,45 @@ export const SSETestButton: React.FC = () => {
       
       eventSource.onerror = (error) => {
         console.error('❌ SSE Test: Error occurred:', error);
+        console.error('❌ SSE Test: ReadyState:', eventSource.readyState);
         setStatus('Error - check console');
-        eventSource.close();
+        clearTimeout(timeoutRef);
+        if (eventSource) {
+          eventSource.close();
+        }
       };
       
-      // Close after 10 seconds
+      // Connection timeout
+      timeoutRef = setTimeout(() => {
+        console.log('⏰ SSE Test: Connection timeout');
+        setStatus('Connection timeout');
+        if (eventSource) {
+          eventSource.close();
+        }
+      }, 8000);
+      
+      // Close after 15 seconds
       setTimeout(() => {
-        console.log('🔚 SSE Test: Closing connection');
-        eventSource.close();
+        console.log('🔚 SSE Test: Auto-closing connection');
+        clearTimeout(timeoutRef);
+        if (eventSource) {
+          eventSource.close();
+        }
         setStatus('Test completed');
-      }, 10000);
+      }, 15000);
       
     } catch (error) {
       console.error('❌ SSE Test: Exception:', error);
-      setStatus('Failed - ' + error.message);
+      setStatus('Failed - ' + (error as Error).message);
     }
   };
   
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.button} onPress={testSSEConnection}>
+      <TouchableOpacity style={styles.button} onPress={testFetchConnection}>
+        <Text style={styles.buttonText}>Test Fetch</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[styles.button, {marginTop: 5}]} onPress={testSSEConnection}>
         <Text style={styles.buttonText}>Test SSE Connection</Text>
       </TouchableOpacity>
       <Text style={styles.status}>Status: {status}</Text>

@@ -219,11 +219,14 @@ export function useMatchTimer(matchId: string) {
         return;
       }
 
+      // Get reference to the event source
+      const currentEventSource = eventSourceRef.current;
+      
       // Set up connection timeout
       const connectionTimeout = setTimeout(() => {
         console.warn('⚠️ SSE: Connection timeout after 10 seconds');
-        if (eventSource.readyState !== EventSource.OPEN) {
-          eventSource.close();
+        if (currentEventSource && currentEventSource.readyState !== EventSource.OPEN) {
+          currentEventSource.close();
           setTimerState(prev => ({ ...prev, connectionStatus: 'error' }));
         }
       }, 10000);
