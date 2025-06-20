@@ -145,6 +145,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   // Track if match has been manually started (to handle SSE delay)
   const [matchStartRequested, setMatchStartRequested] = useState(false);
   
+  // Computed state for showing live view
+  const [showLiveView, setShowLiveView] = useState(false);
+  
   // Modals
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [showAssistModal, setShowAssistModal] = useState(false);
@@ -195,6 +198,31 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       }, 2000);
     }
   }, [timerState.status]);
+
+  // Update live view state based on conditions
+  useEffect(() => {
+    const isMatchLiveInDB = match?.status === 'LIVE';
+    const hasStartBeenRequested = matchStartRequested === true;
+    const isTimerLive = timerState.status === 'LIVE';
+    const isInHalftime = timerState.isHalftime;
+    
+    const shouldShowLive = isMatchLiveInDB || hasStartBeenRequested || isTimerLive || isInHalftime;
+    
+    console.log('🎯 LIVE VIEW STATE UPDATE:', {
+      isMatchLiveInDB,
+      hasStartBeenRequested,
+      isTimerLive,
+      isInHalftime,
+      shouldShowLive,
+      currentShowLiveView: showLiveView,
+      willUpdate: shouldShowLive !== showLiveView
+    });
+    
+    if (shouldShowLive !== showLiveView) {
+      setShowLiveView(shouldShowLive);
+      console.log(`🔄 LIVE VIEW STATE CHANGED: ${showLiveView} → ${shouldShowLive}`);
+    }
+  }, [match?.status, matchStartRequested, timerState.status, timerState.isHalftime, showLiveView]);
 
   const loadMatchDetails = async () => {
     try {
@@ -559,33 +587,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       case 'Actions':
         return (
           <View style={styles.tabContent}>
-            {(() => {
-              // FORCED LOGIC: If match status is LIVE, ALWAYS show live screen
-              const isMatchLiveInDB = match?.status === 'LIVE';
-              const hasStartBeenRequested = matchStartRequested === true;
-              const isTimerLive = timerState.status === 'LIVE';
-              const isInHalftime = timerState.isHalftime;
-              
-              const shouldShowLive = isMatchLiveInDB || hasStartBeenRequested || isTimerLive || isInHalftime;
-              
-              console.log('🔍 CRITICAL - Live Screen Decision:', {
-                isMatchLiveInDB: isMatchLiveInDB,
-                hasStartBeenRequested: hasStartBeenRequested,
-                isTimerLive: isTimerLive,
-                isInHalftime: isInHalftime,
-                shouldShowLive: shouldShowLive,
-                aboutToRender: shouldShowLive ? 'LIVE_SCREEN' : 'START_SCREEN'
-              });
-              
-              // Force show live screen if any condition is true
-              if (shouldShowLive) {
-                console.log('✅ RENDERING LIVE SCREEN NOW');
-                return true;
-              } else {
-                console.log('❌ RENDERING START SCREEN - WHY?');
-                return false;
-              }
-            })() ? (
+            {showLiveView ? (
               <View style={styles.sectionContainer}>
                 {/* Time Controls Bar */}
                 <View style={styles.timeControlsBar}>
