@@ -165,23 +165,27 @@ export function useMatchTimer(matchId: string) {
     }
   }, []);
 
-  // Connect to SSE
+  // Connect to SSE (optional enhancement - polling is primary)
   const connectSSE = useCallback(async () => {
     try {
+      // Check if EventSource is available
+      if (typeof EventSource === 'undefined' && typeof global.EventSource === 'undefined') {
+        console.warn('⚠️ SSE: EventSource not available, using polling only');
+        setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+        startPollingFallback();
+        return;
+      }
+
       // Get auth token
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        console.error('❌ SSE: No auth token available');
-        setTimerState(prev => ({ ...prev, connectionStatus: 'error' }));
+        console.error('❌ SSE: No auth token available, falling back to polling');
+        setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+        startPollingFallback();
         return;
       }
 
       console.log(`📡 SSE: Attempting to connect to timer stream for match: ${matchId}`);
-      console.log(`🔑 SSE: Token available: ${token.substring(0, 20)}...${token.substring(token.length - 5)}`);
-      console.log(`🌐 SSE: API Base URL: ${API_BASE_URL}`);
-      console.log(`🔍 SSE: EventSource available:`, typeof EventSource !== 'undefined');
-      console.log(`🔍 SSE: EventSource constructor:`, EventSource);
-      console.log(`🔍 SSE: EventSource global:`, global.EventSource);
 
       // Use modern event-source-polyfill with header support
       const url = `${API_BASE_URL}/sse/${matchId}/timer-stream`;
@@ -212,7 +216,6 @@ export function useMatchTimer(matchId: string) {
           }
         });
         console.log('✅ SSE: EventSource created successfully with headers');
-        console.log('🔍 SSE: Initial readyState:', eventSource.readyState);
         eventSourceRef.current = eventSource;
       } catch (error) {
         console.warn('⚠️ SSE: Headers not supported, trying query parameter method');
@@ -223,8 +226,9 @@ export function useMatchTimer(matchId: string) {
           console.log('✅ SSE: EventSource created with query parameter auth');
           eventSourceRef.current = eventSource;
         } catch (fallbackError) {
-          console.error('❌ SSE: Failed to create EventSource:', fallbackError);
-          setTimerState(prev => ({ ...prev, connectionStatus: 'error' }));
+          console.warn('⚠️ SSE: EventSource creation failed, using polling only:', fallbackError);
+          setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+          startPollingFallback();
           return;
         }
       }
@@ -302,10 +306,11 @@ export function useMatchTimer(matchId: string) {
       setTimeout(() => clearInterval(readyStateLogger), 30000);
 
     } catch (error) {
-      console.error('❌ SSE: Exception during connection setup:', error);
-      setTimerState(prev => ({ ...prev, connectionStatus: 'error' }));
+      console.warn('⚠️ SSE: Exception during connection setup, falling back to polling:', error);
+      setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+      startPollingFallback();
     }
-  }, [matchId, handleSSEUpdate]);
+  }, [matchId, handleSSEUpdate, startPollingFallback]);
 
 
   // Effect to manage timer connection - try SSE first, fallback to polling quickly
@@ -314,8 +319,12 @@ export function useMatchTimer(matchId: string) {
 
     console.log('🚀 Timer Hook: Starting connection for match:', matchId);
     
-    // Try SSE connection first
-    connectSSE();
+    // For now, use polling-only mode to ensure reliability
+    console.log('⚡ Using polling-only mode for maximum reliability');
+    startPollingFallback();
+    
+    // Optionally try SSE as enhancement (commented out for stability)
+    // connectSSE();
     
     // Also start polling fallback immediately as backup (will be replaced if SSE works)
     const backupPollingTimeout = setTimeout(() => {

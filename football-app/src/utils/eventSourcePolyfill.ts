@@ -93,7 +93,6 @@ export function setupEventSourcePolyfill() {
     const RNEventSource = require('react-native-event-source').EventSource;
     global.EventSource = RNEventSource;
     console.log('✅ EventSource polyfill loaded successfully (react-native-event-source)');
-    console.log('🔍 EventSource constructor:', global.EventSource);
     return true;
   } catch (error) {
     console.warn('⚠️ react-native-event-source not available, trying fallback:', error);
@@ -110,7 +109,8 @@ export function setupEventSourcePolyfill() {
       console.log('✅ EventSource fallback polyfill loaded');
       return true;
     } catch (fallbackError) {
-      console.error('❌ Failed to setup EventSource polyfill:', fallbackError);
+      console.warn('⚠️ EventSource polyfill setup failed - app will use polling only:', fallbackError);
+      // Don't crash the app - just continue without EventSource
       return false;
     }
   }
