@@ -89,15 +89,21 @@ export class SimpleEventSource {
 // Enhanced polyfill setup
 export function setupEventSourcePolyfill() {
   try {
-    // First try the react-native-event-source package
-    const RNEventSource = require('react-native-event-source').default;
-    global.EventSource = RNEventSource;
-    console.log('✅ EventSource polyfill loaded successfully (react-native-event-source)');
+    // Use event-source-polyfill which is more compatible with React Native
+    const EventSourcePolyfill = require('event-source-polyfill').EventSourcePolyfill;
+    global.EventSource = EventSourcePolyfill;
+    console.log('✅ EventSource polyfill loaded successfully (event-source-polyfill)');
     return true;
   } catch (error) {
-    console.warn('⚠️ react-native-event-source not available, using fallback');
+    console.warn('⚠️ event-source-polyfill not available, using native or fallback');
     
     try {
+      // Check if native EventSource is available
+      if (typeof global.EventSource !== 'undefined') {
+        console.log('✅ Using native EventSource');
+        return true;
+      }
+      
       // Fallback to our simple implementation
       global.EventSource = SimpleEventSource as any;
       console.log('✅ EventSource fallback polyfill loaded');

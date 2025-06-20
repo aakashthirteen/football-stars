@@ -183,11 +183,10 @@ export function useMatchTimer(matchId: string) {
       console.log(`🔍 SSE: EventSource constructor:`, EventSource);
       console.log(`🔍 SSE: EventSource global:`, global.EventSource);
 
-      // React Native EventSource doesn't support custom headers properly
-      // Use query parameter method for authentication
-      const url = `${API_BASE_URL}/sse/${matchId}/timer-stream?token=${encodeURIComponent(token)}`;
+      // Use modern event-source-polyfill with header support
+      const url = `${API_BASE_URL}/sse/${matchId}/timer-stream`;
       
-      console.log(`📡 SSE: Full connection URL: ${url.replace(token, 'TOKEN_HIDDEN')}`);
+      console.log(`📡 SSE: Full connection URL: ${url}`);
       
       // Close any existing connection first
       if (eventSourceRef.current) {
@@ -199,24 +198,35 @@ export function useMatchTimer(matchId: string) {
       // Set connecting status
       setTimerState(prev => ({ ...prev, connectionStatus: 'connecting' }));
       
-      // Create new EventSource connection
-      console.log('🚀 SSE: Creating new EventSource connection...');
+      // Create new EventSource connection with headers
+      console.log('🚀 SSE: Creating new EventSource connection with headers...');
       console.log('🔍 SSE: EventSource constructor available:', typeof EventSource !== 'undefined');
       
       try {
-        const eventSource = new EventSource(url);
-        console.log('✅ SSE: EventSource created successfully');
-        console.log('🔍 SSE: Initial readyState:', eventSource.readyState);
-        console.log('🔍 SSE: Event source properties:', {
-          url: eventSource.url,
-          readyState: eventSource.readyState,
-          withCredentials: eventSource.withCredentials
+        // Try with headers first (modern polyfill)
+        const eventSource = new EventSource(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'text/event-stream',
+            'Cache-Control': 'no-cache'
+          }
         });
+        console.log('✅ SSE: EventSource created successfully with headers');
+        console.log('🔍 SSE: Initial readyState:', eventSource.readyState);
         eventSourceRef.current = eventSource;
       } catch (error) {
-        console.error('❌ SSE: Failed to create EventSource:', error);
-        setTimerState(prev => ({ ...prev, connectionStatus: 'error' }));
-        return;
+        console.warn('⚠️ SSE: Headers not supported, trying query parameter method');
+        try {
+          // Fallback to query parameter method
+          const fallbackUrl = `${url}?token=${encodeURIComponent(token)}`;
+          const eventSource = new EventSource(fallbackUrl);
+          console.log('✅ SSE: EventSource created with query parameter auth');
+          eventSourceRef.current = eventSource;
+        } catch (fallbackError) {
+          console.error('❌ SSE: Failed to create EventSource:', fallbackError);
+          setTimerState(prev => ({ ...prev, connectionStatus: 'error' }));
+          return;
+        }
       }
 
       // Get reference to the event source
@@ -320,73 +330,142 @@ export function useMatchTimer(matchId: string) {
     };
   }, [matchId, connectSSE, stopInterpolation]);
 
-  // Fallback timer when SSE connection fails
-  const startFallbackTimer = useCallback(async () => {
+  // Enhanced polling fallback system
+  const startPollingFallback = useCallback(async () => {
     try {
-      console.log('🔄 Starting fallback timer for match:', matchId);
+      console.log('🔄 Starting polling fallback for match:', matchId);
+      setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
       
-      // Get match data from API to calculate time from start
-      const match = await apiService.getMatchById(matchId);
-      if (!match || match.status !== 'LIVE') return;
+      // Clear any existing intervals
+      if (interpolationRef.current) {
+        clearInterval(interpolationRef.current);
+        interpolationRef.current = null;
+      }
       
-      const matchStartTime = new Date(match.timer_started_at || match.match_date).getTime();
-      const halfDuration = (match.duration || 90) / 2;
-      
-      const fallbackInterval = setInterval(() => {
-        const now = Date.now();
-        const elapsedSeconds = Math.floor((now - matchStartTime) / 1000);
-        const elapsedMinutes = Math.floor(elapsedSeconds / 60);
-        const currentSecond = elapsedSeconds % 60;
-        
-        // Determine current half and adjust time
-        let currentHalf: 1 | 2 = 1;
-        let displayMinute = elapsedMinutes;
-        
-        if (elapsedMinutes >= halfDuration) {
-          currentHalf = 2;
-          // For second half, continue from where first half left off
-          displayMinute = elapsedMinutes;
+      // Poll server every 2 seconds for timer state
+      const pollingInterval = setInterval(async () => {
+        try {
+          // Get match data from API
+          const match = await apiService.getMatchById(matchId);
+          if (!match) {
+            console.warn('⚠️ Polling: Match not found, stopping polling');
+            clearInterval(pollingInterval);
+            return;
+          }
+          
+          // If match is no longer live, stop polling
+          if (match.status !== 'LIVE') {
+            console.log('📊 Polling: Match no longer live, stopping polling');
+            clearInterval(pollingInterval);
+            setTimerState(prev => ({ 
+              ...prev, 
+              status: match.status as TimerState['status'],
+              connectionStatus: 'disconnected' 
+            }));
+            return;
+          }
+          
+          // Calculate timer from match start time
+          const startTime = new Date(match.timer_started_at || match.match_date).getTime();
+          const now = Date.now();
+          const elapsedSeconds = Math.floor((now - startTime) / 1000);
+          const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+          const currentSecond = elapsedSeconds % 60;
+          const halfDuration = (match.duration || 90) / 2;
+          
+          // Determine current half
+          let currentHalf: 1 | 2 = 1;
+          let adjustedMinute = elapsedMinutes;
+          
+          // Handle second half timing
+          if (match.second_half_started_at) {
+            const secondHalfStart = new Date(match.second_half_started_at).getTime();
+            const secondHalfElapsed = Math.floor((now - secondHalfStart) / 1000);
+            currentHalf = 2;
+            adjustedMinute = Math.floor(halfDuration) + Math.floor(secondHalfElapsed / 60);
+          } else if (elapsedMinutes >= halfDuration) {
+            // Should be halftime, but check server state
+            if (match.status === 'HALFTIME') {
+              setTimerState(prev => ({ 
+                ...prev, 
+                status: 'HALFTIME',
+                isHalftime: true,
+                currentMinute: Math.floor(halfDuration),
+                currentSecond: 0,
+                displayTime: formatTime(Math.floor(halfDuration), 0),
+                displayMinute: `HT`,
+                connectionStatus: 'disconnected'
+              }));
+              return;
+            }
+          }
+          
+          // Update timer state with polling data
+          setTimerState(prev => ({
+            ...prev,
+            currentMinute: adjustedMinute,
+            currentSecond: currentSecond,
+            displayTime: formatTime(adjustedMinute, currentSecond),
+            displayMinute: formatMinuteDisplay({
+              ...prev,
+              currentMinute: adjustedMinute,
+              currentHalf: currentHalf,
+              addedTimeFirstHalf: match.added_time_first_half || 0,
+              addedTimeSecondHalf: match.added_time_second_half || 0
+            }),
+            status: match.status as TimerState['status'],
+            currentHalf: currentHalf,
+            isHalftime: match.status === 'HALFTIME',
+            isPaused: match.status === 'HALFTIME',
+            addedTimeFirstHalf: match.added_time_first_half || 0,
+            addedTimeSecondHalf: match.added_time_second_half || 0,
+            serverTime: now,
+            connectionStatus: 'disconnected' // Indicates we're using polling
+          }));
+          
+          console.log(`📊 Polling: Timer updated - ${adjustedMinute}:${currentSecond.toString().padStart(2, '0')}`);
+          
+        } catch (pollingError) {
+          console.error('❌ Polling error:', pollingError);
+          // Don't stop polling on single error, just log it
         }
-        
-        setTimerState(prev => ({
-          ...prev,
-          currentMinute: displayMinute,
-          currentSecond: currentSecond,
-          displayTime: formatTime(displayMinute, currentSecond),
-          displayMinute: `${displayMinute}'`,
-          currentHalf,
-          serverTime: now,
-          connectionStatus: 'disconnected' // Show we're in fallback mode
-        }));
-      }, 1000);
+      }, 2000); // Poll every 2 seconds
       
       // Store interval reference for cleanup
-      interpolationRef.current = fallbackInterval;
+      interpolationRef.current = pollingInterval;
       
     } catch (error) {
-      console.error('❌ Failed to start fallback timer:', error);
+      console.error('❌ Failed to start polling fallback:', error);
     }
-  }, [matchId, formatTime]);
+  }, [matchId, formatTime, formatMinuteDisplay]);
 
-  // Monitor connection health and start fallback if needed
+  // Monitor connection health and auto-start polling fallback
   useEffect(() => {
     const healthCheck = setInterval(() => {
       const timeSinceLastUpdate = Date.now() - lastUpdateRef.current;
       
-      // If no update for 10 seconds, consider connection unhealthy
-      if (timeSinceLastUpdate > 10000 && timerState.status === 'LIVE') {
-        console.warn('⚠️ No timer updates for 10 seconds, starting fallback timer');
-        setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+      // If SSE hasn't connected after 10 seconds, or no updates for 8 seconds
+      const isConnectionStalled = timeSinceLastUpdate > 8000 && timerState.connectionStatus === 'connecting';
+      const isUpdateStalled = timeSinceLastUpdate > 8000 && timerState.status === 'LIVE' && timerState.connectionStatus === 'connected';
+      
+      if (isConnectionStalled || isUpdateStalled) {
+        console.warn('⚠️ SSE connection failed or stalled, starting polling fallback');
         
-        // Start fallback timer if not already running
-        if (!interpolationRef.current) {
-          startFallbackTimer();
+        // Close any existing SSE connection
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+          eventSourceRef.current = null;
+        }
+        
+        // Start polling fallback if not already running
+        if (!interpolationRef.current || timerState.connectionStatus !== 'disconnected') {
+          startPollingFallback();
         }
       }
-    }, 5000);
+    }, 3000); // Check every 3 seconds
 
     return () => clearInterval(healthCheck);
-  }, [timerState.status, startFallbackTimer]);
+  }, [timerState.status, timerState.connectionStatus, startPollingFallback]);
 
   // Test SSE endpoint accessibility
   const testSSEEndpoint = useCallback(async () => {
@@ -432,7 +511,9 @@ export function useMatchTimer(matchId: string) {
   return {
     ...timerState,
     isConnected: timerState.connectionStatus === 'connected',
+    isPolling: timerState.connectionStatus === 'disconnected',
     reconnect: connectSSE,
+    startPolling: startPollingFallback,
     testSSEEndpoint // Expose for debugging
   };
 }
