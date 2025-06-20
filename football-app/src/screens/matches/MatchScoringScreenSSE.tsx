@@ -250,6 +250,10 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       console.log('🚀 Starting match:', matchId);
       console.log('🔍 Before start - Timer state:', timerState.status, 'Match state:', match?.status);
       
+      // Set flag IMMEDIATELY to show live screen
+      setMatchStartRequested(true);
+      console.log('✅ Match start requested - showing live screen immediately');
+      
       await soundService.initializeSounds();
       
       // Use SSE-based match start
@@ -257,34 +261,26 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       const startResponse = await apiService.startMatchWithSSE(matchId);
       console.log('✅ SSE start response:', startResponse);
       
-      // Set flag to indicate match start was requested (helps with SSE delay)
-      setMatchStartRequested(true);
-      
       await soundService.playMatchStartWhistle();
-      
-      // Don't reload immediately - let SSE handle status updates
-      // The SSE system will provide real-time match status updates
-      console.log('⏳ Waiting for SSE to confirm status update...');
       
       showCommentary("⚽ KICK-OFF! The referee blows the whistle and the match is underway!");
       
-      // Force a reload of match data after SSE confirms the status
+      // Reload match data to get updated status from database
       setTimeout(async () => {
-        console.log('🔍 Timer state after start:', timerState.status, 'Match state:', match?.status);
-        console.log('🔍 Will show live view?', (timerState.status === 'LIVE' || timerState.isHalftime || match?.status === 'LIVE'));
-        
-        // Reload match data to ensure UI shows correct state
+        console.log('🔍 Reloading match data after SSE start...');
         try {
           await loadMatchDetails();
-          console.log('✅ Match data reloaded after start');
+          console.log('✅ Match data reloaded - should now show LIVE status');
         } catch (error) {
           console.error('❌ Failed to reload match data:', error);
         }
-      }, 3000);
+      }, 2000);
       
       Vibration.vibrate(100);
     } catch (error) {
       console.error('❌ Failed to start match:', error);
+      // Reset the flag if match start fails
+      setMatchStartRequested(false);
       Alert.alert('Error', 'Failed to start match: ' + (error?.message || 'Unknown error'));
     }
   };
@@ -300,9 +296,34 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
           style: 'destructive',
           onPress: async () => {
             try {
-              await apiService.endMatch(matchId);
+              console.log('🏁 Attempting to end match:', matchId);
+              console.log('🔍 Current match status:', match?.status);
+              console.log('🔍 Current timer status:', timerState.status);
+              
+              // Try SSE-based end first if match was started with SSE
+              if (matchStartRequested || timerState.status === 'LIVE') {
+                try {
+                  console.log('📡 Using SSE end match endpoint...');
+                  await apiService.endMatchSSE(matchId);
+                  console.log('✅ SSE end match successful');
+                } catch (sseError) {
+                  console.warn('⚠️ SSE end failed, trying regular endpoint:', sseError);
+                  await apiService.endMatch(matchId);
+                  console.log('✅ Regular end match successful');
+                }
+              } else {
+                // Use regular endpoint for non-SSE matches
+                console.log('📊 Using regular end match endpoint...');
+                await apiService.endMatch(matchId);
+                console.log('✅ Regular end match successful');
+              }
+              
               await soundService.playFullTimeWhistle();
               showCommentary("📢 FULL-TIME! The referee blows the final whistle! The match has ended!");
+              
+              // Reset the start requested flag
+              setMatchStartRequested(false);
+              
               setTimeout(() => {
                 navigation.replace('PlayerRating', { 
                   matchId,
@@ -313,7 +334,8 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                 });
               }, 1500);
             } catch (error) {
-              Alert.alert('Error', 'Failed to end match');
+              console.error('❌ Failed to end match:', error);
+              Alert.alert('Error', 'Failed to end match: ' + (error?.message || 'Unknown error'));
             }
           }
         }
@@ -537,7 +559,24 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       case 'Actions':
         return (
           <View style={styles.tabContent}>
-            {(timerState.status === 'LIVE' || timerState.isHalftime || match?.status === 'LIVE' || matchStartRequested) ? (
+            {(() => {
+              const shouldShowLive = (
+                timerState.status === 'LIVE' || 
+                timerState.isHalftime || 
+                match?.status === 'LIVE' || 
+                matchStartRequested
+              );
+              
+              console.log('🔍 Live Screen Decision:', {
+                timerStatus: timerState.status,
+                isHalftime: timerState.isHalftime,
+                matchStatus: match?.status,
+                matchStartRequested: matchStartRequested,
+                shouldShowLive: shouldShowLive
+              });
+              
+              return shouldShowLive;
+            })() ? (
               <View style={styles.sectionContainer}>
                 {/* Time Controls Bar */}
                 <View style={styles.timeControlsBar}>

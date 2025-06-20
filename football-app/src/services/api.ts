@@ -1304,6 +1304,12 @@ class ApiService {
     });
   }
 
+  async endMatchSSE(id: string) {
+    return this.request(`/sse/${id}/fulltime-sse`, {
+      method: 'PATCH',
+    });
+  }
+
   // Formation endpoints
   async saveFormationForMatch(matchId: string, teamId: string, formationData: {
     formation: string;
