@@ -104,9 +104,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       isHalftime: timerState.isHalftime
     });
     
-    // Reset manual start flag once SSE confirms live status
-    if (matchStartRequested && timerState.status === 'LIVE' && timerState.connectionStatus === 'connected') {
-      console.log('✅ SSE confirmed live status, resetting manual flag');
+    // Reset manual start flag once timer confirms live status (SSE or polling)
+    if (matchStartRequested && timerState.status === 'LIVE') {
+      console.log('✅ Timer confirmed live status, resetting manual flag');
       setMatchStartRequested(false);
     }
   }, [timerState, matchStartRequested]);
@@ -222,6 +222,12 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       setShowLiveView(shouldShowLive);
       console.log(`🔄 LIVE VIEW STATE CHANGED: ${showLiveView} → ${shouldShowLive}`);
     }
+    
+    // If match is live in DB but timer isn't live yet, trigger polling immediately
+    if (isMatchLiveInDB && timerState.status !== 'LIVE' && timerState.connectionStatus === 'connecting') {
+      console.log('⚡ Match is LIVE in DB but timer not started - triggering immediate polling');
+      timerState.startPolling?.();
+    }
   }, [match?.status, matchStartRequested, timerState.status, timerState.isHalftime, showLiveView]);
 
   const loadMatchDetails = async () => {
@@ -293,16 +299,22 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       
       showCommentary("⚽ KICK-OFF! The referee blows the whistle and the match is underway!");
       
-      // Reload match data to get updated status from database
+      // Reload match data immediately and trigger polling fallback if needed
       setTimeout(async () => {
-        console.log('🔍 Reloading match data after SSE start...');
+        console.log('🔍 Reloading match data after start...');
         try {
           await loadMatchDetails();
           console.log('✅ Match data reloaded - should now show LIVE status');
+          
+          // If timer hook hasn't started polling yet, trigger it manually
+          if (timerState.connectionStatus === 'connecting') {
+            console.log('⚡ Triggering manual polling fallback after match start');
+            timerState.startPolling?.();
+          }
         } catch (error) {
           console.error('❌ Failed to reload match data:', error);
         }
-      }, 2000);
+      }, 1000); // Faster reload - 1 second instead of 2
       
       Vibration.vibrate(100);
     } catch (error) {
