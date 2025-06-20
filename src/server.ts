@@ -1,9 +1,5 @@
 import app from './app';
 import { database } from './models/databaseFactory';
-import { webSocketService } from './services/WebSocketService';
-import { matchTimerService } from './services/MatchTimerService';
-import { simpleWebSocketService } from './services/SimpleWebSocketService';
-import { simpleMatchTimer } from './services/SimpleMatchTimer';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
@@ -103,17 +99,8 @@ async function startServer() {
       }
     });
 
-    // Initialize BOTH WebSocket services for testing
-    console.log('🔌 Initializing WebSocket servers...');
-    webSocketService.initialize(server);
-    simpleWebSocketService.initialize(server);
-    
-    // Start BOTH timer services for testing  
-    console.log('⏱️ Starting timer services...');
-    matchTimerService.startTimerService();
-    // simpleMatchTimer starts automatically
-    
-    console.log('✅ Both timer systems initialized successfully!');
+    // SSE timer service is initialized automatically when matches start
+    console.log('✅ Server started successfully! SSE timer service ready.');
 
     // Graceful shutdown handlers
     process.on('SIGTERM', () => {

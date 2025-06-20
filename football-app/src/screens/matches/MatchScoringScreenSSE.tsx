@@ -31,6 +31,7 @@ import {
   DesignSystem,
 } from '../../components/professional';
 import ModernPitchFormation from '../../components/ModernPitchFormation';
+import { SSETestButton } from '../../components/SSETestButton';
 
 const { width, height } = Dimensions.get('window');
 const { colors, typography, spacing, borderRadius, shadows, gradients } = DesignSystem;
@@ -854,6 +855,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             onBack={() => navigation.goBack()}
           />
         </Animated.View>
+        
+        {/* SSE Test Button for Debugging */}
+        {__DEV__ && <SSETestButton />}
         
         {/* Enhanced Connection Status Indicator */}
         <View style={styles.discreteConnectionIndicator}>

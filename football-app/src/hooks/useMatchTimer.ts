@@ -201,9 +201,23 @@ export function useMatchTimer(matchId: string) {
       
       // Create new EventSource connection
       console.log('🚀 SSE: Creating new EventSource connection...');
-      const eventSource = new EventSource(url);
+      console.log('🔍 SSE: EventSource constructor available:', typeof EventSource !== 'undefined');
       
-      eventSourceRef.current = eventSource;
+      try {
+        const eventSource = new EventSource(url);
+        console.log('✅ SSE: EventSource created successfully');
+        console.log('🔍 SSE: Initial readyState:', eventSource.readyState);
+        console.log('🔍 SSE: Event source properties:', {
+          url: eventSource.url,
+          readyState: eventSource.readyState,
+          withCredentials: eventSource.withCredentials
+        });
+        eventSourceRef.current = eventSource;
+      } catch (error) {
+        console.error('❌ SSE: Failed to create EventSource:', error);
+        setTimerState(prev => ({ ...prev, connectionStatus: 'error' }));
+        return;
+      }
 
       // Set up connection timeout
       const connectionTimeout = setTimeout(() => {

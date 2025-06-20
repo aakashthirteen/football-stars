@@ -29,6 +29,9 @@ console.log('🗄️ PostgreSQL database initialization started');
 app.use(cors({
   origin: process.env.CORS_ORIGIN || '*',
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  exposedHeaders: ['Content-Type', 'Cache-Control', 'Connection'],
 }));
 
 app.use(express.json());

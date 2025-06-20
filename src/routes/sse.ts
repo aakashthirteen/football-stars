@@ -7,6 +7,42 @@ import { AuthRequest } from '../types';
 const router = Router();
 
 /**
+ * Simple SSE test endpoint to verify connectivity
+ * GET /api/sse/test
+ */
+router.get('/test', (req, res: Response) => {
+  console.log('🧪 SSE Test: Client connected to test endpoint');
+  
+  // Set SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'X-Accel-Buffering': 'no' // Disable proxy buffering
+  });
+  
+  // Send initial message
+  res.write('data: {"message": "SSE test connection established!", "timestamp": ' + Date.now() + '}\n\n');
+  
+  // Send time updates every second
+  const interval = setInterval(() => {
+    const data = {
+      type: 'test',
+      time: new Date().toISOString(),
+      timestamp: Date.now()
+    };
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  }, 1000);
+  
+  // Clean up on client disconnect
+  req.on('close', () => {
+    console.log('🧪 SSE Test: Client disconnected');
+    clearInterval(interval);
+  });
+});
+
+/**
  * Server-Sent Events endpoint for real-time match timer updates
  * GET /api/matches/:id/timer-stream
  */

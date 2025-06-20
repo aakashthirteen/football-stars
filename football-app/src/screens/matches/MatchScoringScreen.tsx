@@ -16,7 +16,6 @@ import {
 } from 'react-native';
 import { apiService } from '../../services/api';
 import { soundService } from '../../services/soundService';
-import { webSocketService, MatchTimerUpdate } from '../../services/WebSocketService';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useMatchNotifications } from '../../hooks/useNotifications';
