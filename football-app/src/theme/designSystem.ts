@@ -135,6 +135,32 @@ export const Typography = {
     normal: 1.5,
     relaxed: 1.75,
   },
+
+  // Text Style Presets
+  hero: {
+    fontSize: 32,
+    fontWeight: '700',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '600',
+  },
+  subtitle: {
+    fontSize: 18,
+    fontWeight: '500',
+  },
+  body: {
+    fontSize: 16,
+    fontWeight: '400',
+  },
+  caption: {
+    fontSize: 12,
+    fontWeight: '400',
+  },
+  button: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
 };
 
 // Spacing System - 8px Grid
@@ -218,6 +244,7 @@ export const Shadows = {
 export const ProfessionalGradients = {
   // Main gradients
   primary: [ProfessionalColors.primary.main, ProfessionalColors.primary.dark],
+  secondary: [ProfessionalColors.accent.blue, ProfessionalColors.accent.purple],
   dark: [ProfessionalColors.background.secondary, ProfessionalColors.background.primary],
   
   // Team gradients

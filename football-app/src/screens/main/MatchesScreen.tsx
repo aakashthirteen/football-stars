@@ -160,17 +160,14 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
   };
 
   const handleMatchPress = (match: Match) => {
-    console.log('🎯 Navigation Decision:', { matchId: match.id, status: match.status });
     
     if (match.status === 'COMPLETED') {
       navigation.navigate('MatchOverview', { matchId: match.id });
     } else if (match.status === 'LIVE' || match.status === 'HALFTIME') {
-      // INSTANT navigation to live screen - no flicker!
-      console.log('⚡ Navigating directly to LiveMatch');
+      // INSTANT navigation to live screen
       navigation.navigate('LiveMatch', { matchId: match.id });
     } else {
       // SCHEDULED matches go to dedicated scheduled screen
-      console.log('📅 Navigating to ScheduledMatch');
       navigation.navigate('ScheduledMatch', { matchId: match.id });
     }
   };

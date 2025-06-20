@@ -63,9 +63,9 @@ export default function MatchesStack() {
       <Stack.Screen name="MatchesList" component={MatchesScreen} />
       <Stack.Screen name="CreateMatch" component={CreateMatchScreen} />
       <Stack.Screen name="PreMatchPlanning" component={PreMatchPlanningScreen} />
-      <Stack.Screen name="MatchScoring" component={MatchScoringScreenSSE} />
+      <Stack.Screen name="MatchScoring" component={LiveMatchScreen} />
       <Stack.Screen name="ScheduledMatch" component={ScheduledMatchScreen} />
-      <Stack.Screen name="LiveMatch" component={LiveMatchScreen} />
+      <Stack.Screen name="LiveMatch" component={MatchScoringScreenSSE} />
       <Stack.Screen name="MatchOverview" component={MatchOverviewScreen} />
       <Stack.Screen name="PlayerRating" component={PlayerRatingScreen} />
       <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />

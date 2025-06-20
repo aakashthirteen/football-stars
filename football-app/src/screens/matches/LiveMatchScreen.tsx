@@ -34,12 +34,14 @@ export default function LiveMatchScreen() {
   const route = useRoute<LiveMatchScreenRouteProp>();
   const { matchId } = route.params;
 
+
   const [match, setMatch] = useState<Match | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState<'actions' | 'commentary' | 'stats' | 'formation'>('actions');
 
   // Use the timer hook for real-time updates
-  const { timerState, connectionStatus } = useMatchTimer(matchId);
+  const timerState = useMatchTimer(matchId);
+  const connectionStatus = timerState.connectionStatus;
 
   useEffect(() => {
     loadMatchData();
@@ -201,7 +203,7 @@ export default function LiveMatchScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ProfessionalHeader 
-        title="Live Match"
+        title="🔴 Live Match"
         onBack={() => navigation.goBack()}
         rightElement={
           <TouchableOpacity onPress={handleEndMatch} style={styles.endMatchButton}>
