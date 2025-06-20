@@ -1,11 +1,81 @@
 # Football Stars App - Current Status
 
 **Last Updated:** June 20, 2025  
-**Status:** ✅ **TIMER SYSTEM STABILIZED - POLLING-FIRST ARCHITECTURE WORKING**
+**Status:** ⚠️ **CRITICAL ISSUES IDENTIFIED - FUNDAMENTAL FIXES IN PROGRESS**
 
 ---
 
-## 🚀 **FINAL SESSION UPDATE - JUNE 20, 2025 (SESSION 16 - STABILIZATION)**
+## 🔧 **LATEST SESSION UPDATE - JUNE 20, 2025 (DEEP ROOT CAUSE ANALYSIS)**
+
+### **🚨 FUNDAMENTAL PROBLEMS DISCOVERED**
+**Issue Resolution Approach:** Moved from surface patches to deep architectural analysis
+**Key Findings:** Timer system and navigation had fundamental design flaws requiring complete overhaul
+
+### **⚡ TIMER AUTO-STOP FIXES IMPLEMENTED**
+**Problem:** Timer never paused at halftime or ended at fulltime - matches ran indefinitely
+**Root Cause Analysis:**
+1. **Server Configuration Issue**: AUTO_TRIGGER_HALFTIME and AUTO_TRIGGER_FULLTIME were disabled
+2. **Critical Math Bug**: Fulltime calculation used wrong baseline (currentMinute vs matchDuration)
+3. **Second Half Logic Flaw**: Timer logic reset caused immediate fulltime trigger
+
+**Fixes Applied:**
+- ✅ **Enabled Auto-Triggers**: Server-side configuration properly enabled for automatic match control
+- ✅ **Fixed Fulltime Math**: Changed from `currentMinute >= (halfDuration + stoppage)` to `currentMinute >= (matchDuration + stoppage)`
+- ✅ **Corrected Timer Flow**: Now properly calculates 45' → 90' progression in second half
+
+**Current Status:**
+- ✅ **Halftime Auto-Pause**: Working correctly at 45 minutes + stoppage time
+- ⚠️ **Second Half Timer**: Starting with 15-second delay instead of proper continuation
+- ⚠️ **Fulltime Logic**: May still have timing calculation issues
+
+### **📱 NAVIGATION FLICKER ANALYSIS COMPLETED**
+**Problem:** Double screen switching and flicker when opening live matches
+**Root Cause Analysis:**
+1. **Multiple Competing State Sources**: 7+ useEffect hooks causing re-render loops
+2. **SSE vs Polling Conflict**: Both systems running simultaneously updating state
+3. **Race Conditions**: Timer state, match state, and UI state updating independently
+4. **State Synchronization Issues**: No single source of truth for live view decision
+
+**Attempted Fixes:**
+- ✅ **Consolidated useEffect Hooks**: Reduced from 7 to 4 focused effects
+- ✅ **Changed to SSE-First**: Modified from polling-first to SSE-first approach
+- ✅ **Route-Based Detection**: Added immediate live detection via navigation parameters
+- ⚠️ **Still Experiencing Issues**: Double screen flicker persists, needs deeper architectural changes
+
+**Current Status:**
+- ⚠️ **Screen Flickering**: Still present when opening live matches
+- ⚠️ **Multiple Screen Switching**: Continues to show scheduled → live transitions
+- ⚠️ **State Competition**: Multiple systems still competing for timer control
+
+### **🎯 IMMEDIATE PRIORITIES (CRITICAL)**
+**Based on User Feedback:** Focus on fundamental architectural issues, not surface patches
+
+**1. Second Half Timer Accuracy** (HIGH PRIORITY)
+- **Issue**: Timer starts with 15-second delay after "Start Second Half"
+- **Expected**: Should continue from exact halftime point (matchDuration/2)
+- **Root Cause**: Timer state synchronization issue between halftime pause and second half resume
+
+**2. Navigation Flicker Elimination** (HIGH PRIORITY)  
+- **Issue**: Double screen transitions (scheduled → live) when opening live matches
+- **Expected**: Immediate live screen display with no intermediate states
+- **Root Cause**: Competing state management systems and async data loading conflicts
+
+**3. Timer System Architecture Review** (MEDIUM PRIORITY)
+- **Consideration**: May need to choose single timer approach (SSE OR polling, not both)
+- **Focus**: Eliminate state competition and race conditions
+- **Goal**: Single source of truth for timer state
+
+### **📋 NEXT SESSION ACTION PLAN**
+1. **Timer Continuation Fix**: Debug second half start timing to eliminate 15-second offset
+2. **Navigation Architecture**: Deep analysis of state management conflicts
+3. **Single Timer Source**: Implement clean SSE-first OR polling-only approach
+4. **State Management Consolidation**: Eliminate competing useEffect hooks and state updates
+
+**Development Philosophy:** Focus on fundamental architecture over quick patches
+
+---
+
+## 🚀 **PREVIOUS SESSION 16 - STABILIZATION RECORD**
 
 ### **✅ TIMER SYSTEM STABILIZED AFTER MULTIPLE ITERATIONS**
 **Journey:** Through multiple fix attempts, reverts, and stabilization efforts
@@ -697,14 +767,13 @@
 - 🟡 OTP verification (planned)
 - 🟡 QR code scanning (planned)
 
-### **Match System** ✅ **PERFECT TIMING - SESSION 9 UPDATE**
+### **Match System** ⚠️ **PARTIALLY WORKING - TIMING ISSUES**
 - ✅ Create/manage matches with flexible duration (5min to 120min)
-- ✅ **PERFECT**: Automatic halftime at EXACT duration/2 + stoppage time
-- ✅ **PERFECT**: Automatic fulltime at EXACT duration + stoppage time  
-- ✅ **PERFECT**: Database constraints fixed - halftime API fully operational
-- ✅ **NEW**: 5-minute matches for rapid testing with 1-second timer updates
-- ✅ **NEW**: Comprehensive timing logs for debugging and monitoring
-- ✅ **NEW**: Animated wave progress bar with natural left-right flow
+- ✅ **WORKING**: Automatic halftime at 45 minutes + stoppage time
+- ⚠️ **ISSUE**: Second half timer starts with 15-second delay instead of proper continuation
+- ⚠️ **ISSUE**: Navigation flicker when opening live matches (scheduled → live screen switching)
+- ⚠️ **ISSUE**: Multiple state management systems competing for timer control
+- ✅ **FIXED**: Fulltime calculation no longer triggers immediately after halftime
 - ✅ **ENHANCED**: Professional halftime modal with team scores and timing
 - ✅ **ENHANCED**: Smart commentary toast system with event-specific colors
 - ✅ **ENHANCED**: Sleek UI matching HomeScreen aesthetic
@@ -713,6 +782,8 @@
 - ✅ Match scoring system with assists
 - ✅ Professional match cards
 - ✅ Player performance ratings
+- ⚠️ **NEEDS WORK**: Timer accuracy and state synchronization
+- ⚠️ **NEEDS WORK**: Navigation architecture simplification
 
 ### **Tournament System**
 - ✅ Create/join tournaments
