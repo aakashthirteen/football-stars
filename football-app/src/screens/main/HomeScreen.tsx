@@ -229,9 +229,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
                   key={`${match.id}-${index}`}
                   style={styles.tickerItem}
                   onPress={() => {
-                    const targetScreen = (match.status === 'LIVE' || match.status === 'HALFTIME') ? 'LiveMatch' : 'ScheduledMatch';
                     navigation.getParent()?.navigate('Matches', { 
-                      screen: targetScreen, 
+                      screen: 'MatchScoring', 
                       params: { matchId: match.id } 
                     });
                   }}
@@ -376,9 +375,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
                     competition: 'Grassroots League',
                   }}
                   onPress={() => {
-                    const targetScreen = (match.status === 'LIVE' || match.status === 'HALFTIME') ? 'LiveMatch' : 'ScheduledMatch';
                     navigation.getParent()?.navigate('Matches', { 
-                      screen: targetScreen, 
+                      screen: 'MatchScoring', 
                       params: { matchId: match.id } 
                     });
                   }}
@@ -399,9 +397,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
                     competition: 'Grassroots League',
                   }}
                   onPress={() => {
-                    const targetScreen = (match.status === 'LIVE' || match.status === 'HALFTIME') ? 'LiveMatch' : 'ScheduledMatch';
                     navigation.getParent()?.navigate('Matches', { 
-                      screen: targetScreen, 
+                      screen: 'MatchScoring', 
                       params: { matchId: match.id } 
                     });
                   }}

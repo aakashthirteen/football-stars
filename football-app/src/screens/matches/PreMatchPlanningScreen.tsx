@@ -157,8 +157,8 @@ export default function PreMatchPlanningScreen({ navigation, route }: PreMatchPl
         {
           text: 'Start Match',
           onPress: () => {
-            // Navigate to scheduled match screen since match hasn't started yet
-            navigation.replace('ScheduledMatch', { 
+            // Navigate to match scoring screen
+            navigation.replace('MatchScoring', { 
               matchId: matchId
             });
           },

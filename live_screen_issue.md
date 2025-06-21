@@ -1,48 +1,48 @@
-Improving the Live Match Screen Transitions
-Immediate Navigation for Live Matches
-If a match is already in progress, the app should navigate directly to the live view instead of showing any pre-kickoff screen. In other words, users should never see a "Ready to Kick Off" message for a match that has started – the UI should jump straight into the live match interface
+Resolving the Live Match “Double Screen” Flicker Issue
+Understanding the Root Cause
+Originally, the app used one single screen component (MatchScoringScreenSSE) to handle both scheduled and live match views. The UI content would toggle based on the match status or a state flag (showLiveView). When a match transitioned from scheduled to live (or when opening a live match), the component initially rendered the “scheduled” layout (e.g. "Ready to Kick Off?" screen) and then switched to the live layout once the state updated
 GitHub
-. This means skipping the scheduled state entirely when opening an ongoing match. Ensuring immediate navigation to the live screen will eliminate the jarring effect of a brief scheduled screen flash for live matches.
-Current Approach: Conditional Rendering Causes Flicker
-Right now, the app uses one combined screen (MatchScoringScreenSSE.tsx) to handle both scheduled and live match states. The component renders conditionally based on a state flag (e.g. shouldShowLiveView). For example, the render logic looks roughly like:
+GitHub
+. This implementation caused a visible flicker or “double screen” effect – it looked like the scheduled screen flashes for a moment before the live screen appears. The investigation confirms this behavior: on navigating to a LIVE match, the app briefly shows the scheduled match UI before updating to the live match UI. This isn’t actually a double navigation, but rather one screen re-rendering its content. Nonetheless, it feels like two screens loading back-to-back, which is confusing and frustrating for users.
+Why the Issue Persists After Splitting Screens
+You took the right approach by introducing separate routes/screens for scheduled and live matches (e.g. a dedicated LiveMatch screen vs ScheduledMatch screen). This is indeed a recommended solution to avoid the conditional UI flicker
+GitHub
+. In theory, navigating to a LiveMatch route should immediately show the live match component, bypassing any scheduled-match UI. However, the flicker issue is still happening because of how the live screen component initializes. The MatchScoringScreenSSE component (now used for the LiveMatch route) still contains logic that can render the scheduled-state UI if it doesn’t yet know the match is live. In the code, the decision to show live vs scheduled view is controlled by a computed flag shouldShowLiveView. Crucially, shouldShowLiveView gives first priority to a route param (routeIsLive) to decide if the live UI should be shown immediately
+GitHub
+. If that route parameter is missing or false, the component falls back to checking the loaded match data and timer status – which might not be instant. In that case, on initial mount the component doesn’t realize the match is live yet, and thus renders the “scheduled” layout by default until the data/timer updates. This is likely why you still see the “Scheduled” screen for a moment. In other words, the live screen isn’t being told upfront that the match is live, so it momentarily shows the default (scheduled) UI.
+Solution: Ensure Immediate Live View on Navigation
+To fix the flicker, we need to guarantee that the LiveMatch screen knows from the start that it should display the live match UI. Here are the steps to achieve this:
+Pass the Live indicator in Navigation: When navigating to the live match screen, include a param that explicitly flags the match as live. For example, update your handleMatchPress logic to pass the match status or a boolean flag:
 tsx
 Copy
-{ shouldShowLiveView ? (
-    // Live match UI
-) : (
-    // "Ready to Kick Off" UI
-) }
-This means when you navigate to a match, it first loads the scheduled match layout by default, then once the app detects the match is live, it swaps in the live UI. No separate navigation (e.g. navigation.navigate('LiveMatch')) is performed – it’s all in one screen
+if (match.status === 'LIVE' || match.status === 'HALFTIME') {
+    navigation.navigate('LiveMatch', { 
+        matchId: match.id, 
+        matchStatus: match.status, 
+        isLive: true 
+    });
+} else {
+    navigation.navigate('ScheduledMatch', { matchId: match.id });
+}
+This ensures route.params.isLive will be true on the LiveMatch screen. In the MatchScoringScreenSSE component, the shouldShowLiveView useMemo will see routeIsLive === true and immediately return true (meaning render the live UI)
 GitHub
-. As a result, users experience a flicker/double screen effect: the scheduled screen appears momentarily and then is replaced by the live screen. The log and code confirm that the UI toggles state after initial render when the conditions update, which is why it looks like two screens flash back-to-back
+. By providing this param, we bypass the need to wait for any API or timer update to confirm the match status – the UI will treat it as live from the get-go.
+Verify the Live screen logic: The MatchScoringScreenSSE already logs the route params on mount (console.log('🚀 INSTANT: Screen opened with params:', {...}) around line 83). After your change, you should see in the logs that routeIsLive is true for live matches. The internal logic will then mark shouldShowLiveView as true immediately, so the scheduled UI branch should not execute at all.
+Loading state vs. Flicker: The component is designed to show a loading indicator until data is ready, which helps avoid showing the wrong UI. Specifically, it won’t render the main UI until isDataReady is true, instead showing a message like “Preparing live view...” with a spinner
 GitHub
-. This approach is the core issue leading to the unsmooth transition.
-Other Factors Exacerbating the Flicker
-Several asynchronous behaviors in the current implementation make the flicker worse:
-Loading spinners and timeouts: There may be a loading spinner or a “safety timeout” (~3 seconds) while the app determines the match state and awaits data. This delay can cause the scheduled UI to linger on screen longer than necessary.
-SSE connection fallback: The timer uses Server-Sent Events; if the SSE connection doesn’t establish immediately, the code might wait a few seconds before falling back or updating the state. For example, if SSE doesn’t connect within 3 seconds, the app might force-update the timer or show a fallback, during which time the scheduled view stays visible.
-Multiple useEffect triggers: The match screen likely has multiple hooks (for loading match data, starting the timer, subscribing to SSE, etc.) that update state in sequence. These can trigger re-renders at different times (e.g. one effect sets showLiveView true, another stops a loading indicator), causing visible UI transitions.
-Route params vs. live data mismatch: The navigation is passing props like matchStatus or isLive to the screen, but the actual live state might rely on backend confirmation or SSE events. If the screen’s initial state doesn’t perfectly align with the real match status (for example, the param says live but some internal timerState still says scheduled until SSE kicks in), the UI might flip states after a brief delay. Conflicting sources of truth (navigation route vs. timer hook) can momentarily show the wrong screen.
-In summary, the combination of these factors means the app doesn’t seamlessly load directly into the correct state. Instead, it renders the scheduled view then updates to live, which feels glitchy. Each asynchronous step (data fetch, SSE connect, timeouts) can prolong the transitional flicker.
-Recommended Solution: Split into Separate Screens
-The most robust fix is to refactor into two distinct screens for the two states, rather than one conditional screen
+. With the isLive param in place, the code’s data readiness check treats live matches differently – it waits for either the timer or match data to confirm live status
 GitHub
-. This would dramatically improve the UX by removing the conditional UI swap. Key changes to implement:
-Create separate screen components: e.g. ScheduledMatchScreen.tsx for matches that haven’t started, and LiveMatchScreen.tsx for ongoing (live or halftime) matches. Each screen will handle only its respective UI and logic.
-Update navigation routes: In your navigation stack, add separate routes for the scheduled and live match screens. For example:
-tsx
-Copy
-<Stack.Screen name="ScheduledMatch" component={ScheduledMatchScreen} />
-<Stack.Screen name="LiveMatch" component={LiveMatchScreen} />
-Remove or deprecate using the combined MatchScoring route for these states.
-Navigate explicitly based on match status: Wherever the app opens a match (for example, in the matches list or after creating a match), decide the destination screen by the match’s status.
-If a match is 'LIVE' or 'HALFTIME', use navigation.navigate('LiveMatch', { matchId: ... }).
-If a match is 'SCHEDULED' (not started yet), use navigation.navigate('ScheduledMatch', { matchId: ... }).
-For instance, in the matches list press handler, replace the single MatchScoring navigation with logic that directs to the correct screen. This ensures users go straight into the appropriate UI without a state toggle
+. In practice, this means when you tap a live match, you might see a loading spinner for a moment (if data is loading) but you should no longer see the "Ready to Kick Off" card at all. The loading state is a better UX than a misleading scheduled screen.
+Differentiate or Remove Scheduled UI in Live Component: Since you now have a separate ScheduledMatch screen, you can further simplify the live match component to prevent any chance of the scheduled UI showing:
+One option is to conditionally render nothing for the scheduled part when the route is the live screen. (For example, if you had to keep a single component for both, you could use the route name or the passed status to skip rendering the "Ready to Kick Off" section.)
+An even cleaner approach is to remove the scheduled-match UI code from MatchScoringScreenSSE entirely, and possibly move it into a new ScheduledMatchScreen component. This seems to be what you attempted by adding a ScheduledMatch route. Make sure the LiveMatch route’s component does not contain the <Ready to Kick Off?> layout at all now. By isolating the live view, even if there’s a slight delay, the user will never accidentally see the scheduled match prompt on the live screen.
+Test the flow: After implementing the above, run the app and tap on a live or halftime match:
+It should navigate directly to the LiveMatch screen/component.
+If the match data loads quickly, the live match details and timer appear almost instantly.
+If there’s a slight delay (data fetch or SSE connection), you’ll see a “Loading match...” or “Preparing live view...” spinner instead of any scheduled-match UI. Then the live content will appear.
+At no point should the “Ready to Kick Off?” scheduled screen flash – since we never render that for an already-live match now.
+By following these steps, the navigation will feel seamless and eliminate the perceived double screen effect. The key is that the LiveMatch screen must be given enough context to render the correct UI from the start, which our navigation param and component separation achieve. This approach aligns with best practices for React Navigation and state handling, and it’s supported by the project’s own analysis that separating views or pre-loading state is the solution to the flicker
 GitHub
 .
-Eliminate conditional rendering for state: Each new screen should have a single responsibility. The live match screen can assume the match is in progress and set up the timer/SSE accordingly, without any “Ready to Kick Off” UI at all. Conversely, the scheduled screen shows pre-match info or a “Start Match” button, and doesn’t mount any live timer logic. By removing the {showLiveView ? ... : ...} split in one component, the flicker will disappear, because the app isn’t trying to swap UIs in-place mid-stream.
-Simplify state management: With separate screens, you can also simplify or remove the hacks that were in place to mitigate timing issues. For example, you likely won’t need the artificial 3-second delay to decide which view to show – the navigation decision is made upfront. The live screen can still show a loading indicator if needed while connecting SSE, but the user won’t see an unrelated screen first. Also, the isNewMatch flag logic (that attempted to immediately show live view) can be removed or moved into the navigation layer (i.e. just navigate to live screen on match start). Overall, each screen’s useEffect logic will be more straightforward, reducing conflicting updates.
-By implementing these changes, the double-screen flicker should be fully resolved. Users opening a live match will see the live scoring screen immediately (no flash of the kickoff screen), and starting a match will feel like a single transition to the live interface. In short, explicit navigation and screen separation will provide a smooth UX, as there’s no conditional content swap happening mid-render
-GitHub
-. This aligns with best practices for React Navigation (each screen for one purpose) and will make the app feel much more polished.
+Conclusion
+In summary, the double-screen flicker was caused by reusing one component for two states. You’ve taken the right step to split the screens. The final piece is to pass an explicit “live” flag when navigating to the live match screen and ensure the live screen doesn’t default to any scheduled-match UI. Once implemented, users will no longer see a scheduled match screen flash; instead they go straight into the live match experience (with at most a brief loader). This will make the transition into live matches feel instantaneous and fix the frustration you’ve been experiencing.
