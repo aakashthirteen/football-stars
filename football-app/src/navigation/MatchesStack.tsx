@@ -2,9 +2,7 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import MatchesScreen from '../screens/main/MatchesScreen';
 import CreateMatchScreen from '../screens/matches/CreateMatchScreen';
-import MatchScoringScreenSSE from '../screens/matches/MatchScoringScreenSSE';
-import ScheduledMatchScreen from '../screens/matches/ScheduledMatchScreen';
-import LiveMatchScreen from '../screens/matches/LiveMatchScreen';
+import MatchScoringScreen from '../screens/matches/MatchScoringScreen';
 import MatchOverviewScreen from '../screens/matches/MatchOverviewScreen';
 import PlayerRatingScreen from '../screens/matches/PlayerRatingScreen';
 import MatchSummaryScreen from '../screens/matches/MatchSummaryScreen';
@@ -14,9 +12,7 @@ import PreMatchPlanningScreen from '../screens/matches/PreMatchPlanningScreen';
 export type MatchesStackParamList = {
   MatchesList: undefined;
   CreateMatch: undefined;
-  MatchScoring: { matchId: string; isNewMatch?: boolean; hasFormations?: boolean; matchStatus?: string; isLive?: boolean };
-  ScheduledMatch: { matchId: string };
-  LiveMatch: { matchId: string };
+  MatchScoring: { matchId: string; isNewMatch?: boolean; hasFormations?: boolean };
   MatchOverview: { matchId: string };
   PlayerRating: { 
     matchId: string; 
@@ -63,9 +59,7 @@ export default function MatchesStack() {
       <Stack.Screen name="MatchesList" component={MatchesScreen} />
       <Stack.Screen name="CreateMatch" component={CreateMatchScreen} />
       <Stack.Screen name="PreMatchPlanning" component={PreMatchPlanningScreen} />
-      <Stack.Screen name="MatchScoring" component={LiveMatchScreen} />
-      <Stack.Screen name="ScheduledMatch" component={ScheduledMatchScreen} />
-      <Stack.Screen name="LiveMatch" component={MatchScoringScreenSSE} />
+      <Stack.Screen name="MatchScoring" component={MatchScoringScreen} />
       <Stack.Screen name="MatchOverview" component={MatchOverviewScreen} />
       <Stack.Screen name="PlayerRating" component={PlayerRatingScreen} />
       <Stack.Screen name="MatchSummary" component={MatchSummaryScreen} />

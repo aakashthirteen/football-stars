@@ -19,6 +19,7 @@ import { soundService } from '../../services/soundService';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useMatchNotifications } from '../../hooks/useNotifications';
+import { useMatchTimer } from '../../hooks/useMatchTimer';
 
 // Professional Components
 import {
@@ -79,14 +80,48 @@ const COMMENTARY_TEMPLATES = {
 export default function MatchScoringScreen({ navigation, route }: MatchScoringScreenProps) {
   const { matchId } = route?.params || {};
   const [match, setMatch] = useState<any>(null);
-  const [currentMinute, setCurrentMinute] = useState(0);
-  const [currentSecond, setCurrentSecond] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Use SSE timer hook for real-time updates
+  const timerState = useMatchTimer(matchId || '');
+  
+  // Match state (from database - immediate and reliable)
   const [isLive, setIsLive] = useState(false);
   const [isHalftime, setIsHalftime] = useState(false);
   const [currentHalf, setCurrentHalf] = useState(1);
   const [addedTimeFirstHalf, setAddedTimeFirstHalf] = useState(0);
   const [addedTimeSecondHalf, setAddedTimeSecondHalf] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  
+  // Timer values - use SSE when connected, fallback when not
+  const getCurrentTimerValues = () => {
+    if (timerState.connectionStatus === 'connected') {
+      return {
+        minute: timerState.currentMinute,
+        second: timerState.currentSecond
+      };
+    }
+    
+    // Fallback calculation - but PAUSE during halftime!
+    if (isHalftime) {
+      // During halftime, freeze at 45 minutes (or whatever minute halftime was triggered)
+      return { minute: 45 + addedTimeFirstHalf, second: 0 };
+    }
+    
+    if (isLive && match) {
+      const matchStart = new Date(match.matchDate || match.match_date || 0).getTime();
+      const elapsed = Date.now() - matchStart;
+      return {
+        minute: Math.max(0, Math.floor(elapsed / 60000)),
+        second: Math.floor((elapsed % 60000) / 1000)
+      };
+    }
+    
+    return { minute: 0, second: 0 };
+  };
+  
+  const timerValues = getCurrentTimerValues();
+  const currentMinute = timerValues.minute;
+  const currentSecond = timerValues.second;
   const [activeTab, setActiveTab] = useState('Actions');
   const [latestCommentary, setLatestCommentary] = useState<string>('');
   const [commentaryHistory, setCommentaryHistory] = useState<Array<{id: string, text: string, minute: number, timestamp: Date}>>([]);
@@ -128,31 +163,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     loadMatchDetails();
   }, []);
 
-  // Professional WebSocket-based timer system (TEMPORARILY DISABLED)
-  useEffect(() => {
-    if (!matchId) return;
-
-    // TEMPORARY: Disable WebSocket while Railway connection issue is investigated
-    // The fallback timer provides accurate timing, so this is safe to disable
-    console.log('⏱️ PROFESSIONAL_TIMER: WebSocket temporarily disabled - using fallback timer');
-    console.log('⏱️ PROFESSIONAL_TIMER: Match ID:', matchId, '- Fallback timer will provide accurate timing');
-    
-    // TODO: Re-enable when Railway WebSocket issue is resolved
-    /*
-    console.log('⏱️ PROFESSIONAL_TIMER: Connecting to server-side timer service for match:', matchId);
-    
-    // Subscribe to professional timer updates
-    webSocketService.subscribeToMatch(matchId, handleTimerUpdate);
-    
-    // Connect to WebSocket if not already connected
-    webSocketService.connect();
-
-    return () => {
-      console.log('⏱️ PROFESSIONAL_TIMER: Cleaning up timer subscription for match:', matchId);
-      webSocketService.unsubscribeFromMatch(matchId);
-    };
-    */
-  }, [matchId]);
+  // SSE Timer hook is now handling all real-time updates
 
   // Polling for match status updates (since WebSocket is disabled)
   useEffect(() => {
@@ -198,80 +209,45 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     };
   }, [matchId, isLive, isHalftime, match?.status]);
 
-  // Fallback timer update (only if WebSocket fails and not halftime)
+  // SSE Timer provides real-time updates - no manual timer needed
+
+  // SSE Timer hook handles all timer updates and events automatically
+
+  // Automatic halftime and fulltime handling (hybrid: SSE + database state)
   useEffect(() => {
-    if (!isLive || !match || isHalftime) return;
-
-    // Start a fallback timer that updates every second
-    const fallbackTimer = setInterval(() => {
-      if (match.match_date || match.matchDate) {
-        const matchStart = new Date(match.match_date || match.matchDate);
-        const now = new Date();
-        const elapsedMs = now.getTime() - matchStart.getTime();
-        const elapsedMinutes = Math.floor(elapsedMs / 60000);
-        const elapsedSeconds = Math.floor((elapsedMs % 60000) / 1000);
-        
-        // Only update if we haven't received WebSocket updates recently
-        // (This prevents fallback from overriding WebSocket updates)
-        setCurrentMinute(Math.max(0, elapsedMinutes));
-        setCurrentSecond(elapsedSeconds);
-      }
-    }, 1000); // Update every second
-
-    return () => clearInterval(fallbackTimer);
-  }, [isLive, match, isHalftime]);
-
-  const handleTimerUpdate = (update: MatchTimerUpdate) => {
-    console.log('⏱️ PROFESSIONAL_TIMER: Received real-time update:', update);
+    // Use SSE if connected, otherwise use database state
+    const useSSEState = timerState.connectionStatus === 'connected';
+    const effectiveIsHalftime = useSSEState ? timerState.isHalftime : isHalftime;
+    const effectiveStatus = useSSEState ? timerState.status : match?.status;
     
-    const timerState = update.timerState;
-    
-    // Update all timer-related state from server
-    setCurrentMinute(timerState.currentMinute);
-    setCurrentSecond(timerState.currentSecond);
-    setCurrentHalf(timerState.currentHalf);
-    setIsLive(timerState.status === 'LIVE');
-    setIsHalftime(timerState.status === 'HALFTIME');
-    setAddedTimeFirstHalf(timerState.addedTimeFirstHalf);
-    setAddedTimeSecondHalf(timerState.addedTimeSecondHalf);
-    
-    // Handle automatic halftime (server-side triggered)
-    if (update.type === 'HALF_TIME' && timerState.status === 'HALFTIME') {
-      console.log('🟨 PROFESSIONAL_TIMER: Server triggered halftime automatically');
-      handleServerTriggeredHalftime();
+    if (effectiveIsHalftime && !showHalftimeModal && effectiveStatus === 'HALFTIME') {
+      setShowHalftimeModal(true);
+      soundService.playHalftimeWhistle();
+      showCommentary("⏱️ HALF-TIME! 15-minute break begins.");
+    } else if (!effectiveIsHalftime && showHalftimeModal) {
+      setShowHalftimeModal(false);
     }
-    
-    // Handle automatic fulltime (server-side triggered) 
-    if ((update.type === 'FULL_TIME' || update.type === 'MATCH_END') && timerState.status === 'COMPLETED') {
-      console.log('🔴 PROFESSIONAL_TIMER: Server triggered fulltime automatically');
-      handleServerTriggeredFulltime();
-    }
-    
-    // Update match status if changed
-    if (match && match.status !== timerState.status) {
-      setMatch(prev => ({ ...prev, status: timerState.status }));
-    }
-  };
+  }, [timerState.isHalftime, timerState.status, isHalftime, match?.status, timerState.connectionStatus]);
 
-  const handleServerTriggeredHalftime = () => {
-    // Play halftime whistle
-    soundService.playWhisle();
+  // Handle fulltime (hybrid approach)
+  useEffect(() => {
+    const useSSEState = timerState.connectionStatus === 'connected';
+    const effectiveStatus = useSSEState ? timerState.status : match?.status;
     
-    // Show halftime notification
-    Alert.alert('⏱️ Half Time', 'First half completed automatically by professional timer service', [
-      { text: 'OK', onPress: () => console.log('✅ Halftime acknowledged') }
-    ]);
-  };
-
-  const handleServerTriggeredFulltime = () => {
-    // Play final whistle
-    soundService.playWhisle();
-    
-    // Show fulltime notification
-    Alert.alert('🏁 Full Time', 'Match completed automatically by professional timer service', [
-      { text: 'View Results', onPress: () => navigation.goBack() }
-    ]);
-  };
+    if (effectiveStatus === 'COMPLETED' && match?.status !== 'COMPLETED') {
+      soundService.playFullTimeWhistle();
+      showCommentary("📢 FULL-TIME! Match completed!");
+      setTimeout(() => {
+        navigation.replace('PlayerRating', { 
+          matchId,
+          homeTeamId: match?.homeTeam?.id,
+          homeTeamName: match?.homeTeam?.name,
+          awayTeamId: match?.awayTeam?.id,
+          awayTeamName: match?.awayTeam?.name
+        });
+      }, 2000);
+    }
+  }, [timerState.status, match?.status, timerState.connectionStatus]);
 
   // Note: Timer calculation now handled by professional server-side timer service
   // No more client-side timer calculations - all timing comes from WebSocket updates
@@ -285,20 +261,26 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         currentMinute: currentMinute
       });
       
-      const result = await apiService.pauseForHalftime(matchId);
-      console.log('✅ HALFTIME: API call successful:', result);
+      // IMMEDIATELY set halftime state to stop timer (don't wait for server)
+      setIsHalftime(true);
+      setShowHalftimeModal(true);
       
       await soundService.playHalftimeWhistle();
       showCommentary("⏱️ HALF-TIME! The referee blows the whistle to end the first half.");
       
+      // Now call server API in background
+      const result = await apiService.pauseForHalftime(matchId);
+      console.log('✅ HALFTIME: API call successful:', result);
+      
       console.log('🔄 HALFTIME: Reloading match details...');
       await loadMatchDetails();
       
-      console.log('📋 HALFTIME: Showing halftime modal');
-      // Show halftime modal for resuming second half
-      setShowHalftimeModal(true);
+      console.log('📋 HALFTIME: Halftime modal already shown');
     } catch (error) {
       console.error('❌ HALFTIME: Failed to pause for halftime:', error);
+      // Revert halftime state if API fails
+      setIsHalftime(false);
+      setShowHalftimeModal(false);
       Alert.alert('Error', `Failed to pause for halftime: ${error.message}`);
     }
   };
@@ -313,21 +295,29 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         currentMinute: currentMinute
       });
       
+      // IMMEDIATELY resume timer (don't wait for server)
+      setIsHalftime(false);
+      setCurrentHalf(2);
       setShowHalftimeModal(false);
-      
-      console.log('📡 SECOND_HALF: Calling API to start second half...');
-      const result = await apiService.startSecondHalf(matchId);
-      console.log('✅ SECOND_HALF: API call successful:', result);
       
       await soundService.playSecondHalfWhistle();
       const secondHalfMinutes = match.second_half_minutes || (match.duration || 90) / 2;
       showCommentary(`⚽ SECOND HALF! The match resumes for the final ${secondHalfMinutes} minutes!`);
+      
+      // Now call server API in background
+      console.log('📡 SECOND_HALF: Calling API to start second half...');
+      const result = await apiService.startSecondHalf(matchId);
+      console.log('✅ SECOND_HALF: API call successful:', result);
       
       console.log('🔄 SECOND_HALF: Reloading match details...');
       await loadMatchDetails();
       console.log('✅ SECOND_HALF: Second half started successfully');
     } catch (error) {
       console.error('❌ SECOND_HALF: Failed to start second half:', error);
+      // Revert state if API fails
+      setIsHalftime(true);
+      setCurrentHalf(1);
+      setShowHalftimeModal(true);
       Alert.alert('Error', `Failed to start second half: ${error.message}`);
     }
   };
@@ -421,44 +411,16 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       matchData.awayScore = matchData.awayScore || matchData.away_score || 0;
       
       setMatch(matchData);
+      
+      // Set immediate match state from database (no waiting for SSE)
       setIsLive(matchData.status === 'LIVE');
       setIsHalftime(matchData.status === 'HALFTIME');
       setCurrentHalf(matchData.current_half || 1);
       setAddedTimeFirstHalf(matchData.added_time_first_half || 0);
       setAddedTimeSecondHalf(matchData.added_time_second_half || 0);
       
-      // Timer state will be automatically synced via WebSocket from professional timer service
-      console.log('⏱️ PROFESSIONAL_TIMER: Match loaded, timer will sync via WebSocket');
-      console.log('🔍 TIMER_DEBUG: Match status:', matchData.status);
-      console.log('🔍 TIMER_DEBUG: Current minute/second before WebSocket:', currentMinute, currentSecond);
-      
-      // If match is already live, request current timer state from server
-      if (matchData.status === 'LIVE') {
-        console.log('🔄 TIMER_DEBUG: Match is LIVE, requesting timer state from server...');
-        
-        // FALLBACK: Calculate timer from match start time while waiting for WebSocket
-        if (matchData.match_date || matchData.matchDate) {
-          const matchStart = new Date(matchData.match_date || matchData.matchDate);
-          const now = new Date();
-          const elapsedMs = now.getTime() - matchStart.getTime();
-          const elapsedMinutes = Math.floor(elapsedMs / 60000);
-          const elapsedSeconds = Math.floor((elapsedMs % 60000) / 1000);
-          
-          console.log('🔄 TIMER_DEBUG: Fallback calculation:', {
-            matchStart: matchStart.toISOString(),
-            elapsedMs,
-            fallbackMinute: Math.max(0, elapsedMinutes),
-            fallbackSecond: elapsedSeconds
-          });
-          
-          // Set fallback timer values (WebSocket will override when it connects)
-          setCurrentMinute(Math.max(0, elapsedMinutes));
-          setCurrentSecond(elapsedSeconds);
-          console.log('⏰ TIMER_DEBUG: Set fallback timer to', Math.max(0, elapsedMinutes), ':', elapsedSeconds);
-        }
-        
-        // The WebSocket subscription will provide the timer state and override fallback
-      }
+      console.log('⏱️ HYBRID_TIMER: Match state set immediately, SSE will provide real-time updates');
+      console.log('🔍 MATCH_DEBUG: Match status:', matchData.status, 'isLive:', matchData.status === 'LIVE');
 
       // Load formation data
       await loadFormationData(matchData);
@@ -1339,15 +1301,20 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     );
   }
 
-  if (!match) {
+  if (isLoading || !match) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Match not found</Text>
-        <ProfessionalButton
-          title="Go Back"
-          onPress={() => navigation.goBack()}
-          variant="secondary"
-        />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary.main} />
+        <Text style={styles.loadingText}>
+          {isLoading ? 'Loading match...' : 'Match not found'}
+        </Text>
+        {!isLoading && (
+          <ProfessionalButton
+            title="Go Back"
+            onPress={() => navigation.goBack()}
+            variant="secondary"
+          />
+        )}
       </View>
     );
   }
@@ -1620,6 +1587,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background.primary,
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: colors.background.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  loadingText: {
+    fontSize: typography.fontSize.regular,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginTop: spacing.lg,
   },
   scrollView: {
     flex: 1,

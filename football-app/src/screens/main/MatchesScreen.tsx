@@ -160,15 +160,10 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
   };
 
   const handleMatchPress = (match: Match) => {
-    
     if (match.status === 'COMPLETED') {
       navigation.navigate('MatchOverview', { matchId: match.id });
-    } else if (match.status === 'LIVE' || match.status === 'HALFTIME') {
-      // INSTANT navigation to live screen
-      navigation.navigate('LiveMatch', { matchId: match.id });
     } else {
-      // SCHEDULED matches go to dedicated scheduled screen
-      navigation.navigate('ScheduledMatch', { matchId: match.id });
+      navigation.navigate('MatchScoring', { matchId: match.id });
     }
   };
 

@@ -230,36 +230,15 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       return true;
     }
     
-    // If navigating to a live match from route params, wait for timer to confirm
-    if (routeIsLive === true || routeMatchStatus === 'LIVE') {
-      // For live matches, ensure timer has had a chance to update
-      // Timer starts as 'SCHEDULED', so wait until it's not that anymore OR
-      // we have match data that confirms it's live
-      const timerConfirmed = timerState.status !== 'SCHEDULED';
-      const matchConfirmed = match?.status === 'LIVE' || match?.status === 'HALFTIME';
-      const ready = match !== null && (timerConfirmed || matchConfirmed);
-      
-      console.log('🔍 DATA READY CHECK (Live Match):', {
-        matchLoaded: match !== null,
-        timerConfirmed,
-        matchConfirmed,
-        timerStatus: timerState.status,
-        matchStatus: match?.status,
-        isReady: ready
-      });
-      
-      return ready;
-    }
-    
-    // For non-live matches, just need match data
+    // Simple approach: just need match data to be ready
     const ready = match !== null;
-    console.log('🔍 DATA READY CHECK (Scheduled Match):', {
+    console.log('🔍 DATA READY CHECK:', {
       matchLoaded: match !== null,
       isReady: ready
     });
     
     return ready;
-  }, [match, routeIsLive, routeMatchStatus, timerState.status, dataReadyTimeout]);
+  }, [match, dataReadyTimeout]);
 
   // No state updates needed - using computed value directly for instant rendering
 
