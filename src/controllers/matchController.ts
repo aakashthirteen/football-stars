@@ -835,7 +835,20 @@ export const getFormationForMatch = async (req: AuthRequest, res: Response): Pro
     if (formation) {
       res.json({ formation });
     } else {
-      res.status(404).json({ error: 'Formation not found' });
+      // Return empty formation object instead of 404 - this is normal for new matches
+      console.log('📝 No formation found, returning empty formation for new match');
+      res.json({ 
+        formation: {
+          id: null,
+          matchId,
+          teamId,
+          formation: null,
+          gameFormat: '11v11',
+          players: [],
+          createdAt: null,
+          updatedAt: null
+        }
+      });
     }
   } catch (error) {
     console.error('❌ Get formation error:', error);
