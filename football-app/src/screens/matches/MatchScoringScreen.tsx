@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useMatchNotifications } from '../../hooks/useNotifications';
 import { useMatchTimer } from '../../hooks/useMatchTimer';
+import { calculateMatchTimer } from '../../utils/matchTimer';
 
 // Professional Components
 import {
@@ -92,36 +93,19 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const [addedTimeFirstHalf, setAddedTimeFirstHalf] = useState(0);
   const [addedTimeSecondHalf, setAddedTimeSecondHalf] = useState(0);
   
-  // Timer values - use SSE when connected, fallback when not
-  const getCurrentTimerValues = () => {
-    if (timerState.connectionStatus === 'connected') {
-      return {
-        minute: timerState.currentMinute,
-        second: timerState.currentSecond
-      };
+  // Timer values - use shared utility for consistency with match cards (only if match is loaded)
+  const timerResult = match ? calculateMatchTimer({ 
+    match: match as any, 
+    timerState: {
+      connectionStatus: timerState.connectionStatus,
+      currentMinute: timerState.currentMinute,
+      currentSecond: timerState.currentSecond,
+      isHalftime: timerState.isHalftime
     }
-    
-    // Fallback calculation - but PAUSE during halftime!
-    if (isHalftime) {
-      // During halftime, freeze at 45 minutes (or whatever minute halftime was triggered)
-      return { minute: 45 + addedTimeFirstHalf, second: 0 };
-    }
-    
-    if (isLive && match) {
-      const matchStart = new Date(match.matchDate || match.match_date || 0).getTime();
-      const elapsed = Date.now() - matchStart;
-      return {
-        minute: Math.max(0, Math.floor(elapsed / 60000)),
-        second: Math.floor((elapsed % 60000) / 1000)
-      };
-    }
-    
-    return { minute: 0, second: 0 };
-  };
+  }) : { minute: 0, second: 0, displayText: '0\'', isLive: false, isHalftime: false };
   
-  const timerValues = getCurrentTimerValues();
-  const currentMinute = timerValues.minute;
-  const currentSecond = timerValues.second;
+  const currentMinute = timerResult.minute;
+  const currentSecond = timerResult.second;
   const [activeTab, setActiveTab] = useState('Actions');
   const [latestCommentary, setLatestCommentary] = useState<string>('');
   const [commentaryHistory, setCommentaryHistory] = useState<Array<{id: string, text: string, minute: number, timestamp: Date}>>([]);
@@ -301,13 +285,13 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       setShowHalftimeModal(false);
       
       await soundService.playSecondHalfWhistle();
-      const secondHalfMinutes = match.second_half_minutes || (match.duration || 90) / 2;
+      const secondHalfMinutes = match?.second_half_minutes || (match?.duration || 90) / 2;
       showCommentary(`⚽ SECOND HALF! The match resumes for the final ${secondHalfMinutes} minutes!`);
       
       // Now call server API in background
-      console.log('📡 SECOND_HALF: Calling API to start second half...');
-      const result = await apiService.startSecondHalf(matchId);
-      console.log('✅ SECOND_HALF: API call successful:', result);
+      console.log('📡 SECOND_HALF: Calling SSE API to start second half...');
+      const result = await apiService.startSecondHalfSSE(matchId);
+      console.log('✅ SECOND_HALF: SSE API call successful:', result);
       
       console.log('🔄 SECOND_HALF: Reloading match details...');
       await loadMatchDetails();
@@ -442,7 +426,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       const now = Date.now();
       // Get halftime break start time from server (this would need to be in the match data)
       // For now, we'll calculate based on when status changed to HALFTIME
-      const halftimeStartTime = new Date(match.updated_at || match.matchDate).getTime();
+      const halftimeStartTime = new Date(match?.updated_at || match?.matchDate || Date.now()).getTime();
       const breakDurationMs = 15 * 60 * 1000; // 15 minutes
       const elapsedBreakTime = now - halftimeStartTime;
       const timeRemaining = Math.max(0, breakDurationMs - elapsedBreakTime);
@@ -577,6 +561,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   };
 
   const handleAction = (team: 'home' | 'away', actionType: string) => {
+    if (!match) return;
     const teamData = team === 'home' ? match.homeTeam : match.awayTeam;
     setModalTeam(teamData);
     setModalActionType(actionType);
@@ -620,19 +605,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       
       // Send notifications (non-goal events)
       if (modalActionType === 'YELLOW_CARD' || modalActionType === 'RED_CARD') {
-        const team = modalTeam.id === match.homeTeam.id ? 'home' : 'away';
-        const newScore = team === 'home' 
-          ? `${match.homeScore + 1}-${match.awayScore}`
-          : `${match.homeScore}-${match.awayScore + 1}`;
-        notifyGoal(player?.name || 'Unknown', modalTeam.name, newScore);
-        animateScore();
-        Vibration.vibrate([0, 200, 100, 200]);
-      } else if (modalActionType === 'YELLOW_CARD' || modalActionType === 'RED_CARD') {
         notifyCard(player?.name || 'Unknown', modalTeam.name, 
           modalActionType === 'YELLOW_CARD' ? 'yellow' : 'red');
         Vibration.vibrate(100);
       } else if (modalActionType === 'SUBSTITUTION') {
-        const team = modalTeam.id === match.homeTeam.id ? 'home' : 'away';
+        const team = modalTeam?.id === match?.homeTeam?.id ? 'home' : 'away';
         setAvailableSubstitutions(prev => ({
           ...prev,
           [team]: Math.max(0, prev[team] - 1)
@@ -685,10 +662,12 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       showCommentary(commentary);
       
       // Send notifications
-      const team = modalTeam.id === match.homeTeam.id ? 'home' : 'away';
+      const team = modalTeam?.id === match?.homeTeam?.id ? 'home' : 'away';
+      const homeScore = match?.homeScore ?? 0;
+      const awayScore = match?.awayScore ?? 0;
       const newScore = team === 'home' 
-        ? `${match.homeScore + 1}-${match.awayScore}`
-        : `${match.homeScore}-${match.awayScore + 1}`;
+        ? `${homeScore + 1}-${awayScore}`
+        : `${homeScore}-${awayScore + 1}`;
       notifyGoal(goalScorer?.name || 'Unknown', modalTeam.name, newScore);
       animateScore();
       Vibration.vibrate([0, 200, 100, 200]);
@@ -975,7 +954,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                       style={styles.cardGradient}
                     >
                       <View style={styles.timeline}>
-                        {match.events
+                        {(match?.events || [])
                           .sort((a: any, b: any) => b.minute - a.minute)
                           .map((event: any, index: number) => (
                             <ProfessionalMatchEvent
@@ -983,13 +962,13 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                               event={{
                                 ...event,
                                 team: {
-                                  name: event.teamId === match.homeTeam.id 
-                                    ? match.homeTeam.name 
-                                    : match.awayTeam.name,
-                                  isHome: event.teamId === match.homeTeam.id,
+                                  name: event.teamId === match?.homeTeam?.id 
+                                    ? match?.homeTeam?.name || 'Home Team'
+                                    : match?.awayTeam?.name || 'Away Team',
+                                  isHome: event.teamId === match?.homeTeam?.id,
                                 },
                               }}
-                              showConnector={index < match.events.length - 1}
+                              showConnector={index < (match?.events?.length || 0) - 1}
                             />
                           ))}
                       </View>
@@ -1048,14 +1027,14 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                   {formationsLoaded ? (
                     <ModernPitchFormation
                       homeTeam={{
-                        id: match.homeTeam.id,
-                        name: match.homeTeam.name,
-                        players: homeFormation?.players || match.homeTeam.players || []
+                        id: match?.homeTeam?.id || 'home',
+                        name: match?.homeTeam?.name || 'Home Team',
+                        players: homeFormation?.players || match?.homeTeam?.players || []
                       }}
                       awayTeam={{
-                        id: match.awayTeam.id,
-                        name: match.awayTeam.name,  
-                        players: awayFormation?.players || match.awayTeam.players || []
+                        id: match?.awayTeam?.id || 'away',
+                        name: match?.awayTeam?.name || 'Away Team',  
+                        players: awayFormation?.players || match?.awayTeam?.players || []
                       }}
                       savedFormations={{
                         home: homeFormation,
@@ -1083,11 +1062,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                   >
                     <View style={styles.teamListHeader}>
                       <Ionicons name="home" size={20} color={colors.primary.main} />
-                      <Text style={styles.teamListTitle}>{match.homeTeam.name} (Home)</Text>
-                      <Text style={styles.playerCount}>{match.homeTeam.players?.length || 0} players</Text>
+                      <Text style={styles.teamListTitle}>{match?.homeTeam?.name || 'Home Team'} (Home)</Text>
+                      <Text style={styles.playerCount}>{match?.homeTeam?.players?.length || 0} players</Text>
                     </View>
                     <View style={styles.teamPlayersList}>
-                      {(match.homeTeam.players || []).map((player: any, index: number) => (
+                      {(match?.homeTeam?.players || []).map((player: any, index: number) => (
                         <View key={player.id || index} style={styles.formationPlayerCard}>
                           <View style={styles.playerAvatarContainer}>
                             <View style={[styles.playerAvatar, { backgroundColor: colors.primary.main }]}>
@@ -1119,11 +1098,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                   >
                     <View style={styles.teamListHeader}>
                       <Ionicons name="airplane" size={20} color={colors.accent.coral} />
-                      <Text style={styles.teamListTitle}>{match.awayTeam.name} (Away)</Text>
-                      <Text style={styles.playerCount}>{match.awayTeam.players?.length || 0} players</Text>
+                      <Text style={styles.teamListTitle}>{match?.awayTeam?.name || 'Away Team'} (Away)</Text>
+                      <Text style={styles.playerCount}>{match?.awayTeam?.players?.length || 0} players</Text>
                     </View>
                     <View style={styles.teamPlayersList}>
-                      {(match.awayTeam.players || []).map((player: any, index: number) => (
+                      {(match?.awayTeam?.players || []).map((player: any, index: number) => (
                         <View key={player.id || index} style={styles.formationPlayerCard}>
                           <View style={styles.playerAvatarContainer}>
                             <View style={[styles.playerAvatar, { backgroundColor: colors.accent.coral }]}>
@@ -1152,10 +1131,10 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         );
         
       case 'Stats':
-        const homeGoals = match?.events?.filter((e: any) => e.eventType === 'GOAL' && e.teamId === match.homeTeam.id).length || 0;
-        const awayGoals = match?.events?.filter((e: any) => e.eventType === 'GOAL' && e.teamId === match.awayTeam.id).length || 0;
-        const homeCards = match?.events?.filter((e: any) => (e.eventType === 'YELLOW_CARD' || e.eventType === 'RED_CARD') && e.teamId === match.homeTeam.id).length || 0;
-        const awayCards = match?.events?.filter((e: any) => (e.eventType === 'YELLOW_CARD' || e.eventType === 'RED_CARD') && e.teamId === match.awayTeam.id).length || 0;
+        const homeGoals = match?.events?.filter((e: any) => e.eventType === 'GOAL' && e.teamId === match?.homeTeam?.id).length || 0;
+        const awayGoals = match?.events?.filter((e: any) => e.eventType === 'GOAL' && e.teamId === match?.awayTeam?.id).length || 0;
+        const homeCards = match?.events?.filter((e: any) => (e.eventType === 'YELLOW_CARD' || e.eventType === 'RED_CARD') && e.teamId === match?.homeTeam?.id).length || 0;
+        const awayCards = match?.events?.filter((e: any) => (e.eventType === 'YELLOW_CARD' || e.eventType === 'RED_CARD') && e.teamId === match?.awayTeam?.id).length || 0;
         const totalEvents = match?.events?.length || 0;
         
         return (
@@ -1330,15 +1309,15 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         {/* Professional Header */}
         <Animated.View style={{ transform: [{ scale: scoreAnimation }] }}>
           <ProfessionalMatchHeader
-            homeTeam={match.homeTeam}
-            awayTeam={match.awayTeam}
-            homeScore={match.homeScore}
-            awayScore={match.awayScore}
-            status={match.status}
+            homeTeam={match?.homeTeam}
+            awayTeam={match?.awayTeam}
+            homeScore={match?.homeScore ?? 0}
+            awayScore={match?.awayScore ?? 0}
+            status={match?.status ?? 'SCHEDULED'}
             currentMinute={currentMinute}
             currentSecond={currentSecond}
-            venue={match.venue}
-            duration={match.duration}
+            venue={match?.venue}
+            duration={match?.duration ?? 90}
             onBack={() => navigation.goBack()}
           />
         </Animated.View>

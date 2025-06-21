@@ -431,8 +431,44 @@ export function useMatchTimer(matchId: string) {
           let currentHalf: 1 | 2 = 1;
           let adjustedMinute = elapsedMinutes;
           
-          // Handle second half timing
-          if (match.second_half_started_at) {
+          // Handle second half timing - always start from exact half duration
+          if (match.status === 'LIVE' && match.current_half === 2) {
+            currentHalf = 2;
+            // Second half ALWAYS starts from duration/2, regardless of when first half ended
+            const halfDurationMinutes = Math.floor(halfDuration + (match.added_time_first_half || 0));
+            const halfDurationSeconds = Math.round(((halfDuration + (match.added_time_first_half || 0)) % 1) * 60);
+            
+            if (match.second_half_start_time || match.second_half_started_at) {
+              const secondHalfStart = new Date(match.second_half_start_time || match.second_half_started_at).getTime();
+              const secondHalfElapsed = Math.floor((now - secondHalfStart) / 1000);
+              const totalSeconds = halfDurationSeconds + (secondHalfElapsed % 60);
+              adjustedMinute = halfDurationMinutes + Math.floor(secondHalfElapsed / 60) + Math.floor(totalSeconds / 60);
+              const adjustedSecond = totalSeconds % 60;
+              
+              setTimerState(prev => ({
+                ...prev,
+                currentMinute: adjustedMinute,
+                currentSecond: adjustedSecond,
+                displayTime: formatTime(adjustedMinute, adjustedSecond),
+                displayMinute: formatMinuteDisplay({
+                  ...prev,
+                  currentMinute: adjustedMinute,
+                  currentHalf: 2,
+                  addedTimeFirstHalf: match.added_time_first_half || 0,
+                  addedTimeSecondHalf: match.added_time_second_half || 0
+                }),
+                status: 'LIVE',
+                currentHalf: 2,
+                isHalftime: false,
+                isPaused: false,
+                addedTimeFirstHalf: match.added_time_first_half || 0,
+                addedTimeSecondHalf: match.added_time_second_half || 0,
+                serverTime: now,
+                connectionStatus: 'disconnected'
+              }));
+              return;
+            }
+          } else if (match.second_half_started_at) {
             const secondHalfStart = new Date(match.second_half_started_at).getTime();
             const secondHalfElapsed = Math.floor((now - secondHalfStart) / 1000);
             currentHalf = 2;

@@ -99,7 +99,8 @@ export class SSEMatchTimerService extends EventEmitter {
    */
   public async startMatch(matchId: string): Promise<SSETimerState> {
     try {
-      console.log(`⚽ SSE Timer: Starting match ${matchId}`);
+      const startTime = Date.now();
+      console.log(`⚽ SSE Timer: Starting match ${matchId} at ${new Date().toISOString()}`);
       console.log(`📊 SSE Timer: Active matches before start:`, this.matchStates.size);
       console.log(`📊 SSE Timer: Connected clients:`, this.sseClients.get(matchId)?.size || 0);
       
@@ -108,11 +109,14 @@ export class SSEMatchTimerService extends EventEmitter {
         throw new Error('Match not found');
       }
 
+      const dbUpdateStart = Date.now();
       // Update database
       await database.updateMatch(matchId, { 
         status: 'LIVE', 
         timer_started_at: new Date() 
       });
+      const dbUpdateEnd = Date.now();
+      console.log(`📊 SSE Timer: Database update took ${dbUpdateEnd - dbUpdateStart}ms`);
 
       const matchDuration = match.duration || 90;
       const halfDuration = matchDuration / 2;
@@ -138,14 +142,19 @@ export class SSEMatchTimerService extends EventEmitter {
       this.matchStates.set(matchId, state);
       
       // Start timer interval
+      const timerSetupStart = Date.now();
       const timer = setInterval(() => this.updateTimer(matchId), this.TIMER_INTERVAL_MS);
       this.matchTimers.set(matchId, timer);
+      const timerSetupEnd = Date.now();
 
       // Broadcast initial state
       this.broadcastUpdate(matchId, 'status_change', 'Match started! ⚽');
       
       // Cache in Redis for fast access
       await this.cacheState(matchId, state);
+
+      const totalTime = Date.now() - startTime;
+      console.log(`⚽ SSE Timer: Match ${matchId} fully started in ${totalTime}ms (timer setup: ${timerSetupEnd - timerSetupStart}ms)`);
 
       return state;
     } catch (error) {
@@ -205,10 +214,23 @@ export class SSEMatchTimerService extends EventEmitter {
   private shouldTriggerHalftime(state: SSETimerState): boolean {
     if (state.currentHalf !== 1 || state.status !== 'LIVE') return false;
     
-    const totalMinutes = state.currentMinute + (state.currentSecond / 60);
-    const halfTimeMinute = state.halfDuration + state.addedTimeFirstHalf;
+    // Calculate exact halftime moment
+    const halfTimeMinutes = Math.floor(state.halfDuration + state.addedTimeFirstHalf);
+    const halfTimeSeconds = Math.round(((state.halfDuration + state.addedTimeFirstHalf) % 1) * 60);
     
-    return totalMinutes >= halfTimeMinute;
+    // Debug logging for timing investigation
+    if (state.currentMinute >= halfTimeMinutes - 1) {
+      console.log(`🕐 HALFTIME CHECK: Match ${state.matchId} - Current: ${state.currentMinute}:${state.currentSecond.toString().padStart(2, '0')}, Target: ${halfTimeMinutes}:${halfTimeSeconds.toString().padStart(2, '0')}, halfDuration: ${state.halfDuration}, addedTime: ${state.addedTimeFirstHalf}`);
+    }
+    
+    // Trigger exactly when we reach the halftime moment
+    const shouldTrigger = state.currentMinute === halfTimeMinutes && state.currentSecond === halfTimeSeconds;
+    
+    if (shouldTrigger) {
+      console.log(`🟨 HALFTIME TRIGGERED: Match ${state.matchId} at exactly ${state.currentMinute}:${state.currentSecond.toString().padStart(2, '0')} (target was ${halfTimeMinutes}:${halfTimeSeconds.toString().padStart(2, '0')})`);
+    }
+    
+    return shouldTrigger;
   }
 
   /**
@@ -311,21 +333,18 @@ export class SSEMatchTimerService extends EventEmitter {
     const match = await database.getMatchById(matchId);
     if (!match) throw new Error('Match not found in database');
 
-    // CRITICAL FIX: Continue from exact halftime timing instead of calculating
-    if (match.currentMinute !== undefined && match.currentSecond !== undefined && match.totalSecondsAtHalftime !== undefined) {
-      // Restore exact timing from when halftime was triggered
-      state.currentMinute = match.currentMinute;
-      state.currentSecond = match.currentSecond;
-      state.totalSeconds = match.totalSecondsAtHalftime;
-      console.log(`🔄 SSE Timer: Continuing from exact halftime timing - ${state.currentMinute}:${state.currentSecond.toString().padStart(2, '0')} (${state.totalSeconds}s)`);
-    } else {
-      // Fallback to old calculation if halftime timing not stored
-      console.log(`⚠️ SSE Timer: Halftime timing not found, using fallback calculation`);
-      const totalFirstHalfMinutes = state.halfDuration + state.addedTimeFirstHalf;
-      state.currentMinute = Math.ceil(totalFirstHalfMinutes);
-      state.currentSecond = 0;
-      state.totalSeconds = state.currentMinute * 60;
-    }
+    // CORRECTED: Second half should ALWAYS start from exact half duration
+    // Regardless of when first half actually ended, second half starts from duration/2
+    const secondHalfStartMinutes = Math.floor(state.halfDuration + state.addedTimeFirstHalf);
+    const secondHalfStartSeconds = Math.round(((state.halfDuration + state.addedTimeFirstHalf) % 1) * 60);
+    
+    state.currentMinute = secondHalfStartMinutes;
+    state.currentSecond = secondHalfStartSeconds;
+    state.totalSeconds = secondHalfStartMinutes * 60 + secondHalfStartSeconds;
+    
+    console.log(`🔄 SSE Timer: Second half starts from exact half duration - ${state.currentMinute}:${state.currentSecond.toString().padStart(2, '0')} (halfDuration: ${state.halfDuration}, addedTime: ${state.addedTimeFirstHalf})`);
+    
+    // Note: We ignore the stored halftime timing because second half should always start from duration/2
 
     state.currentHalf = 2;
     state.status = 'LIVE';

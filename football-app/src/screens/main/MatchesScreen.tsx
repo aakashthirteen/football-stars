@@ -48,6 +48,7 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [, forceUpdate] = useState({});
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [myTeams, setMyTeams] = useState<string[]>([]);
 
@@ -57,15 +58,15 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
     }, [])
   );
 
-  // Auto-refresh for live matches
+  // Real-time timer updates for live matches
   useEffect(() => {
-    const hasLiveMatches = matches.some(match => match.status === 'LIVE');
+    const hasLiveMatches = matches.some(match => match.status === 'LIVE' || match.status === 'HALFTIME');
     
     if (hasLiveMatches) {
       const interval = setInterval(() => {
-        // Only trigger re-render to update calculated time, don't reload data
-        setMatches(prevMatches => [...prevMatches]);
-      }, 60000); // Update every minute
+        // Force re-render to update live timers every second using shared timer utility
+        forceUpdate({});
+      }, 1000); // Update every second for live timers
 
       return () => clearInterval(interval);
     }

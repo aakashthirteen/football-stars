@@ -11,6 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import DesignSystem from '../../theme/designSystem';
 import { ProfessionalTeamBadge } from './ProfessionalTeamBadge';
+import { calculateMatchTimer } from '../../utils/matchTimer';
 
 const { colors, typography, spacing, borderRadius, shadows } = DesignSystem;
 
@@ -118,31 +119,9 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
   };
   
   const getStatusText = () => {
-    switch (match.status) {
-      case 'LIVE':
-        if (match.minute) {
-          const currentHalf = (match as any).current_half || 1;
-          const addedTimeFirstHalf = (match as any).added_time_first_half || 0;
-          const addedTimeSecondHalf = (match as any).added_time_second_half || 0;
-          
-          if (currentHalf === 1) {
-            const halfTime = 45 + addedTimeFirstHalf;
-            return match.minute >= halfTime ? `${halfTime}+${match.minute - halfTime}'` : `${match.minute}'`;
-          } else {
-            const firstHalfTotal = 45 + addedTimeFirstHalf;
-            const currentMinute = match.minute - firstHalfTotal;
-            const secondHalfTime = 45 + addedTimeSecondHalf;
-            return currentMinute >= secondHalfTime ? `${90 + addedTimeFirstHalf + addedTimeSecondHalf}+${currentMinute - secondHalfTime}'` : `${match.minute}'`;
-          }
-        }
-        return 'LIVE';
-      case 'HALFTIME':
-        return 'HT';
-      case 'COMPLETED':
-        return 'FT';
-      default:
-        return formatDate(match.matchDate);
-    }
+    // Use shared timer utility to ensure consistency with match screen
+    const timerResult = calculateMatchTimer({ match: match as any });
+    return timerResult.displayText;
   };
 
   const getMatchDetails = () => {
