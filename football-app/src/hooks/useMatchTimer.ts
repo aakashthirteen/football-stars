@@ -131,15 +131,19 @@ export function useMatchTimer(matchId: string) {
     }
   }, [formatTime, formatMinuteDisplay]);
 
-  // FIXED: Smooth second-by-second timer progression with periodic resync
+  // FIXED: Smooth second-by-second timer progression with network latency compensation
   const startInterpolation = useCallback((serverTotalSeconds: number) => {
     // Clear existing interpolation
     stopInterpolation();
     
-    // Start with server seconds as baseline (ensure integer)
-    let currentSeconds = Math.floor(serverTotalSeconds);
+    // FIXED: Compensate for network latency and processing delays
+    const networkLatency = (Date.now() - lastUpdateRef.current) / 1000; // Convert to seconds
+    const latencyCompensation = Math.min(networkLatency, 2); // Cap at 2 seconds max
+    
+    // Start with server seconds + estimated network delay compensation
+    let currentSeconds = Math.floor(serverTotalSeconds + latencyCompensation);
     let syncCounter = 0;
-    const RESYNC_INTERVAL = 30; // Resync with server every 30 seconds
+    const RESYNC_INTERVAL = 10; // FIXED: Resync with server every 10 seconds (3x more frequent)
     
     // Update immediately with server time
     const updateDisplay = (seconds: number) => {
@@ -251,12 +255,12 @@ export function useMatchTimer(matchId: string) {
           let currentHalf: 1 | 2 = 1;
           let adjustedMinute = elapsedMinutes;
           
-          // Handle second half timing - always start from exact half duration
+          // FIXED: Handle second half timing - always start from exact half duration
           if (match.status === 'LIVE' && match.current_half === 2) {
             currentHalf = 2;
-            // Second half ALWAYS starts from duration/2, regardless of when first half ended
-            const halfDurationMinutes = Math.floor(halfDuration + (match.added_time_first_half || 0));
-            const halfDurationSeconds = Math.round(((halfDuration + (match.added_time_first_half || 0)) % 1) * 60);
+            // FIXED: Second half ALWAYS starts from duration/2, ignore first half stoppage
+            const halfDurationMinutes = Math.floor(halfDuration); // FIXED: Remove added_time_first_half
+            const halfDurationSeconds = Math.round((halfDuration % 1) * 60); // FIXED: Remove added_time_first_half
             
             if (match.second_half_start_time || match.second_half_started_at) {
               const secondHalfStart = new Date(match.second_half_start_time || match.second_half_started_at).getTime();

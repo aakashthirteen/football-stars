@@ -30,7 +30,66 @@ export const TIMER_CONFIG = {
 
 // Helper to get timer service based on config
 export function getTimerService() {
-  // Always use SSE timer service now (WebSocket removed)
-  const { sseMatchTimerService } = require('../services/sse/SSEMatchTimerService');
-  return sseMatchTimerService;
+  // FIXED: Use the new ScalableFootballTimerService with compatibility adapter
+  const { scalableFootballTimer } = require('../services/sse/ScalableFootballTimerService');
+  
+  // Create compatibility adapter for the match controller
+  return {
+    async startMatch(matchId: string) {
+      const state = await scalableFootballTimer.startMatch(matchId);
+      
+      // Convert ScalableMatchState to expected format
+      const elapsed = Date.now() - state.startedAt - state.totalPausedMs;
+      const currentMinute = Math.floor(elapsed / (60 * 1000));
+      const currentSecond = Math.floor((elapsed % (60 * 1000)) / 1000);
+      
+      return {
+        matchId: state.matchId,
+        currentMinute,
+        currentSecond,
+        status: state.isActive ? 'LIVE' : 'PAUSED',
+        isLive: state.isActive,
+        phase: state.phase,
+        originalState: state
+      };
+    },
+    
+    getMatchState(matchId: string) {
+      const state = scalableFootballTimer.getMatchState(matchId);
+      if (!state) return null;
+      
+      // Convert ScalableMatchState to expected format
+      const elapsed = Date.now() - state.startedAt - state.totalPausedMs;
+      const currentMinute = Math.floor(elapsed / (60 * 1000));
+      const currentSecond = Math.floor((elapsed % (60 * 1000)) / 1000);
+      
+      return {
+        matchId: state.matchId,
+        currentMinute,
+        currentSecond,
+        currentHalf: state.phase === 'FIRST_HALF' ? 1 : state.phase === 'SECOND_HALF' ? 2 : 1,
+        status: state.isActive ? 'LIVE' : 'PAUSED',
+        isLive: state.isActive,
+        phase: state.phase,
+        originalState: state
+      };
+    },
+    
+    // Delegate other methods directly
+    pauseMatch: (matchId: string) => scalableFootballTimer.pauseMatch(matchId),
+    resumeMatch: (matchId: string) => scalableFootballTimer.resumeMatch(matchId),
+    addStoppageTime: (matchId: string, minutes: number) => scalableFootballTimer.addStoppageTime(matchId, minutes),
+    startSecondHalf: (matchId: string) => scalableFootballTimer.startSecondHalf(matchId),
+    subscribeToMatch: (matchId: string, response: any) => scalableFootballTimer.subscribeToMatch(matchId, response),
+    unsubscribeFromMatch: (matchId: string, response: any) => scalableFootballTimer.unsubscribeFromMatch(matchId, response),
+    
+    // Add missing methods
+    triggerHalftime: (matchId: string) => scalableFootballTimer.manuallyTriggerHalftime(matchId),
+    triggerFulltime: (matchId: string) => scalableFootballTimer.manuallyTriggerFulltime(matchId),
+    initializeFromDatabase: async (matchId?: string) => {
+      // ScalableFootballTimerService doesn't need database initialization
+      console.log(`Timer service initialization completed (scalable service)${matchId ? ` for match ${matchId}` : ''}`);
+      return true;
+    }
+  };
 }

@@ -76,10 +76,10 @@ export function calculateMatchTimer(data: MatchTimerData): TimerDisplayResult {
     
     // Handle second half timing properly
     if (currentHalf === 2 && (match.second_half_start_time || match.second_half_started_at)) {
-      // Second half: calculate from second half start time, starting from duration/2
+      // FIXED: Second half ALWAYS starts from exact duration/2, ignore first half stoppage
       const halfDuration = (match.duration || 90) / 2;
-      const secondHalfStartMinutes = Math.floor(halfDuration + (match.added_time_first_half || 0));
-      const secondHalfStartSeconds = Math.round(((halfDuration + (match.added_time_first_half || 0)) % 1) * 60);
+      const secondHalfStartMinutes = Math.floor(halfDuration); // FIXED: Remove added_time_first_half
+      const secondHalfStartSeconds = Math.round((halfDuration % 1) * 60); // FIXED: Remove added_time_first_half
       
       const secondHalfStart = new Date(match.second_half_start_time || match.second_half_started_at).getTime();
       const secondHalfElapsed = Math.floor((Date.now() - secondHalfStart) / 1000);
@@ -155,15 +155,15 @@ function formatTimerDisplay(minute: number, second: number, match: any, isHalfti
       return `${regularTime}+${overtime}'`;
     }
   } else {
-    // Second half
-    const firstHalfTotal = Math.floor(halfDuration) + addedTimeFirstHalf;
-    const secondHalfRegular = Math.floor(halfDuration);
+    // FIXED: Second half display - starts from duration/2, ignore first half stoppage
+    const secondHalfRegular = Math.floor(halfDuration); // Duration/2 (e.g., 45 for 90min match)
+    const totalRegularTime = secondHalfRegular * 2; // Full game regular time (e.g., 90)
     
-    if (minute <= firstHalfTotal + secondHalfRegular) {
+    if (minute <= totalRegularTime) {
       return `${minute}'`;
     } else {
-      const overtime = minute - firstHalfTotal - secondHalfRegular;
-      return `${firstHalfTotal + secondHalfRegular}+${overtime}'`;
+      const overtime = minute - totalRegularTime;
+      return `${totalRegularTime}+${overtime}'`;
     }
   }
 }

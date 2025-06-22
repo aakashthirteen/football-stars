@@ -62,7 +62,7 @@ export class ScalableFootballTimerService extends EventEmitter {
   // SCALABLE: Single timer for ALL matches
   private centralTimer?: NodeJS.Timeout;
   private readonly CENTRAL_TICK_MS = 100;  // Check all matches every 100ms
-  private readonly UI_UPDATE_INTERVAL_MS = 1000; // Broadcast to UI every second
+  private readonly UI_UPDATE_INTERVAL_MS = 200; // FIXED: Broadcast to UI every 200ms (5x more frequent)
   private lastUIUpdateTime = 0;
   
   // Lightweight storage

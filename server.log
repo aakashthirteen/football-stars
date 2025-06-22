@@ -19,3 +19,5 @@ Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET 
 ✅ Verified match_formations table exists
 ✅ PostgreSQL database initialized successfully
 🏥 SSE Health: Endpoint accessed
+SIGTERM received, shutting down gracefully
+Process terminated
