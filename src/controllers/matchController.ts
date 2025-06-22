@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { database } from '../models/databaseFactory';
 import { AuthRequest, CreateMatchRequest, MatchEventRequest, Match, MatchWithDetails, MatchEvent } from '../types';
-import { sseMatchTimerService } from '../services/sse/SSEMatchTimerService';
+import { scalableFootballTimer } from '../services/sse/ScalableFootballTimerService';
 import { getTimerService } from '../config/timerConfig';
 
 export const getUserMatches = async (req: AuthRequest, res: Response): Promise<void> => {

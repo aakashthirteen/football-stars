@@ -423,7 +423,10 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         useNativeDriver: true,
       }),
     ]).start(() => {
-      setLatestCommentary('');
+      // Use setTimeout to avoid state update during render
+      setTimeout(() => {
+        setLatestCommentary('');
+      }, 0);
     });
   };
 

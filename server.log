@@ -1,0 +1,21 @@
+🐘 Using PostgreSQL database
+⚠️  Cloudinary environment variables not set. Image upload will not work.
+Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in Railway environment variables.
+🏆 Professional Football Timer System initialized
+🗄️ PostgreSQL database initialization started
+🔄 Checking database tables...
+✅ match_formations table already exists
+🔄 Checking SSE timer columns...
+✅ Updated matches status constraint to include HALFTIME
+✅ Added unique constraint to prevent duplicate match events
+✅ Successfully created match_formations table
+✅ SSE timer columns already exist
+✅ Server started successfully! SSE timer service ready.
+🏆 Professional Football Timer System ready
+🚀 Server running on port 3001
+🌐 Railway URL: Not in Railway
+📱 Health check: http://localhost:3001/health
+📱 Local access: http://localhost:3001/health
+✅ Verified match_formations table exists
+✅ PostgreSQL database initialized successfully
+🏥 SSE Health: Endpoint accessed

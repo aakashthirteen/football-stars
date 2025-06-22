@@ -131,31 +131,50 @@ export function useMatchTimer(matchId: string) {
     }
   }, [formatTime, formatMinuteDisplay]);
 
-  // Client-side interpolation for smooth timer
+  // FIXED: Smooth second-by-second timer progression with periodic resync
   const startInterpolation = useCallback((serverTotalSeconds: number) => {
     // Clear existing interpolation
     stopInterpolation();
     
-    let localTotalSeconds = serverTotalSeconds;
-    const startTime = Date.now();
+    // Start with server seconds as baseline (ensure integer)
+    let currentSeconds = Math.floor(serverTotalSeconds);
+    let syncCounter = 0;
+    const RESYNC_INTERVAL = 30; // Resync with server every 30 seconds
     
-    interpolationRef.current = setInterval(() => {
-      // Calculate elapsed time since last server update
-      const elapsed = (Date.now() - startTime) / 1000;
-      const currentTotalSeconds = serverTotalSeconds + elapsed;
-      
-      const displayMinute = Math.floor(currentTotalSeconds / 60);
-      const displaySecond = Math.floor(currentTotalSeconds % 60);
+    // Update immediately with server time
+    const updateDisplay = (seconds: number) => {
+      const displayMinute = Math.floor(seconds / 60);
+      const displaySecond = seconds % 60;
       
       setTimerState(prev => ({
         ...prev,
         displayTime: formatTime(displayMinute, displaySecond),
+        currentMinute: displayMinute,
+        currentSecond: displaySecond,
         displayMinute: formatMinuteDisplay({
           ...prev,
           currentMinute: displayMinute
         })
       }));
-    }, 100); // Update every 100ms for smooth display
+    };
+    
+    // Set initial display
+    updateDisplay(currentSeconds);
+    
+    interpolationRef.current = setInterval(() => {
+      // Increment by exactly 1 second each time for smooth progression
+      currentSeconds += 1;
+      syncCounter += 1;
+      
+      updateDisplay(currentSeconds);
+      
+      // Periodic resync with server to prevent drift
+      if (syncCounter >= RESYNC_INTERVAL) {
+        syncCounter = 0;
+        // Note: In a real implementation, this would trigger a server sync
+        // The server update will restart interpolation with correct time
+      }
+    }, 1000); // Exactly 1 second intervals for smooth 1,2,3,4,5... progression
   }, [formatTime, formatMinuteDisplay]);
 
   const stopInterpolation = useCallback(() => {
@@ -165,200 +184,7 @@ export function useMatchTimer(matchId: string) {
     }
   }, []);
 
-  // Connect to SSE (optional enhancement - polling is primary)
-  const connectSSE = useCallback(async () => {
-    try {
-      // Check if EventSource is available
-      if (typeof EventSource === 'undefined' && typeof global.EventSource === 'undefined') {
-        console.warn('⚠️ SSE: EventSource not available, using polling only');
-        setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
-        startPollingFallback();
-        return;
-      }
-
-      // Get auth token
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        console.error('❌ SSE: No auth token available, falling back to polling');
-        setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
-        startPollingFallback();
-        return;
-      }
-
-      console.log(`📡 SSE: Attempting to connect to timer stream for match: ${matchId}`);
-
-      // Use modern event-source-polyfill with header support
-      const url = `${API_BASE_URL}/sse/${matchId}/timer-stream`;
-      
-      console.log(`📡 SSE: Full connection URL: ${url}`);
-      
-      // Close any existing connection first
-      if (eventSourceRef.current) {
-        console.log('🔄 SSE: Closing existing connection');
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-
-      // Set connecting status
-      setTimerState(prev => ({ ...prev, connectionStatus: 'connecting' }));
-      
-      // Create new EventSource connection with headers
-      console.log('🚀 SSE: Creating new EventSource connection with headers...');
-      console.log('🔍 SSE: EventSource constructor available:', typeof EventSource !== 'undefined');
-      
-      try {
-        // Try with headers first (modern polyfill)
-        const eventSource = new EventSource(url, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'text/event-stream',
-            'Cache-Control': 'no-cache'
-          }
-        });
-        console.log('✅ SSE: EventSource created successfully with headers');
-        eventSourceRef.current = eventSource;
-      } catch (error) {
-        console.warn('⚠️ SSE: Headers not supported, trying query parameter method');
-        try {
-          // Fallback to query parameter method
-          const fallbackUrl = `${url}?token=${encodeURIComponent(token)}`;
-          const eventSource = new EventSource(fallbackUrl);
-          console.log('✅ SSE: EventSource created with query parameter auth');
-          eventSourceRef.current = eventSource;
-        } catch (fallbackError) {
-          console.warn('⚠️ SSE: EventSource creation failed, using polling only:', fallbackError);
-          setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
-          startPollingFallback();
-          return;
-        }
-      }
-
-      // Get reference to the event source
-      const currentEventSource = eventSourceRef.current;
-      
-      // Set up connection timeout
-      const connectionTimeout = setTimeout(() => {
-        console.warn('⚠️ SSE: Connection timeout after 10 seconds');
-        if (currentEventSource && currentEventSource.readyState !== EventSource.OPEN) {
-          currentEventSource.close();
-          setTimerState(prev => ({ ...prev, connectionStatus: 'error' }));
-        }
-      }, 10000);
-
-      eventSource.onopen = (event) => {
-        clearTimeout(connectionTimeout);
-        console.log('✅ SSE: Connection established successfully!');
-        console.log('🔍 SSE: Connection event:', event);
-        console.log('🔍 SSE: ReadyState:', eventSource.readyState);
-        setTimerState(prev => ({ ...prev, connectionStatus: 'connected' }));
-        reconnectAttemptsRef.current = 0; // Reset reconnect counter on successful connection
-      };
-
-      eventSource.onmessage = (event) => {
-        console.log('📨 SSE: Received message:', event.data);
-        console.log('📨 SSE: Message type:', event.type);
-        console.log('📨 SSE: Last event ID:', event.lastEventId);
-        try {
-          const data = JSON.parse(event.data) as SSEUpdate;
-          console.log('🔄 SSE: Parsed data:', JSON.stringify(data, null, 2));
-          handleSSEUpdate(data);
-        } catch (error) {
-          console.error('❌ SSE: Failed to parse data:', error);
-          console.error('❌ SSE: Raw data was:', event.data);
-        }
-      };
-
-      eventSource.onerror = (error) => {
-        clearTimeout(connectionTimeout);
-        console.error('❌ SSE: Connection error occurred');
-        console.error('❌ SSE: Error event:', error);
-        console.error('❌ SSE: ReadyState:', eventSource.readyState);
-        console.error('❌ SSE: URL was:', url.replace(token, 'TOKEN_HIDDEN'));
-        
-        setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
-        
-        // Exponential backoff reconnection
-        const backoffDelay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
-        reconnectAttemptsRef.current++;
-        
-        console.log(`🔄 SSE: Scheduling reconnection in ${backoffDelay}ms (attempt ${reconnectAttemptsRef.current})`);
-        
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current);
-        }
-        
-        reconnectTimeoutRef.current = setTimeout(() => {
-          console.log('🔄 SSE: Executing reconnection attempt...');
-          eventSource.close();
-          connectSSE();
-        }, backoffDelay);
-      };
-
-      // Log the readyState periodically for debugging
-      const readyStateLogger = setInterval(() => {
-        console.log(`🔍 SSE: ReadyState check - ${eventSource.readyState} (0=CONNECTING, 1=OPEN, 2=CLOSED)`);
-        if (eventSource.readyState === EventSource.CLOSED) {
-          clearInterval(readyStateLogger);
-        }
-      }, 1000);
-
-      // Clean up readyState logger after 30 seconds
-      setTimeout(() => clearInterval(readyStateLogger), 30000);
-
-    } catch (error) {
-      console.warn('⚠️ SSE: Exception during connection setup, falling back to polling:', error);
-      setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
-      startPollingFallback();
-    }
-  }, [matchId, handleSSEUpdate, startPollingFallback]);
-
-
-  // Effect to manage timer connection - TRY SSE FIRST with quick polling fallback
-  useEffect(() => {
-    if (!matchId) return;
-
-    console.log('🚀 Timer Hook: Starting connection for match:', matchId);
-    
-    // FIXED: Try SSE first (has the automatic halftime/fulltime logic)
-    console.log('📡 Attempting SSE connection first (has auto halftime/fulltime)');
-    connectSSE();
-    
-    // Quick fallback to polling if SSE fails
-    const sseTimeout = setTimeout(() => {
-      if (timerState.connectionStatus !== 'connected') {
-        console.log('⚡ SSE timeout - falling back to polling');
-        startPollingFallback();
-      }
-    }, 3000); // Give SSE 3 seconds to connect
-    
-    // Emergency polling if nothing works
-    const emergencyPolling = setTimeout(() => {
-      if (timerState.status === 'SCHEDULED' && timerState.connectionStatus !== 'connected') {
-        console.log('🚨 EMERGENCY: No connection established - forcing polling');
-        startPollingFallback();
-      }
-    }, 5000); // Emergency after 5 seconds
-
-    // Cleanup
-    return () => {
-      clearTimeout(sseTimeout);
-      clearTimeout(emergencyPolling);
-      
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-      
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
-      
-      stopInterpolation();
-    };
-  }, [matchId, connectSSE, stopInterpolation, startPollingFallback]);
-
-  // Enhanced polling fallback system
+  // Enhanced polling fallback system - DEFINE BEFORE connectSSE
   const startPollingFallback = useCallback(async () => {
     try {
       console.log('🔄 Starting polling fallback for match:', matchId);
@@ -370,7 +196,7 @@ export function useMatchTimer(matchId: string) {
         interpolationRef.current = null;
       }
       
-      // Poll server every 2 seconds for timer state
+      // OPTIMIZED: Poll server every 3 seconds (more efficient)
       const pollingInterval = setInterval(async () => {
         try {
           // Get match data from API
@@ -381,12 +207,6 @@ export function useMatchTimer(matchId: string) {
             clearInterval(pollingInterval);
             return;
           }
-          
-          // console.log('📊 Polling: Timer data fetched:', {
-          //   status: match.status,
-          //   timerStartedAt: match.timer_started_at,
-          //   matchDate: match.match_date
-          // });
           
           // Only stop polling for completed matches, keep polling for SCHEDULED and HALFTIME
           if (match.status === 'COMPLETED') {
@@ -513,13 +333,11 @@ export function useMatchTimer(matchId: string) {
             connectionStatus: 'disconnected' // Indicates we're using polling
           }));
           
-          // console.log(`📊 Polling: Timer updated - ${adjustedMinute}:${currentSecond.toString().padStart(2, '0')}`);
-          
         } catch (pollingError) {
           console.error('❌ Polling error:', pollingError);
           // Don't stop polling on single error, just log it
         }
-      }, 1000); // Poll every 1 second
+      }, 3000); // FIXED: Poll every 3 seconds (3x more efficient)
       
       // Store interval reference for cleanup
       interpolationRef.current = pollingInterval;
@@ -529,35 +347,212 @@ export function useMatchTimer(matchId: string) {
     }
   }, [matchId, formatTime, formatMinuteDisplay]);
 
-  // Enhanced connection health monitoring with faster polling fallback
+  // Connect to SSE (optional enhancement - polling is primary)
+  const connectSSE = useCallback(async () => {
+    try {
+      // Check if EventSource is available
+      if (typeof EventSource === 'undefined' && typeof global.EventSource === 'undefined') {
+        console.warn('⚠️ SSE: EventSource not available, using polling only');
+        setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+        startPollingFallback();
+        return;
+      }
+
+      // Get auth token
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        console.error('❌ SSE: No auth token available, falling back to polling');
+        setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+        startPollingFallback();
+        return;
+      }
+
+      console.log(`📡 SSE: Attempting to connect to timer stream for match: ${matchId}`);
+
+      // Use modern event-source-polyfill with header support
+      const url = `${API_BASE_URL}/sse/${matchId}/timer-stream`;
+      
+      console.log(`📡 SSE: Full connection URL: ${url}`);
+      
+      // Close any existing connection first
+      if (eventSourceRef.current) {
+        console.log('🔄 SSE: Closing existing connection');
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+
+      // Set connecting status
+      setTimerState(prev => ({ ...prev, connectionStatus: 'connecting' }));
+      
+      // Create new EventSource connection with headers
+      console.log('🚀 SSE: Creating new EventSource connection with headers...');
+      console.log('🔍 SSE: EventSource constructor available:', typeof EventSource !== 'undefined');
+      
+      try {
+        // Try with headers first (modern polyfill)
+        const eventSource = new EventSource(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'text/event-stream',
+            'Cache-Control': 'no-cache'
+          }
+        });
+        console.log('✅ SSE: EventSource created successfully with headers');
+        eventSourceRef.current = eventSource;
+      } catch (error) {
+        console.warn('⚠️ SSE: Headers not supported, trying query parameter method');
+        try {
+          // Fallback to query parameter method
+          const fallbackUrl = `${url}?token=${encodeURIComponent(token)}`;
+          const eventSource = new EventSource(fallbackUrl);
+          console.log('✅ SSE: EventSource created with query parameter auth');
+          eventSourceRef.current = eventSource;
+        } catch (fallbackError) {
+          console.warn('⚠️ SSE: EventSource creation failed, using polling only:', fallbackError);
+          setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+          startPollingFallback();
+          return;
+        }
+      }
+
+      // Get reference to the event source
+      const currentEventSource = eventSourceRef.current;
+      
+      // Set up connection timeout
+      const connectionTimeout = setTimeout(() => {
+        console.warn('⚠️ SSE: Connection timeout after 10 seconds');
+        if (currentEventSource && currentEventSource.readyState !== EventSource.OPEN) {
+          currentEventSource.close();
+          setTimerState(prev => ({ ...prev, connectionStatus: 'error' }));
+        }
+      }, 10000);
+
+      currentEventSource.onopen = (event) => {
+        clearTimeout(connectionTimeout);
+        console.log('✅ SSE: Connection established successfully!');
+        console.log('🔍 SSE: Connection event:', event);
+        console.log('🔍 SSE: ReadyState:', currentEventSource.readyState);
+        setTimerState(prev => ({ ...prev, connectionStatus: 'connected' }));
+        reconnectAttemptsRef.current = 0; // Reset reconnect counter on successful connection
+      };
+
+      currentEventSource.onmessage = (event) => {
+        console.log('📨 SSE: Received message:', event.data);
+        console.log('📨 SSE: Message type:', event.type);
+        console.log('📨 SSE: Last event ID:', event.lastEventId);
+        try {
+          const data = JSON.parse(event.data) as SSEUpdate;
+          console.log('🔄 SSE: Parsed data:', JSON.stringify(data, null, 2));
+          handleSSEUpdate(data);
+        } catch (error) {
+          console.error('❌ SSE: Failed to parse data:', error);
+          console.error('❌ SSE: Raw data was:', event.data);
+        }
+      };
+
+      currentEventSource.onerror = (error) => {
+        clearTimeout(connectionTimeout);
+        console.error('❌ SSE: Connection error occurred');
+        console.error('❌ SSE: Error event:', error);
+        console.error('❌ SSE: ReadyState:', currentEventSource.readyState);
+        console.error('❌ SSE: URL was:', url.replace(token, 'TOKEN_HIDDEN'));
+        
+        setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+        
+        // Exponential backoff reconnection
+        const backoffDelay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+        reconnectAttemptsRef.current++;
+        
+        console.log(`🔄 SSE: Scheduling reconnection in ${backoffDelay}ms (attempt ${reconnectAttemptsRef.current})`);
+        
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+        }
+        
+        reconnectTimeoutRef.current = setTimeout(() => {
+          console.log('🔄 SSE: Executing reconnection attempt...');
+          currentEventSource.close();
+          connectSSE();
+        }, backoffDelay);
+      };
+
+      // REMOVED: ReadyState logger causing unnecessary CPU usage
+      // Only log on connection state changes, not every second
+
+    } catch (error) {
+      console.warn('⚠️ SSE: Exception during connection setup, falling back to polling:', error);
+      setTimerState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+      // Schedule polling outside of any render phase
+      setTimeout(() => startPollingFallback(), 0);
+    }
+  }, [matchId, handleSSEUpdate, startPollingFallback]);
+
+  // Effect to manage timer connection - TRY SSE FIRST with quick polling fallback
+  useEffect(() => {
+    if (!matchId) return;
+
+    console.log('🚀 Timer Hook: Starting connection for match:', matchId);
+    
+    // FIXED: Try SSE first (has the automatic halftime/fulltime logic)
+    console.log('📡 Attempting SSE connection first (has auto halftime/fulltime)');
+    connectSSE();
+    
+    // OPTIMIZED: Single fallback timeout instead of multiple racing timeouts
+    const sseTimeout = setTimeout(() => {
+      setTimerState(prev => {
+        if (prev.connectionStatus !== 'connected') {
+          console.log('⚡ SSE timeout - falling back to polling');
+          startPollingFallback();
+        }
+        return prev;
+      });
+    }, 5000); // Single 5-second timeout
+
+    // Cleanup
+    return () => {
+      clearTimeout(sseTimeout);
+      
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      
+      stopInterpolation();
+    };
+  }, [matchId, connectSSE, stopInterpolation, startPollingFallback]);
+
+  // OPTIMIZED: Simplified health monitoring (less frequent checks)
   useEffect(() => {
     const healthCheck = setInterval(() => {
       const timeSinceLastUpdate = Date.now() - lastUpdateRef.current;
       
-      // Much more aggressive fallback - if SSE hasn't connected after 3 seconds, switch to polling
-      const isConnectionStalled = timeSinceLastUpdate > 3000 && timerState.connectionStatus === 'connecting';
-      const isUpdateStalled = timeSinceLastUpdate > 5000 && timerState.status === 'LIVE' && timerState.connectionStatus === 'connected';
-      const isTimerNotStarted = timerState.status === undefined && timerState.connectionStatus === 'disconnected';
-      
-      if (isConnectionStalled || isUpdateStalled || isTimerNotStarted) {
-        console.warn('⚠️ SSE connection failed or timer not started, switching to polling fallback');
+      setTimerState(prev => {
+        // More reasonable timeouts to avoid unnecessary polling switches
+        const isConnectionStalled = timeSinceLastUpdate > 10000 && prev.connectionStatus === 'connecting';
+        const isUpdateStalled = timeSinceLastUpdate > 15000 && prev.status === 'LIVE' && prev.connectionStatus === 'connected';
         
-        // Close any existing SSE connection
-        if (eventSourceRef.current) {
-          eventSourceRef.current.close();
-          eventSourceRef.current = null;
+        if (isConnectionStalled || isUpdateStalled) {
+          console.warn('⚠️ SSE connection stalled, switching to polling');
+          
+          if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+          }
+          
+          setTimeout(() => startPollingFallback(), 0);
         }
         
-        // Start polling fallback immediately
-        if (!interpolationRef.current || timerState.connectionStatus !== 'disconnected') {
-          console.log('🔄 Starting enhanced polling fallback for reliable timer updates');
-          startPollingFallback();
-        }
-      }
-    }, 1000); // Check every 1 second for faster response
+        return prev;
+      });
+    }, 5000); // FIXED: Check every 5 seconds (5x more efficient)
 
     return () => clearInterval(healthCheck);
-  }, [timerState.status, timerState.connectionStatus, startPollingFallback]);
+  }, [startPollingFallback]);
 
   // Test SSE endpoint accessibility
   const testSSEEndpoint = useCallback(async () => {

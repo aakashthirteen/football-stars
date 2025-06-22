@@ -329,10 +329,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   const handleAddStoppageTime = async () => {
     try {
-      await apiService.addStoppageTime(matchId, 1);
+      // Use SSE endpoint to ensure timer service is updated immediately
+      await apiService.addStoppageTimeSSE(matchId, 1);
       const halfText = currentHalf === 1 ? 'first' : 'second';
       showCommentary(`⏱️ +1 minute of stoppage time added to the ${halfText} half.`);
-      await loadMatchDetails();
+      // No need to reload match details as SSE will update automatically
     } catch (error) {
       Alert.alert('Error', 'Failed to add stoppage time');
     }
@@ -556,7 +557,10 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       }),
     ]).start(() => {
       // Clear commentary after animation
-      setLatestCommentary('');
+      // Use setTimeout to avoid state update during render
+      setTimeout(() => {
+        setLatestCommentary('');
+      }, 0);
     });
   };
 

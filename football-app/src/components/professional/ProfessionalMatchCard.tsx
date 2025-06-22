@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, memo, useMemo } from 'react';
 import {
   View,
   Text,
@@ -43,7 +43,7 @@ interface ProfessionalMatchCardProps {
   style?: any;
 }
 
-export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ match, onPress, style }) => {
+const ProfessionalMatchCardComponent: React.FC<ProfessionalMatchCardProps> = ({ match, onPress, style }) => {
   const isLive = match.status === 'LIVE';
   const isHalftime = match.status === 'HALFTIME';
   const isCompleted = match.status === 'COMPLETED';
@@ -104,8 +104,14 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
       return 'Invalid Date';
     }
   };
+
+  // OPTIMIZED: Memoized date formatting
+  const formattedDate = useMemo(() => {
+    return formatDate(match.matchDate || match.match_date);
+  }, [match.matchDate, match.match_date]);
   
-  const getStatusColor = () => {
+  // OPTIMIZED: Memoized status calculations
+  const statusColor = useMemo(() => {
     switch (match.status) {
       case 'LIVE':
         return colors.status.live;
@@ -116,13 +122,13 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
       default:
         return colors.status.scheduled;
     }
-  };
+  }, [match.status]);
   
-  const getStatusText = () => {
-    // Use shared timer utility to ensure consistency with match screen
+  // OPTIMIZED: Memoized timer calculation
+  const statusText = useMemo(() => {
     const timerResult = calculateMatchTimer({ match: match as any });
     return timerResult.displayText;
-  };
+  }, [match.status, match.matchDate, match.match_date, match.timer_started_at]);
 
   const getMatchDetails = () => {
     switch (match.status) {
@@ -131,7 +137,7 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
       case 'HALFTIME':
         return 'Half-time break';
       case 'COMPLETED':
-        return formatDate(match.matchDate);
+        return formattedDate;
       default:
         return null; // Date already shown in status badge
     }
@@ -227,8 +233,8 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
           
           {/* Status/Time */}
           <View style={styles.statusContainer}>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor() }]}>
-              <Text style={styles.statusText}>{getStatusText()}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+              <Text style={styles.statusText}>{statusText}</Text>
             </View>
             {match.status === 'SCHEDULED' && (
               <View style={styles.vsContainer}>
@@ -295,6 +301,9 @@ export const ProfessionalMatchCard: React.FC<ProfessionalMatchCardProps> = ({ ma
     </Animated.View>
   );
 };
+
+// OPTIMIZED: Memoized component to prevent unnecessary re-renders
+export const ProfessionalMatchCard = memo(ProfessionalMatchCardComponent);
 
 const styles = StyleSheet.create({
   container: {

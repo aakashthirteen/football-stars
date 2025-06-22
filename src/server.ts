@@ -1,6 +1,6 @@
 import app from './app';
 import { database } from './models/databaseFactory';
-import { recoverActiveTimers, cleanupStaleTimers } from './services/sse/timerRecovery';
+// Timer recovery removed - using new professional timer system
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
@@ -103,13 +103,8 @@ async function startServer() {
     // SSE timer service is initialized automatically when matches start
     console.log('✅ Server started successfully! SSE timer service ready.');
     
-    // Recover active timers after server startup
-    setTimeout(async () => {
-      console.log('🔄 Starting timer recovery process...');
-      await cleanupStaleTimers();
-      await recoverActiveTimers();
-      console.log('✅ Timer recovery completed');
-    }, 2000); // Wait 2 seconds for server to fully initialize
+    // Professional timer system doesn't need recovery - using event-driven architecture
+    console.log('🏆 Professional Football Timer System ready');
 
     // Graceful shutdown handlers
     process.on('SIGTERM', () => {

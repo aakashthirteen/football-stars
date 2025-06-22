@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -58,19 +58,8 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
     }, [])
   );
 
-  // Real-time timer updates for live matches
-  useEffect(() => {
-    const hasLiveMatches = matches.some(match => match.status === 'LIVE' || match.status === 'HALFTIME');
-    
-    if (hasLiveMatches) {
-      const interval = setInterval(() => {
-        // Force re-render to update live timers every second using shared timer utility
-        forceUpdate({});
-      }, 1000); // Update every second for live timers
-
-      return () => clearInterval(interval);
-    }
-  }, [matches]);
+  // REMOVED: Force re-render causing performance issues
+  // Individual match cards now handle their own timer updates efficiently
 
   const loadData = async () => {
     await loadMatches();
@@ -141,8 +130,8 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
     setRefreshing(false);
   };
 
-  const getFilteredMatches = () => {
-    // Add safety checks for undefined arrays
+  // OPTIMIZED: Memoized filter function to prevent unnecessary recalculations
+  const filteredMatches = useMemo(() => {
     if (!matches || !Array.isArray(matches)) return [];
     
     switch (activeTab) {
@@ -158,15 +147,16 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
       default:
         return matches;
     }
-  };
+  }, [matches, activeTab, user?.id, myTeams]);
 
-  const handleMatchPress = (match: Match) => {
+  // OPTIMIZED: Memoized event handler
+  const handleMatchPress = useCallback((match: Match) => {
     if (match.status === 'COMPLETED') {
       navigation.navigate('MatchOverview', { matchId: match.id });
     } else {
       navigation.navigate('MatchScoring', { matchId: match.id });
     }
-  };
+  }, [navigation]);
 
   const calculateElapsedMinutes = (matchDate: string) => {
     try {
@@ -284,8 +274,6 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
   };
 
   const renderMatches = () => {
-    const filteredMatches = getFilteredMatches();
-
     if (filteredMatches.length === 0) {
       return renderEmptyState();
     }

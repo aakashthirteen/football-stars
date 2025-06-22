@@ -10,7 +10,7 @@ import statsRoutes from './routes/stats';
 import playerRoutes from './routes/players';
 import tournamentRoutes from './routes/tournaments';
 import uploadRoutes from './routes/upload';
-import simpleMatchRoutes from './routes/simpleMatches';
+// Removed simpleMatchRoutes - using professional timer system
 import sseRoutes from './routes/sse';
 
 // Import database
@@ -274,7 +274,7 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/players', playerRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/upload', uploadRoutes);
-app.use('/api/simple-matches', simpleMatchRoutes);
+// Removed simple-matches routes - using professional timer system
 app.use('/api/sse', sseRoutes); // SSE routes for real-time match updates
 
 // Error handling middleware
