@@ -152,6 +152,7 @@ export class ScalableFootballTimerService extends EventEmitter {
 
   /**
    * PERFORMANCE CORE: Process all matches in single loop
+   * FIXED: Use single timestamp for consistent event processing
    */
   private processCentralTick(): void {
     if (this.matches.size === 0) {
@@ -166,13 +167,15 @@ export class ScalableFootballTimerService extends EventEmitter {
     for (const [matchId, state] of this.matches) {
       if (!state.isActive) continue;
       
-      const elapsed = this.calculateElapsedTime(state);
+      // FIXED: Use startTime for consistency across all event processing
+      const elapsed = this.calculateElapsedTime(state, startTime);
       
       // Check for predicted events that should fire
       const events = this.predictedEvents.get(matchId) || [];
       for (const event of events) {
         if (!event.executed && elapsed >= event.fireAtElapsed) {
-          this.executeEvent(event);
+          // FIXED: Pass timestamp for consistency
+          this.executeEvent(event, startTime);
           eventsProcessed++;
         }
       }
@@ -193,14 +196,15 @@ export class ScalableFootballTimerService extends EventEmitter {
 
   /**
    * Calculate precise elapsed time accounting for pauses
+   * FIXED: Accept timestamp parameter to prevent multiple Date.now() calls
    */
-  private calculateElapsedTime(state: ScalableMatchState): number {
-    const now = Date.now();
-    let elapsed = now - state.startedAt - state.totalPausedMs;
+  private calculateElapsedTime(state: ScalableMatchState, now?: number): number {
+    const timestamp = now || Date.now(); // Use provided timestamp or current time
+    let elapsed = timestamp - state.startedAt - state.totalPausedMs;
     
     // If currently paused, don't count pause time
     if (state.pausedAt) {
-      elapsed -= (now - state.pausedAt);
+      elapsed -= (timestamp - state.pausedAt);
     }
     
     return Math.max(0, elapsed);
@@ -242,14 +246,16 @@ export class ScalableFootballTimerService extends EventEmitter {
 
   /**
    * Execute predicted event with exact timing
+   * FIXED: Accept timestamp for consistency
    */
-  private async executeEvent(event: PredictedEvent): Promise<void> {
+  private async executeEvent(event: PredictedEvent, now?: number): Promise<void> {
     if (event.executed) return;
     
     const state = this.matches.get(event.matchId);
     if (!state) return;
 
-    const elapsed = this.calculateElapsedTime(state);
+    // FIXED: Use provided timestamp for consistency  
+    const elapsed = this.calculateElapsedTime(state, now);
     console.log(`🎯 Executing ${event.type} for ${event.matchId} at ${this.formatMs(elapsed)}`);
 
     event.executed = true;
@@ -399,31 +405,36 @@ export class ScalableFootballTimerService extends EventEmitter {
 
   /**
    * Broadcast UI updates to all clients (called every second)
+   * FIXED: Use single timestamp to prevent timing inconsistencies
    */
   private broadcastUIUpdates(): void {
     const updates = new Map<string, any>();
+    
+    // CRITICAL FIX: Single timestamp for all calculations
+    const now = Date.now();
 
     // Prepare updates for all active matches
     for (const [matchId, state] of this.matches) {
-      const elapsed = this.calculateElapsedTime(state);
+      // FIXED: Pass same timestamp to ensure consistency
+      const elapsed = this.calculateElapsedTime(state, now);
       const displayMinute = Math.floor(elapsed / (60 * 1000));
       const displaySecond = Math.floor((elapsed % (60 * 1000)) / 1000);
 
       updates.set(matchId, {
         type: 'timer_update',
         matchId,
-        timestamp: Date.now(),
+        timestamp: now, // Use same timestamp
         state: {
           currentMinute: displayMinute,
           currentSecond: displaySecond,
-          totalSeconds: Math.floor(elapsed / 1000), // Added for frontend sync
+          totalSeconds: Math.floor(elapsed / 1000), // Calculated with same timestamp
           status: this.mapPhaseToStatus(state.phase),
           currentHalf: state.phase === 'FIRST_HALF' ? 1 : 2,
           isHalftime: state.phase === 'HALFTIME_BREAK',
           isPaused: !state.isActive,
           addedTimeFirstHalf: Math.floor(state.firstHalfStoppageMs / (60 * 1000)),
           addedTimeSecondHalf: Math.floor(state.secondHalfStoppageMs / (60 * 1000)),
-          serverTime: Date.now()
+          serverTime: now // FIXED: Use same timestamp as calculations
         }
       });
     }
@@ -462,25 +473,27 @@ export class ScalableFootballTimerService extends EventEmitter {
     const state = this.matches.get(matchId);
     if (!state) return;
 
-    const elapsed = this.calculateElapsedTime(state);
+    // CRITICAL FIX: Single timestamp for event broadcasts too
+    const now = Date.now();
+    const elapsed = this.calculateElapsedTime(state, now);
     const displayMinute = Math.floor(elapsed / (60 * 1000));
     const displaySecond = Math.floor((elapsed % (60 * 1000)) / 1000);
 
     const update = {
       type: eventType,
       matchId,
-      timestamp: Date.now(),
+      timestamp: now, // FIXED: Use same timestamp
       state: {
         currentMinute: displayMinute,
         currentSecond: displaySecond,
-        totalSeconds: Math.floor(elapsed / 1000), // Added for frontend sync
+        totalSeconds: Math.floor(elapsed / 1000), // Calculated with same timestamp
         status: this.mapPhaseToStatus(state.phase),
         currentHalf: state.phase === 'FIRST_HALF' ? 1 : 2,
         isHalftime: state.phase === 'HALFTIME_BREAK',
         isPaused: !state.isActive,
         addedTimeFirstHalf: Math.floor(state.firstHalfStoppageMs / (60 * 1000)),
         addedTimeSecondHalf: Math.floor(state.secondHalfStoppageMs / (60 * 1000)),
-        serverTime: Date.now()
+        serverTime: now // FIXED: Use same timestamp
       }
     };
 

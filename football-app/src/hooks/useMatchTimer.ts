@@ -131,19 +131,18 @@ export function useMatchTimer(matchId: string) {
     }
   }, [formatTime, formatMinuteDisplay]);
 
-  // FIXED: Smooth second-by-second timer progression with network latency compensation
+  // FIXED: Smooth second-by-second timer progression WITHOUT problematic latency compensation
   const startInterpolation = useCallback((serverTotalSeconds: number) => {
     // Clear existing interpolation
     stopInterpolation();
     
-    // FIXED: Compensate for network latency and processing delays
-    const networkLatency = (Date.now() - lastUpdateRef.current) / 1000; // Convert to seconds
-    const latencyCompensation = Math.min(networkLatency, 2); // Cap at 2 seconds max
+    // CRITICAL FIX: Remove latency compensation that was causing timer jumps
+    // The backend now provides consistent timestamps, so no compensation needed
     
-    // Start with server seconds + estimated network delay compensation
-    let currentSeconds = Math.floor(serverTotalSeconds + latencyCompensation);
+    // Start with exact server seconds (no compensation)
+    let currentSeconds = Math.floor(serverTotalSeconds);
     let syncCounter = 0;
-    const RESYNC_INTERVAL = 10; // FIXED: Resync with server every 10 seconds (3x more frequent)
+    const RESYNC_INTERVAL = 10; // Resync with server every 10 seconds
     
     // Update immediately with server time
     const updateDisplay = (seconds: number) => {
