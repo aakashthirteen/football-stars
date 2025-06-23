@@ -45,7 +45,7 @@ class ApiService {
       console.log('📡 API Response:', {
         status: response.status,
         statusText: response.statusText,
-        text: text.substring(0, 200)
+        text: text.substring(0, 5000) // Further increased to see events data
       });
 
       let data;
@@ -1280,7 +1280,7 @@ class ApiService {
   }
 
   async startSecondHalfSSE(id: string) {
-    return this.request(`/sse/${id}/start-second-half-sse`, {
+    return this.request(`/sse/${id}/second-half-sse`, {
       method: 'PATCH',
     });
   }

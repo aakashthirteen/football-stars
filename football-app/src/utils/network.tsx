@@ -1,5 +1,6 @@
 import NetInfo from '@react-native-community/netinfo';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { APP_CONFIG } from '../config/constants';
 
 // Network state hook
@@ -15,16 +16,7 @@ export const useNetworkState = () => {
       setConnectionType(state.type);
     });
 
-    // Get initial state
-    NetInfo.fetch().then(state => {
-      setIsConnected(state.isConnected);
-      setIsInternetReachable(state.isInternetReachable);
-      setConnectionType(state.type);
-    });
-
-    return () => {
-      unsubscribe();
-    };
+    return unsubscribe;
   }, []);
 
   return {
@@ -36,8 +28,8 @@ export const useNetworkState = () => {
 };
 
 // Retry logic with exponential backoff
-export const retryWithBackoff = async <T>(
-  fn: () => Promise<T>,
+export const retryWithBackoff = async (
+  fn: () => Promise<any>,
   options: {
     maxAttempts?: number;
     initialDelay?: number;
@@ -46,12 +38,12 @@ export const retryWithBackoff = async <T>(
     shouldRetry?: (error: any) => boolean;
     onRetry?: (attempt: number, error: any) => void;
   } = {}
-): Promise<T> => {
+): Promise<any> => {
   const {
-    maxAttempts = APP_CONFIG.RETRY.MAX_ATTEMPTS,
-    initialDelay = APP_CONFIG.RETRY.INITIAL_DELAY,
-    maxDelay = APP_CONFIG.RETRY.MAX_DELAY,
-    backoffFactor = APP_CONFIG.RETRY.BACKOFF_FACTOR,
+    maxAttempts = 3,
+    initialDelay = 1000,
+    maxDelay = 10000,
+    backoffFactor = 2,
     shouldRetry = () => true,
     onRetry,
   } = options;
@@ -81,191 +73,7 @@ export const retryWithBackoff = async <T>(
   throw lastError;
 };
 
-// Network-aware API wrapper
-export const networkAwareRequest = async <T>(
-  request: () => Promise<T>,
-  options: {
-    requireInternet?: boolean;
-    showOfflineError?: boolean;
-    offlineErrorMessage?: string;
-    enableRetry?: boolean;
-    retryOptions?: Parameters<typeof retryWithBackoff>[1];
-  } = {}
-): Promise<T> => {
-  const {
-    requireInternet = true,
-    showOfflineError = true,
-    offlineErrorMessage = 'No internet connection. Please check your network.',
-    enableRetry = true,
-    retryOptions = {},
-  } = options;
-
-  // Check network state
-  const networkState = await NetInfo.fetch();
-  
-  if (requireInternet && (!networkState.isConnected || !networkState.isInternetReachable)) {
-    if (showOfflineError) {
-      throw new Error(offlineErrorMessage);
-    }
-    throw new Error('OFFLINE');
-  }
-
-  // Execute request with retry if enabled
-  if (enableRetry) {
-    return retryWithBackoff(request, {
-      ...retryOptions,
-      shouldRetry: (error) => {
-        // Don't retry on client errors (4xx)
-        if (error.status && error.status >= 400 && error.status < 500) {
-          return false;
-        }
-        // Retry on network errors
-        if (error.code === 'NETWORK_ERROR' || error.code === 'TIMEOUT') {
-          return true;
-        }
-        // Use custom retry logic if provided
-        return retryOptions.shouldRetry ? retryOptions.shouldRetry(error) : true;
-      },
-    });
-  }
-
-  return request();
-};
-
-// Offline queue for storing actions to be synced later
-interface QueuedAction {
-  id: string;
-  type: string;
-  payload: any;
-  timestamp: number;
-  retryCount: number;
-}
-
-class OfflineQueue {
-  private queue: QueuedAction[] = [];
-  private processing = false;
-  private listeners: ((queue: QueuedAction[]) => void)[] = [];
-
-  async add(type: string, payload: any): Promise<void> {
-    const action: QueuedAction = {
-      id: `${Date.now()}_${Math.random()}`,
-      type,
-      payload,
-      timestamp: Date.now(),
-      retryCount: 0,
-    };
-
-    this.queue.push(action);
-    this.notifyListeners();
-    
-    // Try to process immediately if online
-    const networkState = await NetInfo.fetch();
-    if (networkState.isConnected) {
-      this.process();
-    }
-  }
-
-  async process(): Promise<void> {
-    if (this.processing || this.queue.length === 0) {
-      return;
-    }
-
-    this.processing = true;
-
-    while (this.queue.length > 0) {
-      const networkState = await NetInfo.fetch();
-      if (!networkState.isConnected) {
-        break;
-      }
-
-      const action = this.queue[0];
-      
-      try {
-        // Process action based on type
-        await this.processAction(action);
-        
-        // Remove from queue on success
-        this.queue.shift();
-        this.notifyListeners();
-      } catch (error) {
-        action.retryCount++;
-        
-        if (action.retryCount >= APP_CONFIG.RETRY.MAX_ATTEMPTS) {
-          // Remove from queue if max retries exceeded
-          this.queue.shift();
-          console.error('Failed to process offline action after max retries:', action);
-        } else {
-          // Move to end of queue
-          this.queue.push(this.queue.shift()!);
-        }
-        
-        this.notifyListeners();
-        break; // Stop processing on error
-      }
-    }
-
-    this.processing = false;
-  }
-
-  private async processAction(action: QueuedAction): Promise<void> {
-    // This should be implemented based on your app's specific actions
-    // For example:
-    switch (action.type) {
-      case 'CREATE_TEAM':
-        // await apiService.createTeam(action.payload);
-        break;
-      case 'UPDATE_PROFILE':
-        // await apiService.updateProfile(action.payload);
-        break;
-      // Add more action types as needed
-    }
-  }
-
-  subscribe(listener: (queue: QueuedAction[]) => void): () => void {
-    this.listeners.push(listener);
-    return () => {
-      this.listeners = this.listeners.filter(l => l !== listener);
-    };
-  }
-
-  private notifyListeners(): void {
-    this.listeners.forEach(listener => listener([...this.queue]));
-  }
-
-  getQueue(): QueuedAction[] {
-    return [...this.queue];
-  }
-
-  clear(): void {
-    this.queue = [];
-    this.notifyListeners();
-  }
-}
-
-export const offlineQueue = new OfflineQueue();
-
-// Hook for offline queue
-export const useOfflineQueue = () => {
-  const [queue, setQueue] = useState<QueuedAction[]>([]);
-
-  useEffect(() => {
-    const unsubscribe = offlineQueue.subscribe(setQueue);
-    setQueue(offlineQueue.getQueue());
-    return unsubscribe;
-  }, []);
-
-  return {
-    queue,
-    addToQueue: (type: string, payload: any) => offlineQueue.add(type, payload),
-    processQueue: () => offlineQueue.process(),
-    clearQueue: () => offlineQueue.clear(),
-  };
-};
-
 // Network status component
-import React from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
-
 export const NetworkStatusBar: React.FC = () => {
   const { isOffline } = useNetworkState();
   const [visible, setVisible] = useState(false);

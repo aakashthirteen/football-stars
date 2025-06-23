@@ -15,12 +15,14 @@ const { colors, typography, spacing, borderRadius, shadows } = DesignSystem;
 
 interface ProfessionalMatchHeaderProps {
   homeTeam: {
+    id?: string;
     name: string;
     badge?: string;
     logoUrl?: string;
     logo_url?: string;
   };
   awayTeam: {
+    id?: string;
     name: string;
     badge?: string;
     logoUrl?: string;
@@ -36,6 +38,15 @@ interface ProfessionalMatchHeaderProps {
   competition?: string;
   onBack?: () => void;
   onEndMatch?: () => void;
+  addedTime?: number;
+  events?: Array<{
+    id: string;
+    minute: number;
+    type: 'GOAL' | 'YELLOW_CARD' | 'RED_CARD' | 'SUBSTITUTION';
+    playerName: string;
+    teamId: string;
+  }>;
+  matchId?: string;
 }
 
 export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = ({
@@ -51,7 +62,12 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
   competition = 'Grassroots League',
   onBack,
   onEndMatch,
+  addedTime = 0,
+  events = [],
+  matchId,
 }) => {
+  const displayAddedTime = addedTime;
+  const displayEvents = events;
   const isLive = status === 'LIVE' || status === 'HALFTIME';
   const wavePositionAnim = useRef(new Animated.Value(-0.5)).current;
 
@@ -115,6 +131,7 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
         }
         style={styles.gradient}
       >
+        
         {/* Top Bar */}
         <View style={styles.topBar}>
           {onBack && (
@@ -176,6 +193,7 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
           </View>
         </View>
         
+        
         {/* Score Section */}
         <View style={styles.scoreSection}>
           {/* Home Team */}
@@ -195,10 +213,31 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
             ]}>
               {homeScore}
             </Text>
+            {/* Home Team Events */}
+            <View style={styles.eventsContainer}>
+              {displayEvents
+                .filter(event => event.teamId === 'home')
+                .slice(0, 3)
+                .map(event => (
+                  <View key={event.id} style={styles.eventItem}>
+                    <Text style={styles.eventMinute}>{event.minute}'</Text>
+                    {event.type === 'GOAL' && <Text style={styles.eventIcon}>⚽</Text>}
+                    {event.type === 'YELLOW_CARD' && <Text style={styles.eventIcon}>🟨</Text>}
+                    {event.type === 'RED_CARD' && <Text style={styles.eventIcon}>🟥</Text>}
+                    <Text style={styles.eventPlayer} numberOfLines={1}>{event.playerName}</Text>
+                  </View>
+                ))}
+            </View>
           </View>
           
           {/* Center Status */}
           <View style={styles.centerSection}>
+            {/* Added Time Display */}
+            {displayAddedTime > 0 && status === 'LIVE' && (
+              <View style={styles.addedTimeContainer}>
+                <Text style={styles.addedTimeText}>+{displayAddedTime}</Text>
+              </View>
+            )}
             <View style={styles.statusContainer}>
               <Text style={styles.statusText}>{getStatusDisplay()}</Text>
               {isLive && (
@@ -233,6 +272,21 @@ export const ProfessionalMatchHeader: React.FC<ProfessionalMatchHeaderProps> = (
             ]}>
               {awayScore}
             </Text>
+            {/* Away Team Events */}
+            <View style={styles.eventsContainer}>
+              {displayEvents
+                .filter(event => event.teamId === 'away')
+                .slice(0, 3)
+                .map(event => (
+                  <View key={event.id} style={styles.eventItem}>
+                    <Text style={styles.eventMinute}>{event.minute}'</Text>
+                    {event.type === 'GOAL' && <Text style={styles.eventIcon}>⚽</Text>}
+                    {event.type === 'YELLOW_CARD' && <Text style={styles.eventIcon}>🟨</Text>}
+                    {event.type === 'RED_CARD' && <Text style={styles.eventIcon}>🟥</Text>}
+                    <Text style={styles.eventPlayer} numberOfLines={1}>{event.playerName}</Text>
+                  </View>
+                ))}
+            </View>
           </View>
         </View>
         
@@ -332,10 +386,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.screenPadding,
+    minHeight: 120,
   },
   teamSection: {
     flex: 1,
     alignItems: 'center',
+    maxWidth: '30%',
   },
   teamBadgeContainer: {
     marginBottom: spacing.sm,
@@ -362,6 +418,9 @@ const styles = StyleSheet.create({
   centerSection: {
     alignItems: 'center',
     marginHorizontal: spacing.lg,
+    flex: 1,
+    maxWidth: '40%',
+    position: 'relative',
   },
   liveProgressContainer: {
     width: 40,
@@ -462,5 +521,50 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.caption,
     color: colors.text.tertiary,
     fontWeight: typography.fontWeight.medium,
+  },
+  addedTimeContainer: {
+    position: 'absolute',
+    top: -25,
+    backgroundColor: colors.accent.orange,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+    borderRadius: borderRadius.badge,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  addedTimeText: {
+    fontSize: typography.fontSize.small,
+    fontWeight: typography.fontWeight.bold,
+    color: '#FFFFFF',
+  },
+  eventsContainer: {
+    marginTop: spacing.xs,
+    width: '100%',
+  },
+  eventItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.xxs,
+    paddingHorizontal: spacing.xs,
+  },
+  eventMinute: {
+    fontSize: typography.fontSize.caption,
+    color: colors.text.tertiary,
+    fontWeight: typography.fontWeight.medium,
+    marginRight: spacing.xxs,
+    minWidth: 20,
+  },
+  eventIcon: {
+    fontSize: 12,
+    marginRight: spacing.xxs,
+  },
+  eventPlayer: {
+    fontSize: typography.fontSize.caption,
+    color: colors.text.secondary,
+    fontWeight: typography.fontWeight.medium,
+    flex: 1,
   },
 });

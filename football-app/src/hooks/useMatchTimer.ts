@@ -16,6 +16,7 @@ export interface TimerState {
   addedTimeSecondHalf: number;
   serverTime: number;
   connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error';
+  forceUpdate?: (newState: any) => void;
 }
 
 interface SSEUpdate {
@@ -314,27 +315,48 @@ export function useMatchTimer(matchId: string) {
           }
           
           // Update timer state with polling data
-          setTimerState(prev => ({
-            ...prev,
-            currentMinute: adjustedMinute,
-            currentSecond: currentSecond,
-            displayTime: formatTime(adjustedMinute, currentSecond),
-            displayMinute: formatMinuteDisplay({
-              ...prev,
-              currentMinute: adjustedMinute,
-              currentHalf: currentHalf,
-              addedTimeFirstHalf: match.added_time_first_half || 0,
-              addedTimeSecondHalf: match.added_time_second_half || 0
-            }),
-            status: match.status as TimerState['status'],
-            currentHalf: currentHalf,
-            isHalftime: match.status === 'HALFTIME',
-            isPaused: match.status === 'HALFTIME',
+          console.log('🕐 TIMER HOOK: Updating state from polling:', {
+            addedTimeFirstHalf: match.added_time_first_half,
+            addedTimeSecondHalf: match.added_time_second_half,
+            currentHalf: currentHalf
+          });
+          console.log('🕐 TIMER HOOK: State will be updated to:', {
             addedTimeFirstHalf: match.added_time_first_half || 0,
             addedTimeSecondHalf: match.added_time_second_half || 0,
-            serverTime: now,
-            connectionStatus: 'disconnected' // Indicates we're using polling
-          }));
+            settingFirstHalf: match.added_time_first_half,
+            settingSecondHalf: match.added_time_second_half
+          });
+          setTimerState(prev => {
+            const newState = {
+              ...prev,
+              currentMinute: adjustedMinute,
+              currentSecond: currentSecond,
+              displayTime: formatTime(adjustedMinute, currentSecond),
+              displayMinute: formatMinuteDisplay({
+                ...prev,
+                currentMinute: adjustedMinute,
+                currentHalf: currentHalf,
+                addedTimeFirstHalf: match.added_time_first_half || 0,
+                addedTimeSecondHalf: match.added_time_second_half || 0
+              }),
+              status: match.status as TimerState['status'],
+              currentHalf: currentHalf,
+              isHalftime: match.status === 'HALFTIME',
+              isPaused: match.status === 'HALFTIME',
+              addedTimeFirstHalf: match.added_time_first_half || 0,
+              addedTimeSecondHalf: match.added_time_second_half || 0,
+              serverTime: now,
+              connectionStatus: 'disconnected' // Indicates we're using polling
+            };
+            
+            console.log('🕐 TIMER HOOK: Final state being set:', {
+              addedTimeFirstHalf: newState.addedTimeFirstHalf,
+              addedTimeSecondHalf: newState.addedTimeSecondHalf,
+              currentHalf: newState.currentHalf
+            });
+            
+            return newState;
+          });
           
         } catch (pollingError) {
           console.error('❌ Polling error:', pollingError);
@@ -598,13 +620,27 @@ export function useMatchTimer(matchId: string) {
     }
   }, [matchId]);
 
+  const forceUpdate = useCallback((newState: any) => {
+    console.log('🕐 FORCE UPDATE: Updating timer state with:', newState);
+    setTimerState(prev => ({
+      ...prev,
+      addedTimeFirstHalf: newState.addedTimeFirstHalf || prev.addedTimeFirstHalf,
+      addedTimeSecondHalf: newState.addedTimeSecondHalf || prev.addedTimeSecondHalf,
+      currentMinute: newState.currentMinute || prev.currentMinute,
+      currentSecond: newState.currentSecond || prev.currentSecond,
+      status: newState.status || prev.status,
+      currentHalf: newState.currentHalf || prev.currentHalf
+    }));
+  }, []);
+
   return {
     ...timerState,
     isConnected: timerState.connectionStatus === 'connected',
     isPolling: timerState.connectionStatus === 'disconnected',
     reconnect: connectSSE,
     startPolling: startPollingFallback,
-    testSSEEndpoint // Expose for debugging
+    testSSEEndpoint, // Expose for debugging
+    forceUpdate
   };
 }
 
