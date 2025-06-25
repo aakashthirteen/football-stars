@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,10 @@ import {
   Dimensions,
   StatusBar,
   FlatList,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { 
   Rect, 
   Circle, 
@@ -22,6 +24,7 @@ import Svg, {
 } from 'react-native-svg';
 import { useAuthStore } from '../../store/authStore';
 import { apiService } from '../../services/api';
+import { getTournamentTypeGradient } from '../../utils/gradients';
 
 // Professional Components
 import {
@@ -33,7 +36,7 @@ import {
 // Import DesignSystem directly
 import DesignSystem from '../../theme/designSystem';
 
-const { colors, typography, spacing, borderRadius, shadows } = DesignSystem;
+const { colors, typography, spacing, borderRadius, shadows, gradients } = DesignSystem;
 const { width: screenWidth } = Dimensions.get('window');
 
 interface Tournament {
@@ -125,13 +128,34 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
   const [registering, setRegistering] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('standings');
   const [bracketNodes, setBracketNodes] = useState<BracketNode[]>([]);
+  
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
     loadTournamentDetails();
     loadStandings();
     loadUserTeams();
     loadTournamentStats();
+    animateEntrance();
   }, []);
+
+  const animateEntrance = () => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
 
   // Load matches after tournament data is available
   useEffect(() => {
@@ -399,8 +423,8 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
   };
 
   const renderStanding = ({ item, index }: { item: Standing; index: number }) => {
+    const isEven = index % 2 === 0;
     const isTop3 = index < 3;
-    const positionColors = ['#FFD700', '#C0C0C0', '#CD7F32']; // Gold, Silver, Bronze
     
     // Handle both camelCase and snake_case from API
     const teamName = item.teamName || item.team_name || 'Unknown Team';
@@ -410,41 +434,89 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
     const draws = Number(item.draws) || 0;
     const losses = Number(item.losses) || 0;
     const points = Number(item.points) || 0;
-    const goalDiff = item.goalDifference || 0;
+    const goalsFor = Number(item.goalsFor) || 0;
+    const goalsAgainst = Number(item.goalsAgainst) || 0;
     
     return (
-      <View style={styles.standingRow}>
-        <View style={[
-          styles.positionBadge,
-          isTop3 && { backgroundColor: positionColors[index] }
-        ]}>
+      <View style={[
+        styles.tableRow,
+        isEven && styles.evenRow,
+        isTop3 && styles.topThreeRow
+      ]}>
+        {/* Position */}
+        <View style={styles.positionCell}>
           <Text style={[
-            styles.positionText,
-            isTop3 && styles.topPositionText
+            styles.positionNumber,
+            isTop3 && styles.topThreePosition
           ]}>
             {position}
           </Text>
         </View>
         
-        <View style={styles.teamInfo}>
+        {/* Team Name with Badge */}
+        <View style={styles.teamCell}>
           <ProfessionalTeamBadge 
             teamName={teamName} 
             size="small" 
           />
-          <Text style={styles.teamName} numberOfLines={2}>
-          {teamName}
+          <Text style={[
+            styles.teamNameText,
+            isTop3 && styles.topThreeTeam
+          ]}>
+            {teamName}
           </Text>
         </View>
         
-        <View style={styles.statsGrid}>
-        <Text style={styles.statValue}>{formatStandingValue(matches)}</Text>
-        <Text style={styles.statValue}>{formatStandingValue(wins)}</Text>
-        <Text style={styles.statValue}>{formatStandingValue(draws)}</Text>
-        <Text style={styles.statValue}>{formatStandingValue(losses)}</Text>
-        <Text style={[styles.statValue, styles.goalDiff]}>
-        {goalDiff > 0 ? '+' : ''}{formatStandingValue(goalDiff)}
-        </Text>
-        <Text style={[styles.statValue, styles.points]}>{formatStandingValue(points)}</Text>
+        {/* Points */}
+        <View style={styles.statCell}>
+          <Text style={[
+            styles.pointsText,
+            isTop3 && styles.topThreePoints
+          ]}>
+            {formatStandingValue(points)}
+          </Text>
+        </View>
+        
+        {/* Matches Played */}
+        <View style={styles.statCell}>
+          <Text style={styles.statText}>
+            {formatStandingValue(matches)}
+          </Text>
+        </View>
+        
+        {/* Wins */}
+        <View style={styles.statCell}>
+          <Text style={styles.statText}>
+            {formatStandingValue(wins)}
+          </Text>
+        </View>
+        
+        {/* Draws */}
+        <View style={styles.statCell}>
+          <Text style={styles.statText}>
+            {formatStandingValue(draws)}
+          </Text>
+        </View>
+        
+        {/* Losses */}
+        <View style={styles.statCell}>
+          <Text style={styles.statText}>
+            {formatStandingValue(losses)}
+          </Text>
+        </View>
+        
+        {/* Goals Scored */}
+        <View style={styles.statCell}>
+          <Text style={styles.statText}>
+            {formatStandingValue(goalsFor)}
+          </Text>
+        </View>
+        
+        {/* Goals Against */}
+        <View style={styles.statCell}>
+          <Text style={styles.statText}>
+            {formatStandingValue(goalsAgainst)}
+          </Text>
         </View>
       </View>
     );
@@ -464,30 +536,29 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
 
     return (
       <View style={styles.tabContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScroll}>
-          {tabs.map((tab) => (
-            <TouchableOpacity
-              key={tab.key}
-              style={[
-                styles.tab,
-                activeTab === tab.key && styles.activeTab
-              ]}
-              onPress={() => setActiveTab(tab.key as TabType)}
-            >
-              <Ionicons 
-                name={tab.icon as any} 
-                size={16} 
-                color={activeTab === tab.key ? '#FFFFFF' : colors.text.secondary} 
-              />
-              <Text style={[
-                styles.tabText,
-                activeTab === tab.key && styles.activeTabText
-              ]}>
-                {tab.title}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {tabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[
+              styles.tab,
+              activeTab === tab.key && styles.activeTab
+            ]}
+            onPress={() => setActiveTab(tab.key as TabType)}
+            activeOpacity={0.8}
+          >
+            <Ionicons 
+              name={tab.icon as any} 
+              size={16} 
+              color={activeTab === tab.key ? '#FFFFFF' : colors.text.secondary} 
+            />
+            <Text style={[
+              styles.tabText,
+              activeTab === tab.key && styles.activeTabText
+            ]}>
+              {tab.title}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
     );
   };
@@ -983,32 +1054,60 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
       case 'standings':
         return standings.length > 0 ? (
           <ScrollView showsVerticalScrollIndicator={false}>
-            <View style={styles.standingHeader}>
-              <Text style={styles.headerLabel}>#</Text>
-              <Text style={[styles.headerLabel, styles.teamHeaderLabel]}>Team</Text>
-              <View style={styles.statsGrid}>
-                <Text style={styles.headerLabel}>P</Text>
-                <Text style={styles.headerLabel}>W</Text>
-                <Text style={styles.headerLabel}>D</Text>
-                <Text style={styles.headerLabel}>L</Text>
-                <Text style={styles.headerLabel}>GD</Text>
-                <Text style={styles.headerLabel}>Pts</Text>
+            <View style={styles.standingsTable}>
+              {/* Table Header */}
+              <View style={styles.tableHeader}>
+                <View style={styles.positionCell}>
+                  <Text style={styles.headerText}>#</Text>
+                </View>
+                <View style={styles.teamCell}>
+                  <Text style={[styles.headerText, styles.teamHeaderText]}>TEAM</Text>
+                </View>
+                <View style={styles.statCell}>
+                  <Text style={styles.headerText}>PTS</Text>
+                </View>
+                <View style={styles.statCell}>
+                  <Text style={styles.headerText}>MP</Text>
+                </View>
+                <View style={styles.statCell}>
+                  <Text style={styles.headerText}>W</Text>
+                </View>
+                <View style={styles.statCell}>
+                  <Text style={styles.headerText}>D</Text>
+                </View>
+                <View style={styles.statCell}>
+                  <Text style={styles.headerText}>L</Text>
+                </View>
+                <View style={styles.statCell}>
+                  <Text style={styles.headerText}>GS</Text>
+                </View>
+                <View style={styles.statCell}>
+                  <Text style={styles.headerText}>GA</Text>
+                </View>
               </View>
+              
+              {/* Table Rows */}
+              <FlatList
+                key="tournament-standings"
+                data={standings}
+                renderItem={renderStanding}
+                keyExtractor={(item, index) => item.teamId || item.team_id || `standing-${index}-${item.position}`}
+                scrollEnabled={false}
+                showsVerticalScrollIndicator={false}
+              />
             </View>
-            <FlatList
-              key="tournament-standings"
-              data={standings}
-              renderItem={renderStanding}
-              keyExtractor={(item, index) => item.teamId || item.team_id || `standing-${index}-${item.position}`}
-              scrollEnabled={false}
-            />
           </ScrollView>
         ) : (
           <View style={styles.emptyState}>
-            <Ionicons name="list-outline" size={64} color={colors.text.tertiary} />
+            <LinearGradient
+              colors={gradients.primary}
+              style={styles.emptyIconGradient}
+            >
+              <Ionicons name="trophy-outline" size={48} color="#FFFFFF" />
+            </LinearGradient>
             <Text style={styles.emptyTitle}>No Standings Yet</Text>
             <Text style={styles.emptySubtitle}>
-              Standings will appear once matches begin
+              Team standings will appear here once{'\n'}matches are played and results recorded
             </Text>
           </View>
         );
@@ -1061,26 +1160,43 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       
-      <ScrollView 
-        showsVerticalScrollIndicator={false}
-        contentInsetAdjustmentBehavior="automatic"
+      <Animated.View 
+        style={[
+          styles.animatedContainer,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
       >
-        {/* Professional Header */}
-        <ProfessionalHeader
-          title={tournament.name}
-          subtitle={`${tournament.tournamentType.replace('_', ' ')} • ${tournament.status}`}
-          showBack
-          onBack={() => navigation.goBack()}
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="automatic"
         >
-          <View style={styles.headerActions}>
-            <View style={styles.tournamentBadge}>
-              <Text style={styles.tournamentIcon}>{getTypeIcon(tournament.tournamentType)}</Text>
+          {/* Professional Header */}
+          <ProfessionalHeader
+            title={tournament.name}
+            subtitle={`${tournament.tournamentType.replace('_', ' ')} • ${tournament.status}`}
+            showBack
+            onBack={() => navigation.goBack()}
+          >
+            <View style={styles.headerActions}>
+              <View style={styles.tournamentBadge}>
+                <LinearGradient
+                  colors={getTournamentTypeGradient(tournament.tournamentType)}
+                  style={styles.badgeGradient}
+                >
+                  <Text style={styles.tournamentIcon}>{getTypeIcon(tournament.tournamentType)}</Text>
+                </LinearGradient>
+              </View>
+              <View style={[styles.statusChip, tournament.status === 'ACTIVE' && styles.activeChip]}>
+                {tournament.status === 'ACTIVE' && (
+                  <View style={styles.liveDot} />
+                )}
+                <Text style={styles.statusChipText}>{tournament.status}</Text>
+              </View>
             </View>
-            <View style={[styles.statusChip, { backgroundColor: getStatusColor(tournament.status) }]}>
-              <Text style={styles.statusChipText}>{tournament.status}</Text>
-            </View>
-          </View>
-        </ProfessionalHeader>
+          </ProfessionalHeader>
 
         <View style={styles.content}>
           {/* Tournament Info Card */}
@@ -1089,35 +1205,44 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
               <Text style={styles.description}>{tournament.description}</Text>
             )}
             
-            {/* Tournament Stats Grid */}
-            <View style={styles.statsGrid}>
+            {/* Tournament Stats Grid - Fixed Layout */}
+            <View style={styles.statsContainer}>
               <View style={styles.statCard}>
-                <View style={[styles.statIcon, { backgroundColor: colors.primary.main + '20' }]}>
-                  <Ionicons name="people" size={20} color={colors.primary.main} />
-                </View>
+                <LinearGradient
+                  colors={gradients.primary}
+                  style={styles.statIconGradient}
+                >
+                  <Ionicons name="people" size={20} color="#FFFFFF" />
+                </LinearGradient>
                 <Text style={styles.statNumber}>{tournament.registeredTeams}/{tournament.maxTeams}</Text>
                 <Text style={styles.statLabel}>Teams</Text>
               </View>
               
-              {tournament.prizePool && (
-                <View style={styles.statCard}>
-                  <View style={[styles.statIcon, { backgroundColor: colors.accent.gold + '20' }]}>
-                    <Ionicons name="trophy" size={20} color={colors.accent.gold} />
-                  </View>
-                  <Text style={styles.statNumber}>₹{tournament.prizePool.toLocaleString()}</Text>
-                  <Text style={styles.statLabel}>Prize Pool</Text>
-                </View>
-              )}
-              
               <View style={styles.statCard}>
-                <View style={[styles.statIcon, { backgroundColor: colors.accent.blue + '20' }]}>
-                  <Ionicons name="calendar" size={20} color={colors.accent.blue} />
-                </View>
+                <LinearGradient
+                  colors={gradients.accent}
+                  style={styles.statIconGradient}
+                >
+                  <Ionicons name="calendar" size={20} color="#FFFFFF" />
+                </LinearGradient>
                 <Text style={styles.statNumber}>
                   {new Date(tournament.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </Text>
                 <Text style={styles.statLabel}>Start Date</Text>
               </View>
+              
+              {tournament.prizePool && (
+                <View style={styles.statCard}>
+                  <LinearGradient
+                    colors={['#FFD700', '#FFA500']}
+                    style={styles.statIconGradient}
+                  >
+                    <Ionicons name="trophy" size={20} color="#FFFFFF" />
+                  </LinearGradient>
+                  <Text style={styles.statNumber}>₹{tournament.prizePool.toLocaleString()}</Text>
+                  <Text style={styles.statLabel}>Prize Pool</Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -1143,6 +1268,7 @@ export default function TournamentDetailsScreen({ navigation, route }: Tournamen
           </View>
         </View>
       </ScrollView>
+      </Animated.View>
 
       {/* Team Selection Modal */}
       <Modal
@@ -1211,6 +1337,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background.primary,
   },
+  animatedContainer: {
+    flex: 1,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1245,35 +1374,53 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   tournamentBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surface.secondary,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    ...shadows.sm,
+  },
+  badgeGradient: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tournamentIcon: {
-    fontSize: 16,
+    fontSize: 20,
   },
   statusChip: {
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xxs,
     borderRadius: borderRadius.badge,
+    backgroundColor: colors.surface.secondary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  activeChip: {
+    backgroundColor: colors.status.live,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
   },
   statusChipText: {
     color: '#FFFFFF',
     fontSize: typography.fontSize.caption,
-    fontWeight: typography.fontWeight.bold,
+    fontWeight: typography.fontWeight.bold as any,
     textTransform: 'uppercase',
   },
-  // Tournament Info Card
+  // Clean Tournament Info Card
   infoCard: {
     backgroundColor: colors.surface.primary,
     marginHorizontal: spacing.screenPadding,
     marginTop: spacing.lg,
-    marginBottom: spacing.xl,
-    padding: spacing.lg,
-    borderRadius: borderRadius.xl,
+    marginBottom: spacing.lg,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
     ...shadows.sm,
   },
   description: {
@@ -1283,8 +1430,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     textAlign: 'center',
   },
-  statsGrid: {
+  statsContainer: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     gap: spacing.sm,
   },
   statCard: {
@@ -1294,7 +1442,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.secondary,
     borderRadius: borderRadius.md,
   },
-  statIcon: {
+  statIconGradient: {
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -1303,14 +1451,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   statNumber: {
-    fontSize: typography.fontSize.title3,
-    fontWeight: typography.fontWeight.bold,
+    fontSize: typography.fontSize.small,
+    fontWeight: typography.fontWeight.bold as any,
     color: colors.text.primary,
     marginBottom: spacing.xxs,
+    textAlign: 'center',
   },
   statLabel: {
-    fontSize: typography.fontSize.caption,
-    color: colors.text.secondary,
+    fontSize: typography.fontSize.micro,
+    color: colors.text.tertiary,
     textAlign: 'center',
     textTransform: 'uppercase',
   },
@@ -1318,8 +1467,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screenPadding,
     marginBottom: spacing.xl,
   },
-  // Professional Tabs
+  // Clean Professional Tabs
   tabContainer: {
+    flexDirection: 'row',
     backgroundColor: colors.surface.primary,
     marginHorizontal: spacing.screenPadding,
     marginBottom: spacing.lg,
@@ -1327,118 +1477,135 @@ const styles = StyleSheet.create({
     padding: spacing.xs,
     ...shadows.sm,
   },
-  tabScroll: {
-    paddingHorizontal: spacing.xs,
-  },
   tab: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    marginRight: spacing.xs,
-    borderRadius: borderRadius.badge,
-    minWidth: 80,
     justifyContent: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xxs,
+    borderRadius: borderRadius.md,
+    gap: 4, // Fixed gap between icon and text
   },
   activeTab: {
     backgroundColor: colors.primary.main,
   },
   tabText: {
-    fontSize: typography.fontSize.small,
-    fontWeight: typography.fontWeight.medium,
+    fontSize: typography.fontSize.caption,
+    fontWeight: typography.fontWeight.semibold as any,
     color: colors.text.secondary,
-    marginLeft: spacing.xs,
+    textAlign: 'center',
   },
   activeTabText: {
     color: '#FFFFFF',
+    textAlign: 'center',
   },
   tabContent: {
     flex: 1,
     paddingHorizontal: spacing.screenPadding,
   },
 
-  // Standings Styles
-  standingHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.sm,
-    borderBottomWidth: 2,
-    borderBottomColor: colors.primary.main,
-  },
-  headerLabel: {
-    fontSize: typography.fontSize.caption,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.secondary,
-    textTransform: 'uppercase',
-    width: 30,
-    textAlign: 'center',
-  },
-  teamHeaderLabel: {
-    flex: 1,
-    textAlign: 'left',
-    paddingLeft: spacing.sm,
-  },
-  standingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  // Clean Table-Based Standings (like FIFA app screenshot)
+  standingsTable: {
     backgroundColor: colors.surface.primary,
-    marginBottom: spacing.xs,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
     ...shadows.sm,
   },
-  positionBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  
+  // Table Header
+  tableHeader: {
+    flexDirection: 'row',
     backgroundColor: colors.surface.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: spacing.xs,
+    paddingHorizontal: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surface.border,
   },
-  positionText: {
-    fontSize: typography.fontSize.small,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-  },
-  topPositionText: {
-    color: '#FFFFFF',
-  },
-  teamInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.sm,
-  },
-  teamName: {
-    fontSize: typography.fontSize.regular,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text.primary,
-    marginLeft: spacing.sm,
-    flex: 1,
-    flexWrap: 'wrap',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minWidth: 210,
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.xs,
-  },
-  statValue: {
-    fontSize: typography.fontSize.small,
+  headerText: {
+    fontSize: typography.fontSize.micro,
+    fontWeight: typography.fontWeight.bold as any,
     color: colors.text.secondary,
-    width: 30,
     textAlign: 'center',
-    fontWeight: typography.fontWeight.medium,
+    textTransform: 'uppercase' as any,
   },
-  goalDiff: {
-    fontWeight: typography.fontWeight.medium,
+  teamHeaderText: {
+    textAlign: 'left',
   },
-  points: {
-    fontWeight: typography.fontWeight.bold,
+  
+  // Table Row
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+    paddingHorizontal: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surface.subtle,
+    minHeight: 40,
+  },
+  evenRow: {
+    backgroundColor: colors.surface.subtle,
+  },
+  topThreeRow: {
+    backgroundColor: colors.primary.main + '08',
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary.main,
+  },
+  
+  // Column Cells optimized for screen width - more space for team names
+  positionCell: {
+    width: 22,
+    alignItems: 'center',
+    paddingHorizontal: 1,
+  },
+  teamCell: {
+    flex: 1, // Takes remaining space after fixed columns
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xxs,
+    gap: spacing.xxs,
+    minWidth: 120, // Ensure minimum space for team names
+  },
+  statCell: {
+    width: 24,
+    alignItems: 'center',
+    paddingHorizontal: 0,
+  },
+  
+  // Text Styles - Optimized for compact display
+  positionNumber: {
+    fontSize: typography.fontSize.caption,
+    fontWeight: typography.fontWeight.medium as any,
+    color: colors.text.secondary,
+  },
+  topThreePosition: {
+    fontWeight: typography.fontWeight.bold as any,
     color: colors.primary.main,
+  },
+  teamNameText: {
+    fontSize: typography.fontSize.caption,
+    fontWeight: typography.fontWeight.medium as any,
+    color: colors.text.primary,
+    flex: 1,
+  },
+  topThreeTeam: {
+    fontWeight: typography.fontWeight.semibold as any,
+    color: colors.primary.main,
+  },
+  pointsText: {
+    fontSize: typography.fontSize.micro,
+    fontWeight: typography.fontWeight.bold as any,
+    color: colors.primary.main,
+  },
+  topThreePoints: {
+    fontSize: typography.fontSize.caption,
+    fontWeight: typography.fontWeight.bold as any,
+    color: colors.accent.gold,
+  },
+  statText: {
+    fontSize: typography.fontSize.micro,
+    fontWeight: typography.fontWeight.medium as any,
+    color: colors.text.secondary,
   },
 
   // Bracket Styles
@@ -1638,18 +1805,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: spacing.xxxl,
+    paddingHorizontal: spacing.xl,
+  },
+  emptyIconGradient: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xl,
+    ...shadows.lg,
   },
   emptyTitle: {
-    fontSize: typography.fontSize.large,
-    fontWeight: typography.fontWeight.semibold,
+    fontSize: typography.fontSize.title2,
+    fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
-    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
   },
   emptySubtitle: {
     fontSize: typography.fontSize.regular,
     color: colors.text.secondary,
-    marginTop: spacing.xs,
     textAlign: 'center',
+    lineHeight: 24,
   },
 
   // Modal Styles

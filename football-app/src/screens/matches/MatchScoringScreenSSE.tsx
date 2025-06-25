@@ -31,7 +31,6 @@ import {
   DesignSystem,
 } from '../../components/professional';
 import ModernPitchFormation from '../../components/ModernPitchFormation';
-import { SSETestButton } from '../../components/SSETestButton';
 
 const { width, height } = Dimensions.get('window');
 const { colors, typography, spacing, borderRadius, shadows, gradients } = DesignSystem;
@@ -81,14 +80,8 @@ const COMMENTARY_TEMPLATES = {
 export default function MatchScoringScreen({ navigation, route }: MatchScoringScreenProps) {
   const { matchId, matchStatus: routeMatchStatus, isLive: routeIsLive } = route?.params || {};
   
-  console.log('🚀 INSTANT: Screen opened with params:', {
-    matchId,
-    routeMatchStatus,
-    routeIsLive
-  });
   const [match, setMatch] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [debugCounter, setDebugCounter] = useState(0);
   const [activeTab, setActiveTab] = useState('Actions');
   const [latestCommentary, setLatestCommentary] = useState<string>('');
   const [commentaryHistory, setCommentaryHistory] = useState<Array<{id: string, text: string, minute: number, timestamp: Date}>>([]);
@@ -99,31 +92,12 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   
   // Use the new SSE-based timer hook
   const timerState = useMatchTimer(matchId);
-  
-  // DEBUG: Log timer state changes
-  useEffect(() => {
-    console.log('🕐 Timer state changed:', {
-      addedTimeFirstHalf: timerState.addedTimeFirstHalf,
-      addedTimeSecondHalf: timerState.addedTimeSecondHalf,
-      currentHalf: timerState.currentHalf,
-      connectionStatus: timerState.connectionStatus
-    });
-  }, [timerState.addedTimeFirstHalf, timerState.addedTimeSecondHalf, timerState.currentHalf]);
-  
-  // DEBUG: Force component updates every 2 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setDebugCounter(prev => prev + 1);
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
   const { breakTimeDisplay, isBreakEnding } = useHalftimeBreakDisplay(timerState.halftimeBreakRemaining);
   
   // CONSOLIDATED: Single effect for timer state management (prevents multiple re-renders)
   useEffect(() => {
     // Reset manual start flag once timer confirms live status (SSE or polling)
     if (matchStartRequested && timerState.status === 'LIVE') {
-      console.log('✅ Timer confirmed live status, resetting manual flag');
       setMatchStartRequested(false);
     }
     
@@ -268,22 +242,11 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       setIsLoading(true);
       const response = await apiService.getMatchById(matchId);
       
-      console.log('📋 Raw API response:', response);
-      
       if (!response?.match) {
         throw new Error('Invalid match data');
       }
       
       const matchData = response.match;
-      console.log('📋 Match data structure:', {
-        hasEvents: 'events' in matchData,
-        eventsCount: matchData.events?.length || 0,
-        events: matchData.events,
-        addedTimeFirstHalf: matchData.added_time_first_half,
-        addedTimeSecondHalf: matchData.added_time_second_half,
-        timerState: matchData.timer_state,
-        currentHalf: matchData.current_half
-      });
       
       // Ensure required data exists
       matchData.events = matchData.events || [];
@@ -477,40 +440,6 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     }
   };
 
-  const handleAddStoppageTime = async () => {
-    try {
-      console.log('🕐 BEFORE: Timer state values:', {
-        addedTimeFirstHalf: timerState.addedTimeFirstHalf,
-        addedTimeSecondHalf: timerState.addedTimeSecondHalf,
-        currentHalf: timerState.currentHalf
-      });
-      
-      const response = await apiService.addStoppageTimeSSE(matchId, 1);
-      console.log('🕐 API Response:', response);
-      
-      // MANDATORY: Reload match data to get updated added time
-      await loadMatchDetails();
-      
-      // WAIT for timer hook to update
-      setTimeout(() => {
-        console.log('🕐 AFTER: Timer state values:', {
-          addedTimeFirstHalf: timerState.addedTimeFirstHalf,
-          addedTimeSecondHalf: timerState.addedTimeSecondHalf,
-          currentHalf: timerState.currentHalf
-        });
-      }, 1000);
-      
-      const halfText = timerState.currentHalf === 1 ? 'first' : 'second';
-      showCommentary(`⏱️ +1 minute of stoppage time added to the ${halfText} half.`);
-      
-      // Force a re-render
-      setDebugCounter(prev => prev + 1);
-      
-    } catch (error) {
-      console.log('🕐 Error adding stoppage time:', error);
-      Alert.alert('Error', 'Failed to add stoppage time');
-    }
-  };
 
   const handlePauseMatch = async () => {
     try {
@@ -565,13 +494,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         description: `${modalActionType} by ${modalTeam.name}`,
       };
 
-      console.log('⚽ Adding match event:', eventData);
-      const eventResponse = await apiService.addMatchEvent(matchId, eventData);
-      console.log('⚽ Event response:', eventResponse);
-      
-      // Reload match to get updated events
-      await loadMatchDetails();
-      console.log('⚽ Match events after adding:', match.events);
+      await apiService.addMatchEvent(matchId, eventData);
       
       // Generate commentary
       const templates = COMMENTARY_TEMPLATES[modalActionType as keyof typeof COMMENTARY_TEMPLATES] || [];
@@ -694,30 +617,15 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                             </Text>
                           </View>
                         ) : (
-                          <>
-                            <Text style={styles.timeInfoText}>
-                              Half {timerState.currentHalf} | +{timerState.currentHalf === 1 ? timerState.addedTimeFirstHalf : timerState.addedTimeSecondHalf} min
-                            </Text>
-                            <Text style={{ color: 'red', fontSize: 12, fontWeight: 'bold' }}>
-                              DEBUG: H{timerState.currentHalf} +{timerState.currentHalf === 1 ? timerState.addedTimeFirstHalf : timerState.addedTimeSecondHalf}
-                            </Text>
-                          </>
+                          <Text style={styles.timeInfoText}>
+                            Half {timerState.currentHalf}
+                          </Text>
                         )}
                       </View>
                       
                       <View style={styles.timeControlButtons}>
-                        {!timerState.isHalftime && (
-                          <TouchableOpacity
-                            style={styles.quickButton}
-                            onPress={handleAddStoppageTime}
-                          >
-                            <Ionicons name="add" size={16} color={colors.accent.blue} />
-                            <Text style={styles.quickButtonText}>+1</Text>
-                          </TouchableOpacity>
-                        )}
-                        
                         <TouchableOpacity
-                          style={[styles.quickButton, { marginLeft: 8 }]}
+                          style={styles.quickButton}
                           onPress={() => setShowManualControls(!showManualControls)}
                         >
                           <Ionicons name="settings" size={16} color={colors.accent.purple} />
@@ -986,11 +894,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         showsVerticalScrollIndicator={false}
         style={styles.scrollView}
       >
-        
         {/* Professional Header with SSE Timer */}
         <Animated.View style={{ transform: [{ scale: scoreAnimation }] }}>
           <ProfessionalMatchHeader
-            key={`header-${debugCounter}`}
             homeTeam={match.homeTeam}
             awayTeam={match.awayTeam}
             homeScore={match.homeScore}
@@ -1001,21 +907,9 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
             venue={match.venue}
             duration={match.duration}
             onBack={() => navigation.goBack()}
-            matchId={matchId}
-            addedTime={timerState.currentHalf === 1 ? timerState.addedTimeFirstHalf : timerState.addedTimeSecondHalf}
-            events={match.events?.map((event: any) => ({
-              id: event.id || event._id || String(Math.random()),
-              minute: event.minute || 0,
-              type: event.event_type || event.eventType || 'GOAL',
-              playerName: event.player_name || event.playerName || event.player?.name || 'Unknown',
-              teamId: event.team_id === match.homeTeam.id ? 'home' : 'away'
-            })) || []}
           />
         </Animated.View>
         
-        
-        {/* SSE Test Button for Debugging */}
-        {__DEV__ && <SSETestButton />}
         
         {/* Enhanced Connection Status Indicator */}
         <View style={styles.discreteConnectionIndicator}>
@@ -1255,14 +1149,6 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
               colors={[colors.background.secondary, colors.background.tertiary]}
               style={styles.halftimeModalGradient}
             >
-              {/* Close Button */}
-              <TouchableOpacity
-                style={styles.halftimeCloseButton}
-                onPress={() => setShowHalftimeModal(false)}
-              >
-                <Ionicons name="close" size={24} color={colors.text.secondary} />
-              </TouchableOpacity>
-              
               <View style={styles.halftimeIconContainer}>
                 <Ionicons name="time-outline" size={48} color={colors.primary.main} />
               </View>
@@ -1883,19 +1769,6 @@ const styles = StyleSheet.create({
   halftimeModalGradient: {
     padding: spacing.xl,
     alignItems: 'center',
-    position: 'relative',
-  },
-  halftimeCloseButton: {
-    position: 'absolute',
-    top: spacing.md,
-    right: spacing.md,
-    zIndex: 10,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   halftimeIconContainer: {
     width: 80,

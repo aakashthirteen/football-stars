@@ -101,7 +101,7 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
             id: match.away_team_id,
             logo_url: match.away_team_logo_url,
             logoUrl: match.away_team_logo_url
-          }
+          },
         };
         console.log('🏈 MATCHES_SCREEN: Normalized match:', JSON.stringify(normalized, null, 2));
         return normalized;
@@ -189,38 +189,68 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
   const renderTabSelector = () => {
     const { allCount, myCount, liveCount } = getTabCounts();
     
+    const tabs = [
+      { 
+        key: 'all', 
+        label: 'All', 
+        count: allCount,
+        icon: 'football',
+        color: colors.accent.blue
+      },
+      { 
+        key: 'my', 
+        label: 'Mine', 
+        count: myCount,
+        icon: 'person',
+        color: colors.primary.main
+      },
+      { 
+        key: 'live', 
+        label: 'Live', 
+        count: liveCount,
+        icon: 'radio',
+        color: colors.status.live,
+        isLive: true
+      },
+    ];
+    
     return (
       <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'all' && styles.activeTab]}
-          onPress={() => setActiveTab('all')}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.tabText, activeTab === 'all' && styles.activeTabText]}>
-            All Matches
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'my' && styles.activeTab]}
-          onPress={() => setActiveTab('my')}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.tabText, activeTab === 'my' && styles.activeTabText]}>
-            My Matches
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'live' && styles.activeTab]}
-          onPress={() => setActiveTab('live')}
-          activeOpacity={0.7}
-        >
-          {liveCount > 0 && <View style={styles.liveDot} />}
-          <Text style={[styles.tabText, activeTab === 'live' && styles.activeTabText, styles.liveText]}>
-            Live
-          </Text>
-        </TouchableOpacity>
+        {tabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.tab, activeTab === tab.key && styles.activeTab]}
+            onPress={() => setActiveTab(tab.key as TabType)}
+            activeOpacity={0.8}
+          >
+            <Ionicons 
+              name={tab.icon as any} 
+              size={14} 
+              color={activeTab === tab.key ? '#FFFFFF' : colors.text.secondary} 
+            />
+            <Text style={[
+              styles.tabText,
+              activeTab === tab.key && styles.activeTabText
+            ]}>
+              {tab.label}
+            </Text>
+            {tab.count > 0 && (
+              <View style={[
+                styles.tabBadge,
+                activeTab === tab.key && styles.activeTabBadge,
+                tab.isLive && styles.liveTabBadge
+              ]}>
+                <Text style={[
+                  styles.tabCount,
+                  activeTab === tab.key && styles.activeTabCount,
+                  tab.isLive && styles.liveTabCount
+                ]}>
+                  {tab.count}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        ))}
       </View>
     );
   };
@@ -394,7 +424,7 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
   },
 
-  // Tab Section - La Liga style
+  // Professional Tab Section (matching tournament tabs)
   tabSection: {
     paddingHorizontal: spacing.screenPadding,
     marginTop: spacing.xl,
@@ -402,9 +432,11 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: colors.surface.primary,
-    borderRadius: borderRadius.lg,
+    backgroundColor: colors.surface.glass,
+    borderRadius: borderRadius.xl,
     padding: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.surface.border,
     ...shadows.sm,
   },
   tab: {
@@ -413,29 +445,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    gap: spacing.xs,
+    paddingHorizontal: 2,
+    borderRadius: borderRadius.lg,
+    gap: 3,
   },
   activeTab: {
     backgroundColor: colors.primary.main,
+    ...shadows.sm,
   },
   tabText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text.secondary,
+    fontSize: typography.fontSize.micro,
+    fontWeight: typography.fontWeight.semibold as any,
+    color: colors.text.tertiary,
+    textAlign: 'center',
   },
   activeTabText: {
     color: '#FFFFFF',
-  },
-  liveText: {
-    color: colors.status.live,
+    textAlign: 'center',
   },
   tabBadge: {
     backgroundColor: colors.surface.secondary,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: 10,
-    minWidth: 24,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 1,
+    borderRadius: 8,
+    minWidth: 20,
     alignItems: 'center',
   },
   activeTabBadge: {
@@ -445,7 +478,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.status.live + '20',
   },
   tabCount: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '700',
     color: colors.text.secondary,
   },
@@ -460,6 +493,9 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: colors.status.live,
+    position: 'absolute',
+    top: 8,
+    right: 8,
   },
 
   // Matches Section

@@ -91,6 +91,7 @@ export const ProfessionalColors = {
     tertiary: '#242B3D',
     border: 'rgba(255, 255, 255, 0.1)',
     subtle: 'rgba(255, 255, 255, 0.05)',
+    glass: 'rgba(17, 23, 32, 0.7)',
   },
 };
 
@@ -246,6 +247,9 @@ export const ProfessionalGradients = {
   primary: [ProfessionalColors.primary.main, ProfessionalColors.primary.dark],
   secondary: [ProfessionalColors.accent.blue, ProfessionalColors.accent.purple],
   dark: [ProfessionalColors.background.secondary, ProfessionalColors.background.primary],
+  header: ['#0A0E13', '#111720', '#1A2332'],
+  accent: [ProfessionalColors.accent.blue, ProfessionalColors.accent.purple],
+  success: [ProfessionalColors.semantic.success, ProfessionalColors.accent.teal],
   
   // Team gradients
   homeTeam: ['#4A9FFF', '#3B82F6'],

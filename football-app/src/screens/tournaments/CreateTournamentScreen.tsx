@@ -161,7 +161,7 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
           >
             {tournamentType === type.value && (
               <LinearGradient
-                colors={gradients.quickTournament}
+                colors={getTournamentTypeGradient(type.value as any)}
                 style={styles.typeCardGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
@@ -217,7 +217,7 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
         >
           {/* Professional Header with Gradient */}
           <LinearGradient
-            colors={gradients.quickTournament}
+            colors={gradients.header}
             style={styles.headerGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -232,27 +232,30 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
           </LinearGradient>
 
           <View style={styles.content}>
-            {/* Quick Actions Preview */}
+            {/* Modern Preview Card */}
             <View style={styles.previewSection}>
               <View style={styles.quickPreviewCard}>
                 <LinearGradient
-                  colors={gradients.quickTournament}
+                  colors={getTournamentTypeGradient(tournamentType)}
                   style={styles.previewGradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 >
-                  <View style={styles.previewContent}>
-                    <View style={styles.previewIcon}>
-                      <Text style={styles.previewEmoji}>
-                        {tournamentTypes.find(t => t.value === tournamentType)?.icon}
+                  {/* Glass overlay */}
+                  <View style={styles.previewGlass}>
+                    <View style={styles.previewContent}>
+                      <View style={styles.previewIcon}>
+                        <Text style={styles.previewEmoji}>
+                          {tournamentTypes.find(t => t.value === tournamentType)?.icon}
+                        </Text>
+                      </View>
+                      <Text style={styles.previewTitle}>
+                        {name || 'Tournament Name'}
+                      </Text>
+                      <Text style={styles.previewSubtitle}>
+                        {tournamentTypes.find(t => t.value === tournamentType)?.label} • {maxTeams} teams
                       </Text>
                     </View>
-                    <Text style={styles.previewTitle}>
-                      {name || 'Tournament Name'}
-                    </Text>
-                    <Text style={styles.previewSubtitle}>
-                      {tournamentTypes.find(t => t.value === tournamentType)?.label} • {maxTeams} teams
-                    </Text>
                   </View>
                 </LinearGradient>
               </View>
@@ -262,10 +265,10 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <LinearGradient
-                  colors={[colors.primary.main + '20', colors.primary.main + '10']}
+                  colors={gradients.primary}
                   style={styles.sectionIconGradient}
                 >
-                  <Ionicons name="information-circle" size={20} color={colors.primary.main} />
+                  <Ionicons name="information-circle" size={20} color="#FFFFFF" />
                 </LinearGradient>
                 <Text style={styles.sectionTitle}>Basic Information</Text>
               </View>
@@ -302,10 +305,10 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <LinearGradient
-                  colors={[colors.accent.gold + '20', colors.accent.gold + '10']}
+                  colors={['#FFD700', '#FFA500']}
                   style={styles.sectionIconGradient}
                 >
-                  <Ionicons name="trophy" size={20} color={colors.accent.gold} />
+                  <Ionicons name="trophy" size={20} color="#FFFFFF" />
                 </LinearGradient>
                 <Text style={styles.sectionTitle}>Tournament Format</Text>
               </View>
@@ -331,10 +334,10 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <LinearGradient
-                  colors={[colors.accent.blue + '20', colors.accent.blue + '10']}
+                  colors={gradients.accent}
                   style={styles.sectionIconGradient}
                 >
-                  <Ionicons name="calendar" size={20} color={colors.accent.blue} />
+                  <Ionicons name="calendar" size={20} color="#FFFFFF" />
                 </LinearGradient>
                 <Text style={styles.sectionTitle}>Schedule</Text>
               </View>
@@ -368,10 +371,10 @@ export default function CreateTournamentScreen({ navigation }: CreateTournamentS
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <LinearGradient
-                  colors={[colors.accent.coral + '20', colors.accent.coral + '10']}
+                  colors={['#EF4444', '#DC2626']}
                   style={styles.sectionIconGradient}
                 >
-                  <Ionicons name="diamond" size={20} color={colors.accent.coral} />
+                  <Ionicons name="diamond" size={20} color="#FFFFFF" />
                 </LinearGradient>
                 <Text style={styles.sectionTitle}>Prize Details (Optional)</Text>
               </View>
@@ -478,11 +481,17 @@ const styles = StyleSheet.create({
   quickPreviewCard: {
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
-    ...shadows.md,
+    borderWidth: 1,
+    borderColor: colors.surface.border,
+    ...shadows.lg,
   },
   previewGradient: {
+    minHeight: 140,
+  },
+  previewGlass: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     padding: spacing.xl,
-    minHeight: 120,
+    minHeight: 140,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -490,27 +499,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   previewIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   previewEmoji: {
-    fontSize: 24,
+    fontSize: 28,
   },
   previewTitle: {
     fontSize: typography.fontSize.title2,
-    fontWeight: typography.fontWeight.bold,
+    fontWeight: typography.fontWeight.bold as any,
     color: '#FFFFFF',
     marginBottom: spacing.xs,
     textAlign: 'center',
   },
   previewSubtitle: {
     fontSize: typography.fontSize.regular,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
   },
   // Professional Section Styling
@@ -533,34 +544,36 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: typography.fontSize.title3,
-    fontWeight: typography.fontWeight.bold,
+    fontWeight: typography.fontWeight.bold as any,
     color: colors.text.primary,
   },
   // Modern Form Card
   modernFormCard: {
-    backgroundColor: colors.surface.primary,
+    backgroundColor: colors.surface.glass,
     borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.surface.border,
     padding: spacing.xl,
-    ...shadows.md,
+    ...shadows.lg,
   },
   formGroup: {
     marginBottom: spacing.lg,
   },
   label: {
     fontSize: typography.fontSize.regular,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: typography.fontWeight.semibold as any,
     color: colors.text.primary,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
   },
   input: {
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: colors.surface.border,
     borderRadius: borderRadius.lg,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     fontSize: typography.fontSize.regular,
     color: colors.text.primary,
-    backgroundColor: colors.surface.primary,
+    backgroundColor: colors.surface.secondary,
     ...shadows.sm,
   },
   textArea: {
@@ -582,16 +595,17 @@ const styles = StyleSheet.create({
   typeCard: {
     position: 'relative',
     padding: spacing.xl,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: colors.surface.border,
     borderRadius: borderRadius.xl,
-    backgroundColor: colors.surface.primary,
+    backgroundColor: colors.surface.glass,
     overflow: 'hidden',
-    ...shadows.md,
+    ...shadows.lg,
   },
   typeCardSelected: {
     borderColor: colors.primary.main,
-    borderWidth: 3,
+    borderWidth: 2,
+    ...shadows.xl,
   },
   typeCardGradient: {
     position: 'absolute',
@@ -599,7 +613,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    opacity: 0.1,
+    opacity: 0.15,
   },
   typeHeader: {
     flexDirection: 'row',
@@ -623,7 +637,7 @@ const styles = StyleSheet.create({
   },
   typeLabel: {
     fontSize: typography.fontSize.large,
-    fontWeight: typography.fontWeight.bold,
+    fontWeight: typography.fontWeight.bold as any,
     color: colors.text.primary,
     marginBottom: spacing.xxs,
   },
@@ -638,7 +652,7 @@ const styles = StyleSheet.create({
   },
   typeDescriptionSelected: {
     color: colors.primary.main,
-    fontWeight: typography.fontWeight.medium,
+    fontWeight: typography.fontWeight.medium as any,
   },
   // Modern Date Button
   dateButton: {
@@ -656,7 +670,7 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: typography.fontSize.regular,
     color: colors.text.primary,
-    fontWeight: typography.fontWeight.medium,
+    fontWeight: typography.fontWeight.medium as any,
   },
   // Floating Action Button
   fab: {

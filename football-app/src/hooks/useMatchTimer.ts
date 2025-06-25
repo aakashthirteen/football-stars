@@ -17,6 +17,7 @@ export interface TimerState {
   serverTime: number;
   connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error';
   forceUpdate?: (newState: any) => void;
+  _renderKey?: number; // Force re-render key
 }
 
 interface SSEUpdate {
@@ -39,11 +40,21 @@ interface SSEUpdate {
   message?: string;
 }
 
+// Log at file level to verify code is loaded
+console.log('🔴🔴🔴 useMatchTimer.ts LOADED:', new Date().toISOString());
+
 /**
  * Professional match timer hook using Server-Sent Events
  * Provides real-time timer updates with client-side interpolation
  */
 export function useMatchTimer(matchId: string) {
+  // CRITICAL FIX: Use separate state for values that need to trigger UI updates
+  const [addedTimeState, setAddedTimeState] = useState({
+    first: 0,
+    second: 0,
+    updateCount: 0  // Force re-render counter
+  });
+  
   const [timerState, setTimerState] = useState<TimerState>({
     currentMinute: 0,
     currentSecond: 0,
@@ -56,7 +67,8 @@ export function useMatchTimer(matchId: string) {
     addedTimeFirstHalf: 0,
     addedTimeSecondHalf: 0,
     serverTime: Date.now(),
-    connectionStatus: 'connecting'
+    connectionStatus: 'connecting',
+    _renderKey: Date.now()
   });
 
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -64,6 +76,16 @@ export function useMatchTimer(matchId: string) {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateRef = useRef<number>(Date.now());
   const reconnectAttemptsRef = useRef<number>(0);
+
+  // CRITICAL: Log every state update
+  useEffect(() => {
+    console.log('🎯 ADDED TIME STATE CHANGED:', {
+      first: addedTimeState.first,
+      second: addedTimeState.second,
+      updateCount: addedTimeState.updateCount,
+      timestamp: new Date().toISOString()
+    });
+  }, [addedTimeState]);
 
   // Format time for display
   const formatTime = useCallback((minutes: number, seconds: number): string => {
@@ -100,19 +122,28 @@ export function useMatchTimer(matchId: string) {
     lastUpdateRef.current = Date.now();
     reconnectAttemptsRef.current = 0; // Reset on successful update
     
-    // Update state with server data
-    setTimerState(prev => ({
-      ...prev,
+    // CRITICAL FIX: Update added time separately to ensure UI updates
+    if (data.state.addedTimeFirstHalf !== addedTimeState.first || 
+        data.state.addedTimeSecondHalf !== addedTimeState.second) {
+      console.log('🔥 SSE: Updating added time state separately');
+      setAddedTimeState({
+        first: data.state.addedTimeFirstHalf,
+        second: data.state.addedTimeSecondHalf,
+        updateCount: addedTimeState.updateCount + 1
+      });
+    }
+    
+    // Update main timer state with new object reference
+    const newState: TimerState = {
       currentMinute: data.state.currentMinute,
       currentSecond: data.state.currentSecond,
       displayTime: formatTime(data.state.currentMinute, data.state.currentSecond),
       displayMinute: formatMinuteDisplay({
-        ...prev,
         currentMinute: data.state.currentMinute,
         currentHalf: data.state.currentHalf as 1 | 2,
         addedTimeFirstHalf: data.state.addedTimeFirstHalf,
         addedTimeSecondHalf: data.state.addedTimeSecondHalf
-      }),
+      } as TimerState),
       status: data.state.status as TimerState['status'],
       currentHalf: data.state.currentHalf as 1 | 2,
       isHalftime: data.state.isHalftime,
@@ -121,8 +152,12 @@ export function useMatchTimer(matchId: string) {
       addedTimeFirstHalf: data.state.addedTimeFirstHalf,
       addedTimeSecondHalf: data.state.addedTimeSecondHalf,
       serverTime: data.state.serverTime,
-      connectionStatus: 'connected'
-    }));
+      connectionStatus: 'connected',
+      _renderKey: Date.now() // Force new object reference
+    };
+    
+    console.log('🔄 SSE: Setting new timer state with renderKey:', newState._renderKey);
+    setTimerState(newState);
     
     // Start interpolation for smooth display
     if (data.state.status === 'LIVE' && !data.state.isPaused && !data.state.isHalftime) {
@@ -130,7 +165,7 @@ export function useMatchTimer(matchId: string) {
     } else {
       stopInterpolation();
     }
-  }, [formatTime, formatMinuteDisplay]);
+  }, [formatTime, formatMinuteDisplay, addedTimeState]);
 
   // FIXED: Smooth second-by-second timer progression WITHOUT problematic latency compensation
   const startInterpolation = useCallback((serverTotalSeconds: number) => {
@@ -224,9 +259,18 @@ export function useMatchTimer(matchId: string) {
             return;
           }
           
-          // Update timer state with current match status (SCHEDULED, LIVE, HALFTIME)
-          if (match.status !== timerState.status) {
-            console.log(`📊 Polling: Match status changed from ${timerState.status} to ${match.status}`);
+          // CRITICAL FIX: Update added time state separately
+          if (match.added_time_first_half !== addedTimeState.first || 
+              match.added_time_second_half !== addedTimeState.second) {
+            console.log('🔥 POLLING: Updating added time state:', {
+              first: match.added_time_first_half || 0,
+              second: match.added_time_second_half || 0
+            });
+            setAddedTimeState(prev => ({
+              first: match.added_time_first_half || 0,
+              second: match.added_time_second_half || 0,
+              updateCount: prev.updateCount + 1
+            }));
           }
           
           // For SCHEDULED matches, just update status without timer calculation
@@ -238,7 +282,8 @@ export function useMatchTimer(matchId: string) {
               currentSecond: 0,
               displayTime: '00:00',
               displayMinute: '0\'',
-              connectionStatus: 'disconnected'
+              connectionStatus: 'disconnected',
+              _renderKey: Date.now()
             }));
             return;
           }
@@ -269,18 +314,17 @@ export function useMatchTimer(matchId: string) {
               adjustedMinute = halfDurationMinutes + Math.floor(secondHalfElapsed / 60) + Math.floor(totalSeconds / 60);
               const adjustedSecond = totalSeconds % 60;
               
-              setTimerState(prev => ({
-                ...prev,
+              // CRITICAL: Create completely new state object
+              const newState: TimerState = {
                 currentMinute: adjustedMinute,
                 currentSecond: adjustedSecond,
                 displayTime: formatTime(adjustedMinute, adjustedSecond),
                 displayMinute: formatMinuteDisplay({
-                  ...prev,
                   currentMinute: adjustedMinute,
                   currentHalf: 2,
                   addedTimeFirstHalf: match.added_time_first_half || 0,
                   addedTimeSecondHalf: match.added_time_second_half || 0
-                }),
+                } as TimerState),
                 status: 'LIVE',
                 currentHalf: 2,
                 isHalftime: false,
@@ -288,8 +332,12 @@ export function useMatchTimer(matchId: string) {
                 addedTimeFirstHalf: match.added_time_first_half || 0,
                 addedTimeSecondHalf: match.added_time_second_half || 0,
                 serverTime: now,
-                connectionStatus: 'disconnected'
-              }));
+                connectionStatus: 'disconnected',
+                _renderKey: Date.now() // Force re-render
+              };
+              
+              console.log('🔄 POLLING: Setting new state with renderKey:', newState._renderKey);
+              setTimerState(newState);
               return;
             }
           } else if (match.second_half_started_at) {
@@ -300,63 +348,55 @@ export function useMatchTimer(matchId: string) {
           } else if (elapsedMinutes >= halfDuration) {
             // Should be halftime, but check server state
             if (match.status === 'HALFTIME') {
-              setTimerState(prev => ({ 
-                ...prev, 
+              setTimerState({
                 status: 'HALFTIME',
                 isHalftime: true,
                 currentMinute: Math.floor(halfDuration),
                 currentSecond: 0,
                 displayTime: formatTime(Math.floor(halfDuration), 0),
                 displayMinute: `HT`,
-                connectionStatus: 'disconnected'
-              }));
+                connectionStatus: 'disconnected',
+                currentHalf: 1,
+                isPaused: true,
+                addedTimeFirstHalf: match.added_time_first_half || 0,
+                addedTimeSecondHalf: match.added_time_second_half || 0,
+                serverTime: now,
+                _renderKey: Date.now()
+              });
               return;
             }
           }
           
           // Update timer state with polling data
-          console.log('🕐 TIMER HOOK: Updating state from polling:', {
-            addedTimeFirstHalf: match.added_time_first_half,
-            addedTimeSecondHalf: match.added_time_second_half,
-            currentHalf: currentHalf
-          });
-          console.log('🕐 TIMER HOOK: State will be updated to:', {
+          console.log('🕐 POLLING: Creating new state object');
+          const pollingState: TimerState = {
+            currentMinute: adjustedMinute,
+            currentSecond: currentSecond,
+            displayTime: formatTime(adjustedMinute, currentSecond),
+            displayMinute: formatMinuteDisplay({
+              currentMinute: adjustedMinute,
+              currentHalf: currentHalf,
+              addedTimeFirstHalf: match.added_time_first_half || 0,
+              addedTimeSecondHalf: match.added_time_second_half || 0
+            } as TimerState),
+            status: match.status as TimerState['status'],
+            currentHalf: currentHalf,
+            isHalftime: match.status === 'HALFTIME',
+            isPaused: match.status === 'HALFTIME',
             addedTimeFirstHalf: match.added_time_first_half || 0,
             addedTimeSecondHalf: match.added_time_second_half || 0,
-            settingFirstHalf: match.added_time_first_half,
-            settingSecondHalf: match.added_time_second_half
+            serverTime: now,
+            connectionStatus: 'disconnected',
+            _renderKey: Date.now()
+          };
+          
+          console.log('🕐 POLLING: Setting timer state:', {
+            renderKey: pollingState._renderKey,
+            addedFirst: pollingState.addedTimeFirstHalf,
+            addedSecond: pollingState.addedTimeSecondHalf
           });
-          setTimerState(prev => {
-            const newState = {
-              ...prev,
-              currentMinute: adjustedMinute,
-              currentSecond: currentSecond,
-              displayTime: formatTime(adjustedMinute, currentSecond),
-              displayMinute: formatMinuteDisplay({
-                ...prev,
-                currentMinute: adjustedMinute,
-                currentHalf: currentHalf,
-                addedTimeFirstHalf: match.added_time_first_half || 0,
-                addedTimeSecondHalf: match.added_time_second_half || 0
-              }),
-              status: match.status as TimerState['status'],
-              currentHalf: currentHalf,
-              isHalftime: match.status === 'HALFTIME',
-              isPaused: match.status === 'HALFTIME',
-              addedTimeFirstHalf: match.added_time_first_half || 0,
-              addedTimeSecondHalf: match.added_time_second_half || 0,
-              serverTime: now,
-              connectionStatus: 'disconnected' // Indicates we're using polling
-            };
-            
-            console.log('🕐 TIMER HOOK: Final state being set:', {
-              addedTimeFirstHalf: newState.addedTimeFirstHalf,
-              addedTimeSecondHalf: newState.addedTimeSecondHalf,
-              currentHalf: newState.currentHalf
-            });
-            
-            return newState;
-          });
+          
+          setTimerState(pollingState);
           
         } catch (pollingError) {
           console.error('❌ Polling error:', pollingError);
@@ -370,7 +410,7 @@ export function useMatchTimer(matchId: string) {
     } catch (error) {
       console.error('❌ Failed to start polling fallback:', error);
     }
-  }, [matchId, formatTime, formatMinuteDisplay]);
+  }, [matchId, formatTime, formatMinuteDisplay, addedTimeState]);
 
   // Connect to SSE (optional enhancement - polling is primary)
   const connectSSE = useCallback(async () => {
@@ -622,6 +662,17 @@ export function useMatchTimer(matchId: string) {
 
   const forceUpdate = useCallback((newState: any) => {
     console.log('🕐 FORCE UPDATE: Updating timer state with:', newState);
+    
+    // Update added time state separately
+    if (newState.addedTimeFirstHalf !== undefined || newState.addedTimeSecondHalf !== undefined) {
+      setAddedTimeState(prev => ({
+        first: newState.addedTimeFirstHalf ?? prev.first,
+        second: newState.addedTimeSecondHalf ?? prev.second,
+        updateCount: prev.updateCount + 1
+      }));
+    }
+    
+    // Update main timer state
     setTimerState(prev => ({
       ...prev,
       addedTimeFirstHalf: newState.addedTimeFirstHalf || prev.addedTimeFirstHalf,
@@ -629,12 +680,27 @@ export function useMatchTimer(matchId: string) {
       currentMinute: newState.currentMinute || prev.currentMinute,
       currentSecond: newState.currentSecond || prev.currentSecond,
       status: newState.status || prev.status,
-      currentHalf: newState.currentHalf || prev.currentHalf
+      currentHalf: newState.currentHalf || prev.currentHalf,
+      _renderKey: Date.now()
     }));
   }, []);
 
-  return {
+  // CRITICAL: Merge added time state with timer state for consistent API
+  const mergedState = {
     ...timerState,
+    addedTimeFirstHalf: addedTimeState.first,
+    addedTimeSecondHalf: addedTimeState.second,
+    _addedTimeUpdateCount: addedTimeState.updateCount
+  };
+
+  console.log('🎯 useMatchTimer RETURN STATE:', {
+    addedFirst: mergedState.addedTimeFirstHalf,
+    addedSecond: mergedState.addedTimeSecondHalf,
+    updateCount: mergedState._addedTimeUpdateCount
+  });
+
+  return {
+    ...mergedState,
     isConnected: timerState.connectionStatus === 'connected',
     isPolling: timerState.connectionStatus === 'disconnected',
     reconnect: connectSSE,

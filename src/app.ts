@@ -12,6 +12,8 @@ import tournamentRoutes from './routes/tournaments';
 import uploadRoutes from './routes/upload';
 // Removed simpleMatchRoutes - using professional timer system
 import sseRoutes from './routes/sse';
+import adminRoutes from './routes/admin';
+import cleanRoutes from './routes/clean';
 
 // Import database
 import { database } from './models/databaseFactory';
@@ -276,6 +278,8 @@ app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/upload', uploadRoutes);
 // Removed simple-matches routes - using professional timer system
 app.use('/api/sse', sseRoutes); // SSE routes for real-time match updates
+app.use('/api/admin', adminRoutes); // Admin routes for maintenance
+app.use('/api', cleanRoutes); // Simple cleanup routes
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
