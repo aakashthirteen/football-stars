@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { database } from '../models/databaseFactory';
-import { hashPassword, comparePassword, generateToken } from '../utils/auth';
+import { hashPassword, comparePassword, generateAccessToken, generateRefreshToken, getRefreshTokenExpiry, verifyToken } from '../utils/auth';
 import { LoginRequest, RegisterRequest, User, Player } from '../types';
 
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -47,12 +47,18 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       // Continue with registration even if player creation fails
     }
 
-    // Generate token
-    const token = generateToken(createdUser.id);
+    // Generate tokens
+    const accessToken = generateAccessToken(createdUser.id);
+    const refreshToken = generateRefreshToken();
+    const refreshTokenExpiry = getRefreshTokenExpiry();
+
+    // Store refresh token in database
+    await database.createRefreshToken(createdUser.id, refreshToken, refreshTokenExpiry);
 
     res.status(201).json({
       user: { id: createdUser.id, email: createdUser.email, name: createdUser.name },
-      token,
+      accessToken,
+      refreshToken,
       message: 'User registered successfully',
     });
   } catch (error) {
@@ -85,16 +91,97 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Generate token
-    const token = generateToken(user.id);
+    // Generate tokens
+    const accessToken = generateAccessToken(user.id);
+    const refreshToken = generateRefreshToken();
+    const refreshTokenExpiry = getRefreshTokenExpiry();
+
+    // Store refresh token in database
+    await database.createRefreshToken(user.id, refreshToken, refreshTokenExpiry);
 
     res.json({
       user: { id: user.id, email: user.email, name: user.name },
-      token,
+      accessToken,
+      refreshToken,
       message: 'Login successful',
     });
   } catch (error) {
     console.error('Login error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const refreshToken = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      res.status(400).json({ error: 'Refresh token is required' });
+      return;
+    }
+
+    // Validate refresh token
+    const storedToken = await database.getRefreshToken(refreshToken);
+    if (!storedToken) {
+      res.status(401).json({ error: 'Invalid or expired refresh token' });
+      return;
+    }
+
+    // Generate new tokens
+    const newAccessToken = generateAccessToken(storedToken.user_id);
+    const newRefreshToken = generateRefreshToken();
+    const refreshTokenExpiry = getRefreshTokenExpiry();
+
+    // Revoke old refresh token and create new one
+    await database.revokeRefreshToken(refreshToken);
+    await database.createRefreshToken(storedToken.user_id, newRefreshToken, refreshTokenExpiry);
+
+    res.json({
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      user: {
+        id: storedToken.user_id,
+        email: storedToken.email,
+        name: storedToken.name
+      }
+    });
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const logout = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (refreshToken) {
+      // Revoke the refresh token
+      await database.revokeRefreshToken(refreshToken);
+    }
+
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const logoutAll = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    // Revoke all refresh tokens for the user
+    await database.revokeAllRefreshTokensForUser(userId);
+
+    res.json({ message: 'Logged out from all devices successfully' });
+  } catch (error) {
+    console.error('Logout all error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

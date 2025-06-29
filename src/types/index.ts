@@ -9,6 +9,15 @@ export interface User {
   updatedAt: Date;
 }
 
+export interface RefreshToken {
+  id: string;
+  userId: string;
+  token: string;
+  expiresAt: Date;
+  createdAt: Date;
+  isRevoked: boolean;
+}
+
 export interface Player {
   id: string;
   userId: string;

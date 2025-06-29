@@ -43,6 +43,27 @@ export class PostgresDatabase {
         )
       `);
 
+      // Refresh tokens table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS refresh_tokens (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+          token VARCHAR(500) NOT NULL,
+          expires_at TIMESTAMP NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          is_revoked BOOLEAN DEFAULT FALSE
+        )
+      `);
+
+      // Create index for refresh token lookups
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
+      `);
+      
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+      `);
+
       // Players table
       await client.query(`
         CREATE TABLE IF NOT EXISTS players (
@@ -1484,5 +1505,47 @@ export class PostgresDatabase {
     }
 
     throw new Error('Formation not found to update');
+  }
+
+  // Refresh Token Methods
+  async createRefreshToken(userId: string, token: string, expiresAt: Date): Promise<void> {
+    await this.pool.query(`
+      INSERT INTO refresh_tokens (user_id, token, expires_at)
+      VALUES ($1, $2, $3)
+    `, [userId, token, expiresAt]);
+  }
+
+  async getRefreshToken(token: string): Promise<any> {
+    const result = await this.pool.query(`
+      SELECT rt.*, u.id as user_id, u.email, u.name
+      FROM refresh_tokens rt
+      JOIN users u ON rt.user_id = u.id
+      WHERE rt.token = $1 AND rt.is_revoked = FALSE AND rt.expires_at > NOW()
+    `, [token]);
+    
+    return result.rows[0] || null;
+  }
+
+  async revokeRefreshToken(token: string): Promise<void> {
+    await this.pool.query(`
+      UPDATE refresh_tokens 
+      SET is_revoked = TRUE 
+      WHERE token = $1
+    `, [token]);
+  }
+
+  async revokeAllRefreshTokensForUser(userId: string): Promise<void> {
+    await this.pool.query(`
+      UPDATE refresh_tokens 
+      SET is_revoked = TRUE 
+      WHERE user_id = $1
+    `, [userId]);
+  }
+
+  async cleanupExpiredRefreshTokens(): Promise<void> {
+    await this.pool.query(`
+      DELETE FROM refresh_tokens 
+      WHERE expires_at < NOW() OR is_revoked = TRUE
+    `);
   }
 }
