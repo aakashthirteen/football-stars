@@ -118,10 +118,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   checkAuthState: async () => {
     try {
-      const accessToken = await AsyncStorage.getItem('accessToken');
-      const refreshToken = await AsyncStorage.getItem('refreshToken');
+      let accessToken = await AsyncStorage.getItem('accessToken');
+      let refreshToken = await AsyncStorage.getItem('refreshToken');
       const userData = await AsyncStorage.getItem('user');
 
+      // Handle migration from old token system
+      if (!accessToken) {
+        const oldToken = await AsyncStorage.getItem('token');
+        if (oldToken) {
+          console.log('🔄 Migrating from old token system, clearing invalid tokens');
+          // Clear old token and force re-login
+          await AsyncStorage.removeItem('token');
+          await AsyncStorage.removeItem('user');
+          set({
+            user: null,
+            token: null,
+            refreshToken: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+          return;
+        }
+      }
+
+      // Only proceed if we have both new-style tokens
       if (accessToken && refreshToken && userData) {
         const user = JSON.parse(userData);
         set({
@@ -132,6 +152,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isLoading: false,
         });
       } else {
+        // Clear any partial auth data
+        await AsyncStorage.removeItem('accessToken');
+        await AsyncStorage.removeItem('refreshToken');
+        await AsyncStorage.removeItem('user');
+        await AsyncStorage.removeItem('token'); // Clear old token too
+        
         set({
           user: null,
           token: null,
@@ -142,6 +168,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     } catch (error) {
       console.error('Auth check error:', error);
+      // Clear all auth data on error
+      await AsyncStorage.removeItem('accessToken');
+      await AsyncStorage.removeItem('refreshToken');
+      await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('token');
+      
       set({
         user: null,
         token: null,
@@ -158,6 +190,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await AsyncStorage.removeItem('accessToken');
       await AsyncStorage.removeItem('refreshToken');
       await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('token'); // Clear old token format too
       set({
         user: null,
         token: null,

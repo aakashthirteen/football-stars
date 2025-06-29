@@ -110,21 +110,26 @@ class ApiService {
         throw new Error('Invalid response from server');
       }
 
-      // Handle token expiration
-      if (response.status === 401 && data.code === 'TOKEN_EXPIRED' && !isRetry) {
-        console.log('🔄 Token expired, attempting refresh...');
-        const refreshSuccess = await this.refreshTokens();
+      // Handle token expiration and other auth failures
+      if (response.status === 401 && !isRetry) {
+        const tokenErrors = ['TOKEN_EXPIRED', 'TOKEN_INVALID', 'TOKEN_VERIFICATION_FAILED'];
         
-        if (refreshSuccess) {
-          console.log('✅ Token refreshed successfully, retrying request...');
-          return this.request(endpoint, options, true);
-        } else {
-          console.log('❌ Token refresh failed, redirecting to login...');
-          // Clear auth and redirect to login
-          await AsyncStorage.removeItem('accessToken');
-          await AsyncStorage.removeItem('refreshToken');
-          await AsyncStorage.removeItem('user');
-          throw new Error('Session expired. Please log in again.');
+        if (tokenErrors.includes(data.code)) {
+          console.log(`🔄 Token issue detected (${data.code}), attempting refresh...`);
+          const refreshSuccess = await this.refreshTokens();
+          
+          if (refreshSuccess) {
+            console.log('✅ Token refreshed successfully, retrying request...');
+            return this.request(endpoint, options, true);
+          } else {
+            console.log('❌ Token refresh failed, clearing auth state...');
+            // Clear auth and redirect to login
+            await AsyncStorage.removeItem('accessToken');
+            await AsyncStorage.removeItem('refreshToken');
+            await AsyncStorage.removeItem('user');
+            await AsyncStorage.removeItem('token'); // Clear old token too
+            throw new Error('Session expired. Please log in again.');
+          }
         }
       }
 
