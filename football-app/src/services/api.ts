@@ -10,15 +10,68 @@ export const API_BASE_URL = USE_MOCK ? 'MOCK' : RAILWAY_URL; // 🌐 Using RAILW
 const HEALTH_CHECK_URL = RAILWAY_URL.replace('/api', '/health');
 
 class ApiService {
+  private isRefreshing = false;
+  private refreshPromise: Promise<boolean> | null = null;
+
   private async getAuthHeaders() {
-    const token = await AsyncStorage.getItem('token');
+    const token = await AsyncStorage.getItem('accessToken');
     return {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
     };
   }
 
-  private async request(endpoint: string, options: RequestInit = {}) {
+  private async refreshTokens(): Promise<boolean> {
+    if (this.isRefreshing) {
+      // If refresh is already in progress, wait for it
+      return this.refreshPromise!;
+    }
+
+    this.isRefreshing = true;
+    this.refreshPromise = this.performTokenRefresh();
+
+    try {
+      const result = await this.refreshPromise;
+      return result;
+    } finally {
+      this.isRefreshing = false;
+      this.refreshPromise = null;
+    }
+  }
+
+  private async performTokenRefresh(): Promise<boolean> {
+    try {
+      const refreshToken = await AsyncStorage.getItem('refreshToken');
+      if (!refreshToken) {
+        return false;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const data = await response.json();
+      
+      // Update stored tokens
+      await AsyncStorage.setItem('accessToken', data.accessToken);
+      await AsyncStorage.setItem('refreshToken', data.refreshToken);
+
+      return true;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      return false;
+    }
+  }
+
+  private async request(endpoint: string, options: RequestInit = {}, isRetry = false): Promise<any> {
     // Mock responses for testing
     if (USE_MOCK) {
       return this.mockRequest(endpoint, options);
@@ -32,10 +85,11 @@ class ApiService {
       ...options,
     };
 
+    // Don't log sensitive headers in production
     console.log('🔄 API Request:', {
       url,
       method: options.method || 'GET',
-      headers: config.headers,
+      headers: { ...config.headers, Authorization: config.headers?.Authorization ? '[REDACTED]' : undefined },
     });
 
     try {
@@ -45,7 +99,7 @@ class ApiService {
       console.log('📡 API Response:', {
         status: response.status,
         statusText: response.statusText,
-        text: text.substring(0, 5000) // Further increased to see events data
+        text: text.substring(0, 1000) // Reduced logging for security
       });
 
       let data;
@@ -54,6 +108,24 @@ class ApiService {
       } catch (e) {
         console.error('⚠️ Failed to parse JSON:', text);
         throw new Error('Invalid response from server');
+      }
+
+      // Handle token expiration
+      if (response.status === 401 && data.code === 'TOKEN_EXPIRED' && !isRetry) {
+        console.log('🔄 Token expired, attempting refresh...');
+        const refreshSuccess = await this.refreshTokens();
+        
+        if (refreshSuccess) {
+          console.log('✅ Token refreshed successfully, retrying request...');
+          return this.request(endpoint, options, true);
+        } else {
+          console.log('❌ Token refresh failed, redirecting to login...');
+          // Clear auth and redirect to login
+          await AsyncStorage.removeItem('accessToken');
+          await AsyncStorage.removeItem('refreshToken');
+          await AsyncStorage.removeItem('user');
+          throw new Error('Session expired. Please log in again.');
+        }
       }
 
       if (!response.ok) {
@@ -1123,6 +1195,26 @@ class ApiService {
     return this.request('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ name, email, password, phoneNumber }),
+    });
+  }
+
+  async refreshToken(refreshToken: string) {
+    return this.request('/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken }),
+    });
+  }
+
+  async logout(refreshToken: string) {
+    return this.request('/auth/logout', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken }),
+    });
+  }
+
+  async logoutAll() {
+    return this.request('/auth/logout-all', {
+      method: 'POST',
     });
   }
 
