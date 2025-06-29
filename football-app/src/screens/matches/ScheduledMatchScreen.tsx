@@ -289,19 +289,17 @@ export default function ScheduledMatchScreen() {
       />
       
       <ProfessionalMatchHeader 
-        homeTeam={{
-          name: match.homeTeam?.name || 'Home Team',
-          logoUrl: match.homeTeam?.logoUrl || match.homeTeam?.logo_url,
+        match={match}
+        timer={{
+          currentMinute: 0,
+          currentSecond: 0,
+          displayTime: '0:00',
+          displayMinute: 'Scheduled',
+          isHalftime: false,
+          isLive: false,
+          currentHalf: 1,
+          connectionStatus: 'disconnected'
         }}
-        awayTeam={{
-          name: match.awayTeam?.name || 'Away Team',
-          logoUrl: match.awayTeam?.logoUrl || match.awayTeam?.logo_url,
-        }}
-        homeScore={match.homeScore || 0}
-        awayScore={match.awayScore || 0}
-        status={match.status || 'SCHEDULED'}
-        venue={match.venue}
-        duration={match.duration || 90}
         competition="Grassroots League"
       />
 

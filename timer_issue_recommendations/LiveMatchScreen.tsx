@@ -1,3 +1,4 @@
+// screens/matches/LiveMatchScreen.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -21,9 +22,8 @@ import {
   DesignSystem 
 } from '../../components/professional';
 import { apiService } from '../../services/api';
-import { useSimpleMatchTimer } from '../../services/timerService';
+import { useMatchTimer, useTimerStore, syncMatchWithServer } from '../../services/timerService';
 import { Match } from '../../types';
-import { normalizeMatchData } from '../../utils/matchDataNormalizer';
 
 const { colors, gradients, spacing, typography } = DesignSystem;
 
@@ -34,70 +34,28 @@ export default function LiveMatchScreen() {
   const navigation = useNavigation<LiveMatchScreenNavigationProp>();
   const route = useRoute<LiveMatchScreenRouteProp>();
   const { matchId } = route.params;
-  
+
   const [match, setMatch] = useState<Match | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState<'actions' | 'commentary' | 'stats' | 'formation'>('actions');
 
-  const timerData = useSimpleMatchTimer(match ? {
-    id: match.id,
-    status: match.status,
-    duration: match.duration || 90,
-    timerStartedAt: match.timerStartedAt,  // Use normalized field
-    secondHalfStartedAt: match.secondHalfStartedAt,  // This will now have the value!
-    currentHalf: match.currentHalf || 1,
-    addedTimeFirstHalf: match.addedTimeFirstHalf || 0,
-    addedTimeSecondHalf: match.addedTimeSecondHalf || 0,
-  } : null);
-
-  const timerState = {
-    currentMinute: timerData.minutes,
-    currentSecond: timerData.seconds,
-    displayTime: timerData.displayTime,
-    displayMinute: timerData.displayText,
-    isHalftime: timerData.isHalftime,
-    isLive: timerData.isLive,
-    currentHalf: timerData.currentHalf,
-    connectionStatus: 'connected' as const
-  };
-
-  const connectionStatus = timerState.connectionStatus;
-
-  // Debug logging
-  useEffect(() => {
-    if (match) {
-      console.log('🎯 Match Data for Timer:', {
-        id: match.id,
-        status: match.status,
-        current_half: match.current_half,
-        timer_started_at: match.timer_started_at,
-        second_half_started_at: match.second_half_started_at,
-        second_half_start_time: match.second_half_start_time,
-        resolved_second_half: match.second_half_started_at || match.second_half_start_time,
-        duration: match.duration,
-        added_time_first_half: match.added_time_first_half
-      });
-    }
-  }, [match]);
-
-  // Debug logging to verify we're getting the timestamp
-  useEffect(() => {
-    if (match && match.current_half === 2) {
-      console.log('🔍 Second Half Timer Debug:', {
-        second_half_start_time: match.second_half_start_time,
-        second_half_started_at: match.second_half_started_at,
-        mapped_value: match.second_half_start_time || match.second_half_started_at,
-        timer_minute: timerData.minutes,
-        timer_display: timerData.displayText
-      });
-    }
-  }, [match, timerData]);
+  // Use the new timer hook
+  const timer = useMatchTimer(matchId);
+  const timerStore = useTimerStore();
 
   useEffect(() => {
     loadMatchData();
-  }, [matchId]);
+    
+    // Set up periodic sync with server every 5 seconds
+    const syncInterval = setInterval(() => {
+      if (timer.isLive || timer.isHalftime) {
+        syncMatchWithServer(matchId, apiService);
+      }
+    }, 5000);
+    
+    return () => clearInterval(syncInterval);
+  }, [matchId, timer.isLive, timer.isHalftime]);
 
-  // Reload match data when screen comes into focus (only if match state changes)
   useFocusEffect(
     React.useCallback(() => {
       if (!match) {
@@ -106,74 +64,38 @@ export default function LiveMatchScreen() {
     }, [matchId, match])
   );
 
-  useEffect(() => {
-    // Auto-refresh match data every 10 seconds for live matches
-    let refreshInterval: NodeJS.Timeout | null = null;
-    
-    if (match?.status === 'LIVE') {
-      refreshInterval = setInterval(() => {
-        console.log('🔄 Auto-refreshing match data...');
-        loadMatchData();
-      }, 10000); // Refresh every 10 seconds
-    }
-    
-    return () => {
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-      }
-    };
-  }, [match?.status, matchId]);
-
   const loadMatchData = async () => {
     try {
       setIsLoading(true);
       const response = await apiService.getMatchById(matchId);
+      const matchData = response.match;
+      setMatch(matchData);
       
-      // DEBUG: Log the full API response structure
-      console.log('🔍 FULL API RESPONSE:', response);
-      console.log('🔍 RESPONSE.DATA:', response?.data);
-      console.log('🔍 RESPONSE.MATCH:', response?.match);
-      console.log('🔍 RESPONSE.DATA.MATCH:', response?.data?.match);
+      // Initialize timer with match data
+      if (matchData.status === 'LIVE' || matchData.status === 'HALFTIME') {
+        timerStore.addMatch({
+          id: matchData.id,
+          status: matchData.status,
+          duration: matchData.duration || 90,
+          startedAt: matchData.timer_started_at ? new Date(matchData.timer_started_at).getTime() : undefined,
+          halfTimeStartedAt: matchData.halftime_started_at ? new Date(matchData.halftime_started_at).getTime() : undefined,
+          secondHalfStartedAt: matchData.second_half_started_at ? new Date(matchData.second_half_started_at).getTime() : undefined,
+          currentHalf: matchData.current_half || 1,
+          addedTimeFirstHalf: matchData.added_time_first_half || 0,
+          addedTimeSecondHalf: matchData.added_time_second_half || 0,
+          lastSync: Date.now(),
+          totalPausedDuration: 0,
+        });
+      }
       
-      // Extract match data correctly - check multiple possible locations
-      const rawMatchData = response?.data?.match || response?.match || response?.data || response;
-      
-      console.log('🎯 RAW MATCH DATA:', rawMatchData);
-      console.log('🎯 RAW EVENTS:', rawMatchData?.events);
-      console.log('🎯 RAW ADDED TIME:', rawMatchData?.added_time_first_half);
-      
-      // CRITICAL: Normalize the match data
-      const normalizedMatch = normalizeMatchData(rawMatchData);
-      
-      // Debug logging to verify normalization
-      console.log('📊 Match data normalization:', {
-        raw_second_half_start_time: rawMatchData.second_half_start_time,
-        normalized_secondHalfStartedAt: normalizedMatch.secondHalfStartedAt,
-        current_half: normalizedMatch.currentHalf,
-        status: normalizedMatch.status
-      });
-
-      // CRITICAL: Debug events specifically
-      console.log('🎮 MATCH STATE CHECK:', {
-        has_events: !!normalizedMatch.events,
-        events_count: normalizedMatch.events?.length,
-        first_event: normalizedMatch.events?.[0],
-        added_time_first_half: normalizedMatch.addedTimeFirstHalf,
-        added_time_snake: normalizedMatch.added_time_first_half,
-        raw_events: rawMatchData.events,
-      });
-      
-      setMatch(normalizedMatch);
-      
-      // If match is not live, redirect to ScheduledMatchScreen
-      if (normalizedMatch.status === 'SCHEDULED') {
+      // Redirect if needed
+      if (matchData.status === 'SCHEDULED') {
         console.log('🔄 Match is scheduled, redirecting to ScheduledMatchScreen');
         navigation.replace('ScheduledMatch', { matchId });
         return;
       }
       
-      // If match is completed, redirect to MatchOverview
-      if (normalizedMatch.status === 'COMPLETED') {
+      if (matchData.status === 'COMPLETED') {
         console.log('🔄 Match is completed, redirecting to MatchOverview');
         navigation.replace('MatchOverview', { matchId });
         return;
@@ -205,9 +127,9 @@ export default function LiveMatchScreen() {
     
     try {
       await apiService.endMatch(matchId);
+      timerStore.endMatch(matchId);
       console.log('✅ Match ended successfully');
       
-      // Navigate to player rating screen
       navigation.navigate('PlayerRating', {
         matchId: match.id,
         homeTeamId: match.homeTeamId,
@@ -225,37 +147,24 @@ export default function LiveMatchScreen() {
     try {
       console.log('⚽ Starting second half...');
       
+      // Update server first
       const response = await apiService.startSecondHalf(matchId);
-      console.log('📡 Second half started:', response);
       
-      // Reload data immediately
-      await loadMatchData();
+      // Update local timer immediately
+      timerStore.startSecondHalf(matchId);
       
-      // Keep reloading until we get the timestamp
-      let attempts = 0;
-      const checkInterval = setInterval(async () => {
-        attempts++;
-        
-        const currentMatch = await apiService.getMatchById(matchId);
-        const normalized = normalizeMatchData(currentMatch?.match || currentMatch);
-        
-        console.log(`🔄 Checking for timestamp (attempt ${attempts}):`, {
-          has_timestamp: !!normalized.secondHalfStartedAt,
-          timestamp: normalized.secondHalfStartedAt
+      // Sync with server data
+      if (response.match) {
+        timerStore.syncMatch(matchId, {
+          status: 'LIVE',
+          currentHalf: 2,
+          secondHalfStartedAt: response.match.second_half_started_at ? 
+            new Date(response.match.second_half_started_at).getTime() : 
+            Date.now(),
         });
-        
-        if (normalized.secondHalfStartedAt || attempts >= 10) {
-          clearInterval(checkInterval);
-          setMatch(normalized);
-          
-          if (normalized.secondHalfStartedAt) {
-            console.log('✅ Second half timestamp received!');
-          } else {
-            console.error('❌ Failed to get second half timestamp after 10 attempts');
-          }
-        }
-      }, 500);
+      }
       
+      console.log('✅ Second half started successfully');
     } catch (error) {
       console.error('❌ Failed to start second half:', error);
       Alert.alert('Error', 'Failed to start second half. Please try again.');
@@ -281,7 +190,7 @@ export default function LiveMatchScreen() {
           <ProfessionalMatchAction
             homeTeamName={match.homeTeam?.name || `Team ${match.homeTeamId?.substring(0, 8) || 'Home'}`}
             awayTeamName={match.awayTeam?.name || `Team ${match.awayTeamId?.substring(0, 8) || 'Away'}`}
-            isLive={match.status === 'LIVE'}
+            isLive={timer.isLive}
             availableSubstitutions={{ home: 3, away: 3 }}
             onAction={handleMatchAction}
             onQuickEvent={handleQuickEvent}
@@ -346,8 +255,22 @@ export default function LiveMatchScreen() {
       />
       
       <ProfessionalMatchHeader 
-        match={match}
-        timer={timerState}
+        homeTeam={match.homeTeam || { 
+          name: `Team ${match.homeTeamId?.substring(0, 8) || 'Home'}`,
+          logoUrl: undefined,
+          badge: undefined
+        }}
+        awayTeam={match.awayTeam || { 
+          name: `Team ${match.awayTeamId?.substring(0, 8) || 'Away'}`,
+          logoUrl: undefined,
+          badge: undefined
+        }}
+        homeScore={match.homeScore || 0}
+        awayScore={match.awayScore || 0}
+        status={timer.status}
+        currentMinute={timer.minutes}
+        currentSecond={timer.seconds}
+        venue={match.venue}
         onBack={() => navigation.goBack()}
         onEndMatch={handleEndMatch}
       />
@@ -357,21 +280,21 @@ export default function LiveMatchScreen() {
         <View style={styles.timeControlsBar}>
           <View style={styles.timerDisplay}>
             <Text style={styles.timerText}>
-              {timerState.isHalftime ? 'HT' : `${timerState.currentMinute}:${timerState.currentSecond.toString().padStart(2, '0')}`}
+              {timer.isHalftime ? 'HT' : `${timer.minutes}:${timer.seconds.toString().padStart(2, '0')}`}
             </Text>
             <Text style={styles.halfText}>
-              {timerState.isHalftime ? 'Half Time' : `Half ${timerState.currentHalf}`}
+              {timer.isHalftime ? 'Half Time' : `Half ${timer.currentHalf}`}
             </Text>
           </View>
           
           <View style={styles.connectionStatus}>
-            <View style={[styles.connectionDot, connectionStatus === 'connected' ? styles.connected : styles.disconnected]} />
-            <Text style={styles.connectionText}>{connectionStatus}</Text>
+            <View style={[styles.connectionDot, styles.connected]} />
+            <Text style={styles.connectionText}>Live</Text>
           </View>
         </View>
 
         {/* Halftime Modal */}
-        {timerState.isHalftime && (
+        {timer.isHalftime && (
           <View style={styles.halftimeContainer}>
             <LinearGradient colors={gradients.primary} style={styles.halftimeCard}>
               <Text style={styles.halftimeTitle}>Half Time</Text>

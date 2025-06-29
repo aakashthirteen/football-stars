@@ -94,19 +94,17 @@ export default function ScheduledMatchScreenSimple() {
       />
       
       <ProfessionalMatchHeader 
-        homeTeam={{
-          name: match.homeTeam?.name || 'Home Team',
-          logoUrl: match.homeTeam?.logoUrl,
+        match={match}
+        timer={{
+          currentMinute: 0,
+          currentSecond: 0,
+          displayTime: '0:00',
+          displayMinute: 'Scheduled',
+          isHalftime: false,
+          isLive: false,
+          currentHalf: 1,
+          connectionStatus: 'disconnected'
         }}
-        awayTeam={{
-          name: match.awayTeam?.name || 'Away Team',
-          logoUrl: match.awayTeam?.logoUrl,
-        }}
-        homeScore={match.homeScore}
-        awayScore={match.awayScore}
-        status={match.status}
-        venue={match.venue}
-        duration={match.duration}
       />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>

@@ -2,7 +2,6 @@ import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import RootNavigator from './src/navigation/RootNavigator';
 import { setupEventSourcePolyfill } from './src/utils/eventSourcePolyfill';
-
 // Enhanced EventSource polyfill setup
 const polyfillSuccess = setupEventSourcePolyfill();
 if (!polyfillSuccess) {

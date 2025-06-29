@@ -53,11 +53,49 @@ export interface Match {
   venue?: string;
   matchDate: string;
   duration: number;
-  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'HALFTIME';
   homeScore: number;
   awayScore: number;
   events: MatchEvent[];
   createdBy: string;
+  
+  // ADD ALL THESE TIMER FIELDS:
+  // Snake case versions (from server)
+  timer_started_at?: string;
+  second_half_start_time?: string;
+  second_half_started_at?: string;
+  halftime_started_at?: string;
+  timer_paused_at?: string;
+  total_paused_duration?: number;
+  current_half?: 1 | 2;
+  current_minute?: number;
+  current_second?: number;
+  added_time_first_half?: number;
+  added_time_second_half?: number;
+  first_half_minutes?: number;
+  second_half_minutes?: number;
+  total_seconds_at_halftime?: number;
+  
+  // Camel case versions (for consistency)
+  timerStartedAt?: string;
+  secondHalfStartTime?: string;
+  secondHalfStartedAt?: string;
+  currentHalf?: 1 | 2;
+  currentMinute?: number;
+  addedTimeFirstHalf?: number;
+  addedTimeSecondHalf?: number;
+  
+  // Alternative field names for extra time
+  addedTimeFirst?: number;
+  addedTimeSecond?: number;
+  
+  // Alternative events field names
+  eventsData?: MatchEvent[];
+  events_data?: MatchEvent[];
+  
+  // Alternative team ID names
+  home_team_id?: string;
+  away_team_id?: string;
 }
 
 export interface MatchEvent {
@@ -69,6 +107,16 @@ export interface MatchEvent {
   eventType: 'GOAL' | 'ASSIST' | 'YELLOW_CARD' | 'RED_CARD' | 'SUBSTITUTION';
   minute: number;
   description?: string;
+  
+  // Support dual format for server compatibility
+  match_id?: string;
+  player_id?: string;
+  team_id?: string;
+  event_type?: 'GOAL' | 'ASSIST' | 'YELLOW_CARD' | 'RED_CARD' | 'SUBSTITUTION';
+  player_name?: string;
+  playerName?: string;
+  created_at?: string;
+  createdAt?: string;
 }
 
 // Stats types

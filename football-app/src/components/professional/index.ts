@@ -11,6 +11,7 @@ export { ProfessionalPlayerCard } from './ProfessionalPlayerCard';
 export { ProfessionalMatchHeader } from './ProfessionalMatchHeader';
 export { ProfessionalMatchAction } from './ProfessionalMatchAction';
 export { ProfessionalMatchEvent } from './ProfessionalMatchEvent';
+export { ProfessionalMiniEvent } from './ProfessionalMiniEvent';
 
 // New Professional Components
 export { ProfessionalFormInput } from './ProfessionalFormInput';

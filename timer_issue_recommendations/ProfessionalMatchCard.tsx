@@ -1,4 +1,5 @@
-import React, { useRef, useEffect, memo, useMemo, useState } from 'react';
+// components/professional/ProfessionalMatchCard.tsx
+import React, { useRef, useEffect, memo, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,14 +12,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import DesignSystem from '../../theme/designSystem';
 import { ProfessionalTeamBadge } from './ProfessionalTeamBadge';
-import { useSimpleMatchTimer } from '../../services/timerService';
+import { useMatchTimer, useTimerStore } from '../../services/timerService';
 
 const { colors, typography, spacing, borderRadius, shadows } = DesignSystem;
 
 interface ProfessionalMatchCardProps {
   match: {
     id: string;
-    status: 'LIVE' | 'SCHEDULED' | 'COMPLETED';
+    status: 'LIVE' | 'SCHEDULED' | 'COMPLETED' | 'HALFTIME';
     homeTeam: {
       id: string;
       name: string;
@@ -37,36 +38,56 @@ interface ProfessionalMatchCardProps {
     awayScore: number;
     matchDate: string;
     competition?: string;
-    minute?: number;
+    // Timer-related fields
+    timer_started_at?: string;
+    second_half_started_at?: string;
+    halftime_started_at?: string;
+    current_half?: number;
+    duration?: number;
+    added_time_first_half?: number;
+    added_time_second_half?: number;
   };
   onPress: () => void;
   style?: any;
 }
 
 const ProfessionalMatchCardComponent: React.FC<ProfessionalMatchCardProps> = ({ match, onPress, style }) => {
-  console.log('🌍 GLOBAL TIMER MATCH CARD RENDERED:', match.id, match.status);
-  
-  const isLive = match.status === 'LIVE';
-  const isHalftime = match.status === 'HALFTIME';
-  const isCompleted = match.status === 'COMPLETED';
   const pulseAnim = useRef(new Animated.Value(1)).current;
   
-  const timerData = useSimpleMatchTimer((match.status === 'LIVE' || match.status === 'HALFTIME') ? {
-    id: match.id,
-    status: match.status,
-    duration: (match as any).duration || 90,
-    timerStartedAt: (match as any).timerStartedAt || (match as any).timer_started_at,
-    secondHalfStartedAt: (match as any).secondHalfStartedAt || 
-                        (match as any).second_half_start_time ||
-                        (match as any).second_half_started_at,
-    currentHalf: (match as any).currentHalf || (match as any).current_half || 1,
-    addedTimeFirstHalf: (match as any).addedTimeFirstHalf || (match as any).added_time_first_half || 0,
-    addedTimeSecondHalf: (match as any).addedTimeSecondHalf || (match as any).added_time_second_half || 0,
-  } : null);
-
+  // Use the new timer hook
+  const timer = useMatchTimer(match.id);
+  const timerStore = useTimerStore();
+  
+  // Initialize timer for live/halftime matches
   useEffect(() => {
-    if (timerData.isLive) {
-      // Breathing animation for live matches
+    if (match.status === 'LIVE' || match.status === 'HALFTIME') {
+      // Add match to timer store with all necessary data
+      timerStore.addMatch({
+        id: match.id,
+        status: match.status,
+        duration: match.duration || 90,
+        startedAt: match.timer_started_at ? new Date(match.timer_started_at).getTime() : undefined,
+        halfTimeStartedAt: match.halftime_started_at ? new Date(match.halftime_started_at).getTime() : undefined,
+        secondHalfStartedAt: match.second_half_started_at ? new Date(match.second_half_started_at).getTime() : undefined,
+        currentHalf: match.current_half || 1,
+        addedTimeFirstHalf: match.added_time_first_half || 0,
+        addedTimeSecondHalf: match.added_time_second_half || 0,
+        lastSync: Date.now(),
+        totalPausedDuration: 0,
+      });
+    }
+    
+    // Cleanup: remove match from timer when card unmounts
+    return () => {
+      if (match.status === 'COMPLETED' || match.status === 'SCHEDULED') {
+        timerStore.removeMatch(match.id);
+      }
+    };
+  }, [match.id, match.status, match.timer_started_at, match.second_half_started_at]);
+
+  // Breathing animation for live matches
+  useEffect(() => {
+    if (timer.isLive) {
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -81,14 +102,15 @@ const ProfessionalMatchCardComponent: React.FC<ProfessionalMatchCardProps> = ({ 
           }),
         ])
       ).start();
+    } else {
+      pulseAnim.setValue(1);
     }
-  }, [timerData.isLive]);
+  }, [timer.isLive, pulseAnim]);
   
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
       
-      // Check if date is valid
       if (isNaN(date.getTime())) {
         return 'Invalid Date';
       }
@@ -120,14 +142,11 @@ const ProfessionalMatchCardComponent: React.FC<ProfessionalMatchCardProps> = ({ 
     }
   };
 
-  // OPTIMIZED: Memoized date formatting
-  const formattedDate = useMemo(() => {
-    return formatDate(match.matchDate || match.match_date);
-  }, [match.matchDate, match.match_date]);
+  // Memoized values for performance
+  const formattedDate = useMemo(() => formatDate(match.matchDate), [match.matchDate]);
   
-  // OPTIMIZED: Memoized status calculations
   const statusColor = useMemo(() => {
-    switch (match.status) {
+    switch (timer.status) {
       case 'LIVE':
         return colors.status.live;
       case 'HALFTIME':
@@ -137,24 +156,29 @@ const ProfessionalMatchCardComponent: React.FC<ProfessionalMatchCardProps> = ({ 
       default:
         return colors.status.scheduled;
     }
-  }, [match.status]);
+  }, [timer.status]);
   
+  // Status text that shows timer or match state
   const statusText = useMemo(() => {
-    if (match.status === 'LIVE' || match.status === 'HALFTIME') {
-      return timerData.displayText;
-    }
-    
-    switch (match.status) {
+    switch (timer.status) {
+      case 'LIVE':
+        // For match cards, show ceiling of minutes (1' for 0:01-0:59, 2' for 1:00-1:59)
+        if (timer.seconds > 0 && timer.minutes < match.duration) {
+          return `${timer.minutes + 1}'`;
+        }
+        return timer.displayText;
+      case 'HALFTIME':
+        return 'HT';
       case 'COMPLETED':
         return 'FT';
       case 'SCHEDULED':
       default:
         return formatDate(match.matchDate);
     }
-  }, [match.status, timerData.displayText, match.matchDate]);
+  }, [timer.status, timer.displayText, timer.minutes, timer.seconds, match.matchDate, match.duration]);
 
   const getMatchDetails = () => {
-    switch (match.status) {
+    switch (timer.status) {
       case 'LIVE':
         return 'Live now';
       case 'HALFTIME':
@@ -162,39 +186,28 @@ const ProfessionalMatchCardComponent: React.FC<ProfessionalMatchCardProps> = ({ 
       case 'COMPLETED':
         return formattedDate;
       default:
-        return null; // Date already shown in status badge
+        return null;
     }
   };
 
   const getCardStyle = () => {
-    switch (match.status) {
-      case 'LIVE':
-        return {
-          borderLeftWidth: 3,
-          borderLeftColor: colors.status.live,
-        };
-      case 'HALFTIME':
-        return {
-          borderLeftWidth: 3,
-          borderLeftColor: colors.accent.orange,
-        };
-      case 'COMPLETED':
-        return {
-          borderLeftWidth: 3,
-          borderLeftColor: colors.status.completed,
-        };
-      default:
-        return {
-          borderLeftWidth: 3,
-          borderLeftColor: colors.status.scheduled,
-        };
-    }
+    const borderColor = {
+      'LIVE': colors.status.live,
+      'HALFTIME': colors.accent.orange,
+      'COMPLETED': colors.status.completed,
+      'SCHEDULED': colors.status.scheduled,
+    }[timer.status];
+    
+    return {
+      borderLeftWidth: 3,
+      borderLeftColor: borderColor,
+    };
   };
 
   return (
     <Animated.View
       style={[
-        { transform: timerData.isLive ? [{ scale: pulseAnim }] : [] },
+        { transform: timer.isLive ? [{ scale: pulseAnim }] : [] },
         style,
       ]}
     >
@@ -212,10 +225,10 @@ const ProfessionalMatchCardComponent: React.FC<ProfessionalMatchCardProps> = ({ 
               </View>
               <Text style={styles.competitionText}>{match.competition}</Text>
             </View>
-            {(timerData.isLive || timerData.isHalftime) && (
+            {(timer.isLive || timer.isHalftime) && (
               <View style={styles.liveIndicator}>
                 <Animated.View style={styles.liveDot} />
-                <Text style={styles.liveText}>{timerData.isHalftime ? 'HT' : 'LIVE'}</Text>
+                <Text style={styles.liveText}>{timer.isHalftime ? 'HT' : 'LIVE'}</Text>
               </View>
             )}
           </View>
@@ -229,7 +242,7 @@ const ProfessionalMatchCardComponent: React.FC<ProfessionalMatchCardProps> = ({ 
               <ProfessionalTeamBadge
                 teamName={match.homeTeam.name}
                 teamShortName={match.homeTeam.shortName}
-                badgeUrl={match.homeTeam.logoUrl || (match.homeTeam as any).logo_url || match.homeTeam.badge}
+                badgeUrl={match.homeTeam.logoUrl || match.homeTeam.badge}
                 size="medium"
                 variant="minimal"
               />
@@ -237,17 +250,17 @@ const ProfessionalMatchCardComponent: React.FC<ProfessionalMatchCardProps> = ({ 
                 <Text style={styles.teamName} numberOfLines={1}>
                   {match.homeTeam.name}
                 </Text>
-                {isCompleted && match.homeScore > match.awayScore && (
+                {timer.isCompleted && match.homeScore > match.awayScore && (
                   <View style={styles.winnerIndicator}>
                     <Ionicons name="trophy" size={12} color={colors.accent.gold} />
                   </View>
                 )}
               </View>
             </View>
-            {(isLive || isHalftime || isCompleted) && (
+            {(timer.isLive || timer.isHalftime || timer.isCompleted) && (
               <Text style={[
                 styles.score,
-                isCompleted && match.homeScore > match.awayScore && styles.winnerScore
+                timer.isCompleted && match.homeScore > match.awayScore && styles.winnerScore
               ]}>
                 {match.homeScore}
               </Text>
@@ -259,7 +272,7 @@ const ProfessionalMatchCardComponent: React.FC<ProfessionalMatchCardProps> = ({ 
             <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
               <Text style={styles.statusText}>{statusText}</Text>
             </View>
-            {match.status === 'SCHEDULED' && (
+            {timer.status === 'SCHEDULED' && (
               <View style={styles.vsContainer}>
                 <Text style={styles.vsText}>VS</Text>
               </View>
@@ -277,7 +290,7 @@ const ProfessionalMatchCardComponent: React.FC<ProfessionalMatchCardProps> = ({ 
               <ProfessionalTeamBadge
                 teamName={match.awayTeam.name}
                 teamShortName={match.awayTeam.shortName}
-                badgeUrl={match.awayTeam.logoUrl || (match.awayTeam as any).logo_url || match.awayTeam.badge}
+                badgeUrl={match.awayTeam.logoUrl || match.awayTeam.badge}
                 size="medium"
                 variant="minimal"
               />
@@ -285,17 +298,17 @@ const ProfessionalMatchCardComponent: React.FC<ProfessionalMatchCardProps> = ({ 
                 <Text style={styles.teamName} numberOfLines={1}>
                   {match.awayTeam.name}
                 </Text>
-                {isCompleted && match.awayScore > match.homeScore && (
+                {timer.isCompleted && match.awayScore > match.homeScore && (
                   <View style={styles.winnerIndicator}>
                     <Ionicons name="trophy" size={12} color={colors.accent.gold} />
                   </View>
                 )}
               </View>
             </View>
-            {(isLive || isHalftime || isCompleted) && (
+            {(timer.isLive || timer.isHalftime || timer.isCompleted) && (
               <Text style={[
                 styles.score,
-                isCompleted && match.awayScore > match.homeScore && styles.winnerScore
+                timer.isCompleted && match.awayScore > match.homeScore && styles.winnerScore
               ]}>
                 {match.awayScore}
               </Text>
@@ -325,7 +338,7 @@ const ProfessionalMatchCardComponent: React.FC<ProfessionalMatchCardProps> = ({ 
   );
 };
 
-// OPTIMIZED: Memoized component to prevent unnecessary re-renders
+// Memoized component to prevent unnecessary re-renders
 export const ProfessionalMatchCard = memo(ProfessionalMatchCardComponent);
 
 const styles = StyleSheet.create({
@@ -400,28 +413,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-  },
-  teamBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.background.tertiary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  badgeImage: {
-    width: 30,
-    height: 30,
-    resizeMode: 'contain',
-  },
-  badgePlaceholder: {
-    fontSize: typography.fontSize.small,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-    textTransform: 'uppercase',
   },
   teamNameContainer: {
     flex: 1,

@@ -19,8 +19,7 @@ import { soundService } from '../../services/soundService';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useMatchNotifications } from '../../hooks/useNotifications';
-import { useMatchTimer } from '../../hooks/useMatchTimer';
-import { calculateMatchTimer } from '../../utils/matchTimer';
+import { useSimpleMatchTimer } from '../../services/timerService';
 
 // Professional Components
 import {
@@ -83,9 +82,6 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const [match, setMatch] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Use SSE timer hook for real-time updates
-  const timerState = useMatchTimer(matchId || '');
-  
   // Match state (from database - immediate and reliable)
   const [isLive, setIsLive] = useState(false);
   const [isHalftime, setIsHalftime] = useState(false);
@@ -93,19 +89,36 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
   const [addedTimeFirstHalf, setAddedTimeFirstHalf] = useState(0);
   const [addedTimeSecondHalf, setAddedTimeSecondHalf] = useState(0);
   
-  // Timer values - use shared utility for consistency with match cards (only if match is loaded)
-  const timerResult = match ? calculateMatchTimer({ 
-    match: match as any, 
-    timerState: {
-      connectionStatus: timerState.connectionStatus,
-      currentMinute: timerState.currentMinute,
-      currentSecond: timerState.currentSecond,
-      isHalftime: timerState.isHalftime
-    }
-  }) : { minute: 0, second: 0, displayText: '0\'', isLive: false, isHalftime: false };
+  const timerData = useSimpleMatchTimer(match ? {
+    id: match.id,
+    status: match.status,
+    duration: match.duration || 90,
+    timerStartedAt: match.timer_started_at,
+    // FIX: Use the field that actually has the timestamp data!
+    secondHalfStartedAt: match.second_half_start_time || match.second_half_started_at,
+    currentHalf: match.current_half || 1,
+    addedTimeFirstHalf: match.added_time_first_half || 0,
+    addedTimeSecondHalf: match.added_time_second_half || 0,
+  } : null);
   
-  const currentMinute = timerResult.minute;
-  const currentSecond = timerResult.second;
+  // Timer values - use simple timer directly
+  const currentMinute = timerData.minutes;
+  const currentSecond = timerData.seconds;
+  const displayText = timerData.displayText;
+  
+  console.log('🌍 MATCH SCORING TIMER:', {
+    matchId,
+    currentMinute,
+    currentSecond,
+    displayText,
+    status: match?.status,
+    isLive: timerData.isLive,
+    // DEBUG: Show which field we're using for second half
+    second_half_start_time: match?.second_half_start_time,
+    second_half_started_at: match?.second_half_started_at,
+    mapped_timestamp: match?.second_half_start_time || match?.second_half_started_at,
+    current_half: match?.current_half
+  });
   const [activeTab, setActiveTab] = useState('Actions');
   const [latestCommentary, setLatestCommentary] = useState<string>('');
   const [commentaryHistory, setCommentaryHistory] = useState<Array<{id: string, text: string, minute: number, timestamp: Date}>>([]);
@@ -197,28 +210,20 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
 
   // SSE Timer hook handles all timer updates and events automatically
 
-  // Automatic halftime and fulltime handling (hybrid: SSE + database state)
+  // Automatic halftime and fulltime handling
   useEffect(() => {
-    // Use SSE if connected, otherwise use database state
-    const useSSEState = timerState.connectionStatus === 'connected';
-    const effectiveIsHalftime = useSSEState ? timerState.isHalftime : isHalftime;
-    const effectiveStatus = useSSEState ? timerState.status : match?.status;
-    
-    if (effectiveIsHalftime && !showHalftimeModal && effectiveStatus === 'HALFTIME') {
+    if (timerData.isHalftime && !showHalftimeModal && match?.status === 'HALFTIME') {
       setShowHalftimeModal(true);
       soundService.playHalftimeWhistle();
       showCommentary("⏱️ HALF-TIME! 15-minute break begins.");
-    } else if (!effectiveIsHalftime && showHalftimeModal) {
+    } else if (!timerData.isHalftime && showHalftimeModal) {
       setShowHalftimeModal(false);
     }
-  }, [timerState.isHalftime, timerState.status, isHalftime, match?.status, timerState.connectionStatus]);
+  }, [timerData.isHalftime, match?.status]);
 
-  // Handle fulltime (hybrid approach)
+  // Handle fulltime
   useEffect(() => {
-    const useSSEState = timerState.connectionStatus === 'connected';
-    const effectiveStatus = useSSEState ? timerState.status : match?.status;
-    
-    if (effectiveStatus === 'COMPLETED' && match?.status !== 'COMPLETED') {
+    if (match?.status === 'COMPLETED' && match?.status !== 'COMPLETED') {
       soundService.playFullTimeWhistle();
       showCommentary("📢 FULL-TIME! Match completed!");
       setTimeout(() => {
@@ -231,7 +236,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         });
       }, 2000);
     }
-  }, [timerState.status, match?.status, timerState.connectionStatus]);
+  }, [match?.status]);
 
   // Note: Timer calculation now handled by professional server-side timer service
   // No more client-side timer calculations - all timing comes from WebSocket updates
@@ -333,7 +338,34 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       await apiService.addStoppageTimeSSE(matchId, 1);
       const halfText = currentHalf === 1 ? 'first' : 'second';
       showCommentary(`⏱️ +1 minute of stoppage time added to the ${halfText} half.`);
-      // No need to reload match details as SSE will update automatically
+      
+      // CRUCIAL: Update the local state immediately for instant UI feedback
+      setMatch(prevMatch => {
+        if (!prevMatch) return prevMatch;
+        
+        return {
+          ...prevMatch,
+          added_time_first_half: currentHalf === 1 
+            ? (prevMatch.added_time_first_half || 0) + 1
+            : prevMatch.added_time_first_half,
+          added_time_second_half: currentHalf === 2 
+            ? (prevMatch.added_time_second_half || 0) + 1
+            : prevMatch.added_time_second_half,
+          // Also update camelCase versions for consistency
+          addedTimeFirstHalf: currentHalf === 1 
+            ? (prevMatch.addedTimeFirstHalf || 0) + 1
+            : prevMatch.addedTimeFirstHalf,
+          addedTimeSecondHalf: currentHalf === 2 
+            ? (prevMatch.addedTimeSecondHalf || 0) + 1
+            : prevMatch.addedTimeSecondHalf,
+        };
+      });
+      
+      // Also trigger a fresh fetch to ensure server consistency
+      setTimeout(() => {
+        loadMatchDetails();
+      }, 500); // Small delay to let server process the update
+      
     } catch (error) {
       Alert.alert('Error', 'Failed to add stoppage time');
     }
@@ -396,6 +428,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       matchData.awayScore = matchData.awayScore || matchData.away_score || 0;
       
       setMatch(matchData);
+      
       
       // Set immediate match state from database (no waiting for SSE)
       setIsLive(matchData.status === 'LIVE');
@@ -718,7 +751,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                   >
                     <View style={styles.timeControlsContent}>
                       <View style={styles.timeInfo}>
-                        {isHalftime ? (
+                        {timerData.isHalftime ? (
                           <View style={styles.halftimeBreakInfo}>
                             <Text style={styles.halftimeBreakTitle}>⏰ Halftime Break</Text>
                             <Text style={styles.halftimeBreakCountdown}>
@@ -727,13 +760,13 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                           </View>
                         ) : (
                           <Text style={styles.timeInfoText}>
-                            Half {currentHalf} | +{currentHalf === 1 ? addedTimeFirstHalf : addedTimeSecondHalf} min
+                            Half {timerData.currentHalf} | +{timerData.currentHalf === 1 ? addedTimeFirstHalf : addedTimeSecondHalf} min
                           </Text>
                         )}
                       </View>
                       
                       <View style={styles.timeControlButtons}>
-                        {!isHalftime && (
+                        {!timerData.isHalftime && (
                           <TouchableOpacity
                             style={styles.quickButton}
                             onPress={handleAddStoppageTime}
@@ -807,7 +840,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                     <ProfessionalMatchAction
                       homeTeamName={match.homeTeam?.name || 'Home'}
                       awayTeamName={match.awayTeam?.name || 'Away'}
-                      isLive={isLive}
+                      isLive={timerData.isLive}
                       availableSubstitutions={availableSubstitutions}
                       onAction={handleAction}
                       onQuickEvent={handleQuickEvent}
@@ -1313,15 +1346,17 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         {/* Professional Header */}
         <Animated.View style={{ transform: [{ scale: scoreAnimation }] }}>
           <ProfessionalMatchHeader
-            homeTeam={match?.homeTeam}
-            awayTeam={match?.awayTeam}
-            homeScore={match?.homeScore ?? 0}
-            awayScore={match?.awayScore ?? 0}
-            status={match?.status ?? 'SCHEDULED'}
-            currentMinute={currentMinute}
-            currentSecond={currentSecond}
-            venue={match?.venue}
-            duration={match?.duration ?? 90}
+            match={match}
+            timer={{
+              currentMinute,
+              currentSecond,
+              displayTime: timerData.displayTime,
+              displayMinute: displayText,
+              isHalftime: timerData.isHalftime,
+              isLive: timerData.isLive,
+              currentHalf: timerData.currentHalf,
+              connectionStatus: 'connected'
+            }}
             onBack={() => navigation.goBack()}
           />
         </Animated.View>

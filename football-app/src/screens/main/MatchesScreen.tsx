@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { apiService } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
 import { FloatingActionButton } from '../../components/FloatingActionButton';
+import { FeatureFlags } from '../../config/featureFlags';
 
 // Professional Components
 import {
@@ -115,6 +116,14 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
       
       console.log('🏈 MATCHES_SCREEN: Final sorted matches:', JSON.stringify(sortedMatches, null, 2));
       setMatches(sortedMatches);
+      
+      // Initialize timer service for live matches
+      sortedMatches.forEach(match => {
+        if (match.status === 'LIVE' || match.status === 'HALFTIME') {
+          // Timer will be initialized by ProfessionalMatchCard when it renders
+          console.log('🌍 Live match found in MatchesScreen:', match.id, match.status);
+        }
+      });
     } catch (error: any) {
       console.error('Error loading matches:', error);
       Alert.alert('Error', 'Failed to load matches. Please try again.');
@@ -313,6 +322,7 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
         {filteredMatches.map((match) => {
           console.log('🎯 MATCH_CARD_DATA: Processing match for render:', JSON.stringify(match, null, 2));
           const matchCardData = {
+            ...match, // This ensures ALL fields are passed
             id: match.id,
             status: (match.status === 'UPCOMING' ? 'SCHEDULED' : match.status) as 'LIVE' | 'SCHEDULED' | 'COMPLETED',
             homeTeam: {
@@ -331,7 +341,14 @@ export default function MatchesScreen({ navigation }: MatchesScreenProps) {
             awayScore: match.awayScore || 0,
             matchDate: match.matchDate || new Date().toISOString(),
             competition: 'League Match',
-            minute: match.status === 'LIVE' ? calculateElapsedMinutes(match.matchDate) : undefined,
+            // ADD THESE CRITICAL TIMER FIELDS:
+            timer_started_at: match.timer_started_at,
+            second_half_started_at: match.second_half_started_at,
+            halftime_started_at: match.halftime_started_at,
+            current_half: match.current_half,
+            duration: match.duration,
+            added_time_first_half: match.added_time_first_half,
+            added_time_second_half: match.added_time_second_half,
           };
           console.log('🎯 MATCH_CARD_DATA: Final data being passed to ProfessionalMatchCard:', JSON.stringify(matchCardData, null, 2));
           

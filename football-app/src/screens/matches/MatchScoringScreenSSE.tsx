@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { apiService } from '../../services/api';
 import { soundService } from '../../services/soundService';
-import { useMatchTimer, useHalftimeBreakDisplay } from '../../hooks/useMatchTimer';
+import { useMatchTimer, useTimerStore, syncMatchWithServer } from '../../services/timerService';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useMatchNotifications } from '../../hooks/useNotifications';
@@ -90,9 +90,47 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
     away: 3,
   });
   
-  // Use the new SSE-based timer hook
-  const timerState = useMatchTimer(matchId);
-  const { breakTimeDisplay, isBreakEnding } = useHalftimeBreakDisplay(timerState.halftimeBreakRemaining);
+  // Use the new timer service
+  const timer = useMatchTimer(matchId);
+  const timerStore = useTimerStore();
+  
+  // Create compatible timer state for existing code
+  const timerState = {
+    currentMinute: timer.minutes,
+    currentSecond: timer.seconds,
+    displayTime: `${timer.minutes}:${String(timer.seconds).padStart(2, '0')}`,
+    displayMinute: timer.displayText,
+    connectionStatus: 'connected',
+    status: timer.status,
+    isHalftime: timer.isHalftime,
+    isLive: timer.isLive,
+    startPolling: () => {} // Stub for compatibility
+  };
+  
+  // Debug log to show timer updates
+  useEffect(() => {
+    if (timer.isLive) {
+      console.log('🌍 MATCH SCORING TIMER:', {
+        matchId: matchId,
+        displayText: timer.displayText,
+        currentMinute: timer.minutes,
+        currentSecond: timer.seconds,
+        status: timer.status,
+        isLive: timer.isLive
+      });
+    }
+  }, [timer.minutes, timer.seconds]);
+  
+  // Add periodic sync with server for live matches
+  useEffect(() => {
+    if (timer.isLive || timer.isHalftime) {
+      const syncInterval = setInterval(() => {
+        syncMatchWithServer(matchId, apiService);
+      }, 5000);
+      
+      return () => clearInterval(syncInterval);
+    }
+  }, [matchId, timer.isLive, timer.isHalftime]);
   
   // CONSOLIDATED: Single effect for timer state management (prevents multiple re-renders)
   useEffect(() => {
@@ -254,6 +292,25 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       matchData.awayScore = matchData.awayScore || matchData.away_score || 0;
       
       setMatch(matchData);
+      
+          // Initialize timer service for live/halftime matches
+      if (matchData.status === 'LIVE' || matchData.status === 'HALFTIME') {
+        const timerStore = useTimerStore.getState();
+        timerStore.addMatch({
+          id: matchData.id,
+          status: matchData.status,
+          duration: matchData.duration || 90,
+          startedAt: matchData.timer_started_at ? new Date(matchData.timer_started_at).getTime() : undefined,
+          halfTimeStartedAt: matchData.halftime_started_at ? new Date(matchData.halftime_started_at).getTime() : undefined,
+          secondHalfStartedAt: matchData.second_half_started_at ? new Date(matchData.second_half_started_at).getTime() : undefined,
+          currentHalf: matchData.current_half || 1,
+          addedTimeFirstHalf: matchData.added_time_first_half || 0,
+          addedTimeSecondHalf: matchData.added_time_second_half || 0,
+          lastSync: Date.now(),
+          totalPausedDuration: 0,
+        });
+        console.log('🚀 Timer Service: Added match to timer service', matchData.id);
+      }
       
       // Load formation data
       await loadFormationData(matchData);
@@ -429,14 +486,44 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
       console.log('⚽ Starting second half manually');
       setShowHalftimeModal(false);
       
-      await apiService.startSecondHalfSSE(matchId);
+      // Start second half via API
+      console.log('📡 Calling startSecondHalfSSE API...');
+      const response = await apiService.startSecondHalfSSE(matchId);
+      console.log('✅ Second half API response:', response);
+      
+      // CRITICAL FIX: Update timer service immediately for second half
+      const timerStore = useTimerStore.getState();
+      timerStore.startSecondHalf(matchId);
+      
+      // Sync with server response if available
+      if (response?.match) {
+        timerStore.syncMatch(matchId, {
+          status: 'LIVE',
+          currentHalf: 2,
+          secondHalfStartedAt: response.match.second_half_started_at ? 
+            new Date(response.match.second_half_started_at).getTime() : 
+            Date.now(),
+        });
+        
+        console.log('🔧 SECOND HALF UPDATE: Timer service updated for second half:', {
+          matchId: matchId,
+          serverResponse: response.match
+        });
+      }
+      
       await soundService.playSecondHalfWhistle();
       showCommentary("⚽ SECOND HALF! The match resumes!");
       
+      // Reload match data to get updated status
+      console.log('🔄 Reloading match details after second half start...');
       await loadMatchDetails();
+      console.log('✅ Second half started successfully');
+      
     } catch (error) {
       console.error('❌ Failed to start second half:', error);
-      Alert.alert('Error', 'Failed to start second half');
+      // Show modal again if there was an error
+      setShowHalftimeModal(true);
+      Alert.alert('Error', `Failed to start second half: ${error?.message || 'Unknown error'}`);
     }
   };
 
@@ -897,15 +984,17 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         {/* Professional Header with SSE Timer */}
         <Animated.View style={{ transform: [{ scale: scoreAnimation }] }}>
           <ProfessionalMatchHeader
-            homeTeam={match.homeTeam}
-            awayTeam={match.awayTeam}
-            homeScore={match.homeScore}
-            awayScore={match.awayScore}
-            status={timerState.status}
-            currentMinute={timerState.currentMinute}
-            currentSecond={timerState.currentSecond}
-            venue={match.venue}
-            duration={match.duration}
+            match={match}
+            timer={{
+              currentMinute: timerState.currentMinute,
+              currentSecond: timerState.currentSecond,
+              displayTime: timerState.displayTime,
+              displayMinute: timerState.displayMinute,
+              isHalftime: timerState.isHalftime,
+              isLive: timerState.isLive,
+              currentHalf: timer.currentHalf,
+              connectionStatus: timerState.connectionStatus
+            }}
             onBack={() => navigation.goBack()}
           />
         </Animated.View>
@@ -1142,6 +1231,7 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
         visible={showHalftimeModal}
         transparent
         animationType="slide"
+        onRequestClose={() => setShowHalftimeModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.halftimeModalContent}>
@@ -1149,6 +1239,14 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
               colors={[colors.background.secondary, colors.background.tertiary]}
               style={styles.halftimeModalGradient}
             >
+              {/* Close Button */}
+              <TouchableOpacity 
+                style={styles.halftimeCloseButton}
+                onPress={() => setShowHalftimeModal(false)}
+              >
+                <Ionicons name="close" size={24} color={colors.text.secondary} />
+              </TouchableOpacity>
+              
               <View style={styles.halftimeIconContainer}>
                 <Ionicons name="time-outline" size={48} color={colors.primary.main} />
               </View>
@@ -1175,18 +1273,28 @@ export default function MatchScoringScreen({ navigation, route }: MatchScoringSc
                 {isBreakEnding && '\n⚠️ Break ending soon!'}
               </Text>
               
-              <TouchableOpacity
-                style={styles.startSecondHalfButton}
-                onPress={handleStartSecondHalf}
-              >
-                <LinearGradient
-                  colors={gradients.primary}
-                  style={styles.startSecondHalfGradient}
+              <View style={styles.halftimeButtonContainer}>
+                <TouchableOpacity
+                  style={[styles.halftimeButton, styles.halftimeSecondaryButton]}
+                  onPress={() => setShowHalftimeModal(false)}
                 >
-                  <Ionicons name="play" size={20} color="#FFFFFF" />
-                  <Text style={styles.startSecondHalfText}>Start Second Half</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <Ionicons name="arrow-back" size={20} color={colors.text.primary} />
+                  <Text style={styles.halftimeSecondaryText}>Stay in Break</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.halftimeButton, styles.startSecondHalfButton]}
+                  onPress={handleStartSecondHalf}
+                >
+                  <LinearGradient
+                    colors={gradients.primary}
+                    style={styles.startSecondHalfGradient}
+                  >
+                    <Ionicons name="play" size={20} color="#FFFFFF" />
+                    <Text style={styles.startSecondHalfText}>Start Second Half</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             </LinearGradient>
           </View>
         </View>
@@ -1838,6 +1946,44 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.large,
     fontWeight: typography.fontWeight.semibold,
     color: '#FFFFFF',
+    marginLeft: spacing.sm,
+  },
+  halftimeCloseButton: {
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.md,
+    zIndex: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.background.primary + '80',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  halftimeButtonContainer: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: spacing.md,
+  },
+  halftimeButton: {
+    flex: 1,
+    borderRadius: borderRadius.button,
+    overflow: 'hidden',
+  },
+  halftimeSecondaryButton: {
+    backgroundColor: colors.background.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border.primary,
+  },
+  halftimeSecondaryText: {
+    fontSize: typography.fontSize.regular,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.primary,
     marginLeft: spacing.sm,
   },
 });
