@@ -73,7 +73,7 @@ app.post('/api/debug-timer/:matchId', async (req, res) => {
     console.log(`🐛 DEBUG: Testing timer for match ${matchId}`);
     
     // Import the timer service
-    const { matchTimerService } = require('./services/MatchTimerService');
+    const { scalableFootballTimer } = require('./services/sse/ScalableFootballTimerService');
     
     // Create a mock match for testing
     const mockMatch = {
@@ -88,14 +88,14 @@ app.post('/api/debug-timer/:matchId', async (req, res) => {
     console.log(`🐛 DEBUG: Starting timer for ${matchId}`);
     
     // Check if timer service exists
-    const hasStartMethod = typeof matchTimerService.startMatch === 'function';
-    const activeMatches = matchTimerService.getActiveMatches();
+    const hasStartMethod = typeof scalableFootballTimer.startMatch === 'function';
+    const activeMatches = scalableFootballTimer.getActiveMatches();
     
     res.json({
       success: true,
       debug: {
         matchId,
-        hasTimerService: !!matchTimerService,
+        hasTimerService: !!scalableFootballTimer,
         hasStartMethod,
         activeMatches,
         mockMatch
