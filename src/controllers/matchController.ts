@@ -616,6 +616,16 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
     
     console.log(`📥 [${requestId}] Request data:`, { id, playerId, teamId, eventType, minute, description });
     console.log(`🕐 [${requestId}] Request timestamp:`, new Date().toISOString());
+    console.log(`🔍 [${requestId}] ID Formats:`, {
+      matchId: id,
+      matchIdLength: id?.length,
+      playerId: playerId,
+      playerIdLength: playerId?.length,
+      playerIdIsUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(playerId || ''),
+      teamId: teamId,
+      teamIdLength: teamId?.length,
+      teamIdIsUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(teamId || ''),
+    });
 
     // Start database transaction
     await client.query('BEGIN');
@@ -748,6 +758,39 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
     console.error(`💥 [${requestId}] Add match event error:`, error);
     console.error(`💥 [${requestId}] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
     console.error(`💥 [${requestId}] Error message:`, error instanceof Error ? error.message : String(error));
+    
+    // Log database-specific error details
+    if (error && typeof error === 'object' && 'code' in error) {
+      console.error(`💥 [${requestId}] Database error code:`, (error as any).code);
+      console.error(`💥 [${requestId}] Database error detail:`, (error as any).detail);
+      console.error(`💥 [${requestId}] Database error constraint:`, (error as any).constraint);
+      console.error(`💥 [${requestId}] Database error table:`, (error as any).table);
+    }
+    
+    // Handle specific database errors
+    if (error && typeof error === 'object' && 'code' in error) {
+      const dbError = error as any;
+      
+      // Foreign key violation
+      if (dbError.code === '23503') {
+        if (dbError.constraint === 'match_events_player_id_fkey') {
+          res.status(400).json({ error: `Player with ID ${playerId} does not exist in the database` });
+          return;
+        } else if (dbError.constraint === 'match_events_team_id_fkey') {
+          res.status(400).json({ error: `Team with ID ${teamId} does not exist in the database` });
+          return;
+        } else if (dbError.constraint === 'match_events_match_id_fkey') {
+          res.status(400).json({ error: `Match with ID ${id} does not exist in the database` });
+          return;
+        }
+      }
+      
+      // Unique constraint violation
+      if (dbError.code === '23505' && dbError.constraint === 'unique_match_events') {
+        res.status(409).json({ error: 'Duplicate event detected - this exact event already exists' });
+        return;
+      }
+    }
     
     // Handle unique constraint violation specifically
     if (error instanceof Error && error.message.includes('unique_match_events')) {
