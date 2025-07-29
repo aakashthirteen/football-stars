@@ -738,16 +738,17 @@ export class PostgresDatabase {
   async getPlayerStats(playerId: string): Promise<PlayerStats | null> {
     console.log(`🔍 [DEBUG] getPlayerStats called for playerId: ${playerId}`);
     
-    // First, check if player exists and get basic info
-    const playerCheck = await this.pool.query('SELECT id, name, position FROM players WHERE id = $1', [playerId]);
+    // First, check if player exists and get basic info including user_id
+    const playerCheck = await this.pool.query('SELECT id, name, position, user_id FROM players WHERE id = $1', [playerId]);
     if (playerCheck.rows.length === 0) {
       console.log(`❌ [DEBUG] Player not found with ID: ${playerId}`);
       return null;
     }
     
-    console.log(`✅ [DEBUG] Player found: ${playerCheck.rows[0].name}`);
+    const player = playerCheck.rows[0];
+    console.log(`✅ [DEBUG] Player found: ${player.name}, user_id: ${player.user_id}`);
     
-    // Check what events exist for this player
+    // Check what events exist for this player ID
     const eventsCheck = await this.pool.query(`
       SELECT event_type, COUNT(*) as count, COUNT(DISTINCT match_id) as unique_matches
       FROM match_events 
@@ -755,42 +756,50 @@ export class PostgresDatabase {
       GROUP BY event_type
     `, [playerId]);
     
-    console.log(`📊 [DEBUG] Events for player ${playerId}:`, eventsCheck.rows);
+    console.log(`📊 [DEBUG] Events by player_id ${playerId}:`, eventsCheck.rows);
     
-    // Get total unique matches for this player  
-    const matchesCheck = await this.pool.query(`
-      SELECT COUNT(DISTINCT match_id) as total_matches
+    // CRITICAL: Check if events are stored with user_id instead of player_id
+    const userEventsCheck = await this.pool.query(`
+      SELECT event_type, COUNT(*) as count, COUNT(DISTINCT match_id) as unique_matches
       FROM match_events 
-      WHERE player_id = $1
-    `, [playerId]);
+      WHERE player_id = $1 
+      GROUP BY event_type
+    `, [player.user_id]);
     
-    console.log(`🏈 [DEBUG] Total unique matches for player ${playerId}:`, matchesCheck.rows[0]);
+    console.log(`📊 [DEBUG] Events by user_id ${player.user_id}:`, userEventsCheck.rows);
     
-    // Main query with added logging
+    // Use the ID that actually has events
+    const hasPlayerEvents = eventsCheck.rows.length > 0;
+    const hasUserEvents = userEventsCheck.rows.length > 0;
+    const effectivePlayerId = hasPlayerEvents ? playerId : (hasUserEvents ? player.user_id : playerId);
+    
+    console.log(`🎯 [DEBUG] Using effective player ID: ${effectivePlayerId} (player events: ${hasPlayerEvents}, user events: ${hasUserEvents})`);
+    
+    // Main query using the effective player ID
     const result = await this.pool.query(`
       SELECT 
         p.id as player_id,
         p.name as player_name,
         p.position,
-        (SELECT COUNT(DISTINCT match_id) FROM match_events WHERE player_id = p.id) as matches_played,
-        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'GOAL') as goals,
-        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'ASSIST') as assists,
-        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'YELLOW_CARD') as yellow_cards,
-        (SELECT COUNT(*) FROM match_events WHERE player_id = p.id AND event_type = 'RED_CARD') as red_cards,
+        (SELECT COUNT(DISTINCT match_id) FROM match_events WHERE player_id = $2) as matches_played,
+        (SELECT COUNT(*) FROM match_events WHERE player_id = $2 AND event_type = 'GOAL') as goals,
+        (SELECT COUNT(*) FROM match_events WHERE player_id = $2 AND event_type = 'ASSIST') as assists,
+        (SELECT COUNT(*) FROM match_events WHERE player_id = $2 AND event_type = 'YELLOW_CARD') as yellow_cards,
+        (SELECT COUNT(*) FROM match_events WHERE player_id = $2 AND event_type = 'RED_CARD') as red_cards,
         COALESCE(
           (SELECT SUM(m.duration) 
            FROM match_events me_inner
            JOIN matches m ON me_inner.match_id = m.id
-           WHERE me_inner.player_id = p.id AND m.status = 'COMPLETED'
+           WHERE me_inner.player_id = $2 AND m.status = 'COMPLETED'
            GROUP BY me_inner.player_id), 
           0
         ) as minutes_played
       FROM players p
       WHERE p.id = $1
-    `, [playerId]);
+    `, [playerId, effectivePlayerId]);
     
     const stats = result.rows[0];
-    console.log(`📈 [DEBUG] Final stats result for ${playerId}:`, stats);
+    console.log(`📈 [DEBUG] Final stats result for ${playerId} (using ${effectivePlayerId}):`, stats);
     
     return stats || null;
   }
