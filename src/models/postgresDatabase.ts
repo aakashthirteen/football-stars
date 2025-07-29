@@ -736,6 +736,37 @@ export class PostgresDatabase {
 
   // Player stats (fixed Cartesian product bug)
   async getPlayerStats(playerId: string): Promise<PlayerStats | null> {
+    console.log(`🔍 [DEBUG] getPlayerStats called for playerId: ${playerId}`);
+    
+    // First, check if player exists and get basic info
+    const playerCheck = await this.pool.query('SELECT id, name, position FROM players WHERE id = $1', [playerId]);
+    if (playerCheck.rows.length === 0) {
+      console.log(`❌ [DEBUG] Player not found with ID: ${playerId}`);
+      return null;
+    }
+    
+    console.log(`✅ [DEBUG] Player found: ${playerCheck.rows[0].name}`);
+    
+    // Check what events exist for this player
+    const eventsCheck = await this.pool.query(`
+      SELECT event_type, COUNT(*) as count, COUNT(DISTINCT match_id) as unique_matches
+      FROM match_events 
+      WHERE player_id = $1 
+      GROUP BY event_type
+    `, [playerId]);
+    
+    console.log(`📊 [DEBUG] Events for player ${playerId}:`, eventsCheck.rows);
+    
+    // Get total unique matches for this player  
+    const matchesCheck = await this.pool.query(`
+      SELECT COUNT(DISTINCT match_id) as total_matches
+      FROM match_events 
+      WHERE player_id = $1
+    `, [playerId]);
+    
+    console.log(`🏈 [DEBUG] Total unique matches for player ${playerId}:`, matchesCheck.rows[0]);
+    
+    // Main query with added logging
     const result = await this.pool.query(`
       SELECT 
         p.id as player_id,
@@ -758,7 +789,10 @@ export class PostgresDatabase {
       WHERE p.id = $1
     `, [playerId]);
     
-    return result.rows[0] || null;
+    const stats = result.rows[0];
+    console.log(`📈 [DEBUG] Final stats result for ${playerId}:`, stats);
+    
+    return stats || null;
   }
 
   async getAllPlayersStats(): Promise<PlayerStats[]> {

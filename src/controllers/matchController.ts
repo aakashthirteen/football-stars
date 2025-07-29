@@ -609,10 +609,12 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
   const requestId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
   const client = await database.pool.connect();
   
+  // Extract parameters at function level for error handling scope
+  const { id } = req.params;
+  const { playerId, teamId, eventType, minute, description }: MatchEventRequest = req.body as MatchEventRequest;
+  
   try {
     console.log(`🚨 [${requestId}] addMatchEvent called - TRANSACTION VERSION RUNNING!`);
-    const { id } = req.params;
-    const { playerId, teamId, eventType, minute, description }: MatchEventRequest = req.body as MatchEventRequest;
     
     console.log(`📥 [${requestId}] Request data:`, { id, playerId, teamId, eventType, minute, description });
     console.log(`🕐 [${requestId}] Request timestamp:`, new Date().toISOString());
