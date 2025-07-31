@@ -112,10 +112,6 @@ export const getAllTeams = async (req: AuthRequest, res: Response): Promise<void
     // Get team players for each team (now includes full player details)
     const teamsWithPlayers = await Promise.all(teams.map(async team => {
       const teamPlayers = await database.getTeamPlayers(team.id);
-      
-      // Log to see if stats are coming from database
-      console.log(`📊 Team ${team.name} stats from DB:`, team.stats);
-      
       return {
         ...team,
         players: teamPlayers,

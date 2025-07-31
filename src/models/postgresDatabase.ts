@@ -430,37 +430,10 @@ export class PostgresDatabase {
 
   async getAllTeams(): Promise<Team[]> {
     const result = await this.pool.query(`
-      WITH team_stats AS (
-        SELECT 
-          t.id as team_id,
-          COUNT(DISTINCT CASE WHEN m.status = 'COMPLETED' THEN m.id END) as matches_played,
-          COUNT(DISTINCT CASE 
-            WHEN m.status = 'COMPLETED' AND m.home_team_id = t.id AND m.home_score > m.away_score THEN m.id
-            WHEN m.status = 'COMPLETED' AND m.away_team_id = t.id AND m.away_score > m.home_score THEN m.id
-          END) as wins,
-          COUNT(DISTINCT CASE 
-            WHEN m.status = 'COMPLETED' AND (m.home_team_id = t.id OR m.away_team_id = t.id) AND m.home_score = m.away_score THEN m.id
-          END) as draws,
-          COUNT(DISTINCT CASE 
-            WHEN m.status = 'COMPLETED' AND m.home_team_id = t.id AND m.home_score < m.away_score THEN m.id
-            WHEN m.status = 'COMPLETED' AND m.away_team_id = t.id AND m.away_score < m.home_score THEN m.id
-          END) as losses,
-          COALESCE(SUM(CASE 
-            WHEN m.status = 'COMPLETED' AND m.home_team_id = t.id THEN m.home_score
-            WHEN m.status = 'COMPLETED' AND m.away_team_id = t.id THEN m.away_score
-          END), 0) as goals_for,
-          COALESCE(SUM(CASE 
-            WHEN m.status = 'COMPLETED' AND m.home_team_id = t.id THEN m.away_score
-            WHEN m.status = 'COMPLETED' AND m.away_team_id = t.id THEN m.home_score
-          END), 0) as goals_against
-        FROM teams t
-        LEFT JOIN matches m ON (m.home_team_id = t.id OR m.away_team_id = t.id)
-        GROUP BY t.id
-      )
       SELECT t.*, 
-             COUNT(DISTINCT tp.player_id) as player_count,
+             COUNT(tp.player_id) as player_count,
              COALESCE(
-               json_agg(DISTINCT
+               json_agg(
                  json_build_object(
                    'id', tp.id,
                    'playerId', p.id,
@@ -470,20 +443,11 @@ export class PostgresDatabase {
                  )
                ) FILTER (WHERE tp.id IS NOT NULL), 
                '[]'
-             ) as players,
-             json_build_object(
-               'matchesPlayed', COALESCE(ts.matches_played, 0),
-               'wins', COALESCE(ts.wins, 0),
-               'draws', COALESCE(ts.draws, 0),
-               'losses', COALESCE(ts.losses, 0),
-               'goalsFor', COALESCE(ts.goals_for, 0),
-               'goalsAgainst', COALESCE(ts.goals_against, 0)
-             ) as stats
+             ) as players
       FROM teams t
       LEFT JOIN team_players tp ON t.id = tp.team_id
       LEFT JOIN players p ON tp.player_id = p.id
-      LEFT JOIN team_stats ts ON t.id = ts.team_id
-      GROUP BY t.id, ts.matches_played, ts.wins, ts.draws, ts.losses, ts.goals_for, ts.goals_against
+      GROUP BY t.id
       ORDER BY t.created_at DESC
     `);
     
@@ -494,45 +458,10 @@ export class PostgresDatabase {
   }
 
   async getTeamById(id: string): Promise<Team | null> {
-    // First, let's check if there are any matches for this team
-    const matchCheck = await this.pool.query(`
-      SELECT COUNT(*) as total_matches,
-             COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) as completed_matches
-      FROM matches 
-      WHERE home_team_id = $1 OR away_team_id = $1
-    `, [id]);
-    
-    console.log(`🏃 Team ${id} match check:`, matchCheck.rows[0]);
-    
     const result = await this.pool.query(`
-      WITH team_stats AS (
-        SELECT 
-          COUNT(DISTINCT CASE WHEN m.status = 'COMPLETED' THEN m.id END) as matches_played,
-          COUNT(DISTINCT CASE 
-            WHEN m.status = 'COMPLETED' AND m.home_team_id = $1 AND m.home_score > m.away_score THEN m.id
-            WHEN m.status = 'COMPLETED' AND m.away_team_id = $1 AND m.away_score > m.home_score THEN m.id
-          END) as wins,
-          COUNT(DISTINCT CASE 
-            WHEN m.status = 'COMPLETED' AND (m.home_team_id = $1 OR m.away_team_id = $1) AND m.home_score = m.away_score THEN m.id
-          END) as draws,
-          COUNT(DISTINCT CASE 
-            WHEN m.status = 'COMPLETED' AND m.home_team_id = $1 AND m.home_score < m.away_score THEN m.id
-            WHEN m.status = 'COMPLETED' AND m.away_team_id = $1 AND m.away_score < m.home_score THEN m.id
-          END) as losses,
-          COALESCE(SUM(CASE 
-            WHEN m.status = 'COMPLETED' AND m.home_team_id = $1 THEN m.home_score
-            WHEN m.status = 'COMPLETED' AND m.away_team_id = $1 THEN m.away_score
-          END), 0) as goals_for,
-          COALESCE(SUM(CASE 
-            WHEN m.status = 'COMPLETED' AND m.home_team_id = $1 THEN m.away_score
-            WHEN m.status = 'COMPLETED' AND m.away_team_id = $1 THEN m.home_score
-          END), 0) as goals_against
-        FROM matches m
-        WHERE m.home_team_id = $1 OR m.away_team_id = $1
-      )
       SELECT t.*, 
              COALESCE(
-               json_agg(DISTINCT
+               json_agg(
                  json_build_object(
                    'id', tp.id,
                    'playerId', p.id,
@@ -542,27 +471,13 @@ export class PostgresDatabase {
                  )
                ) FILTER (WHERE tp.id IS NOT NULL), 
                '[]'
-             ) as players,
-             json_build_object(
-               'matchesPlayed', COALESCE(ts.matches_played, 0),
-               'wins', COALESCE(ts.wins, 0),
-               'draws', COALESCE(ts.draws, 0),
-               'losses', COALESCE(ts.losses, 0),
-               'goalsFor', COALESCE(ts.goals_for, 0),
-               'goalsAgainst', COALESCE(ts.goals_against, 0)
-             ) as stats
+             ) as players
       FROM teams t
       LEFT JOIN team_players tp ON t.id = tp.team_id
       LEFT JOIN players p ON tp.player_id = p.id
-      CROSS JOIN team_stats ts
       WHERE t.id = $1
-      GROUP BY t.id, ts.matches_played, ts.wins, ts.draws, ts.losses, ts.goals_for, ts.goals_against
+      GROUP BY t.id
     `, [id]);
-    
-    if (result.rows[0]) {
-      console.log('📊 Team from DB:', JSON.stringify(result.rows[0], null, 2));
-      console.log('📊 Team stats:', result.rows[0].stats);
-    }
     
     return result.rows[0] || null;
   }
@@ -921,38 +836,10 @@ export class PostgresDatabase {
   // Additional methods for controller compatibility
   async getTeamsByUserId(userId: string): Promise<Team[]> {
     const result = await this.pool.query(`
-      WITH team_stats AS (
-        SELECT 
-          t.id as team_id,
-          COUNT(DISTINCT CASE WHEN m.status = 'COMPLETED' THEN m.id END) as matches_played,
-          COUNT(DISTINCT CASE 
-            WHEN m.status = 'COMPLETED' AND m.home_team_id = t.id AND m.home_score > m.away_score THEN m.id
-            WHEN m.status = 'COMPLETED' AND m.away_team_id = t.id AND m.away_score > m.home_score THEN m.id
-          END) as wins,
-          COUNT(DISTINCT CASE 
-            WHEN m.status = 'COMPLETED' AND (m.home_team_id = t.id OR m.away_team_id = t.id) AND m.home_score = m.away_score THEN m.id
-          END) as draws,
-          COUNT(DISTINCT CASE 
-            WHEN m.status = 'COMPLETED' AND m.home_team_id = t.id AND m.home_score < m.away_score THEN m.id
-            WHEN m.status = 'COMPLETED' AND m.away_team_id = t.id AND m.away_score < m.home_score THEN m.id
-          END) as losses,
-          COALESCE(SUM(CASE 
-            WHEN m.status = 'COMPLETED' AND m.home_team_id = t.id THEN m.home_score
-            WHEN m.status = 'COMPLETED' AND m.away_team_id = t.id THEN m.away_score
-          END), 0) as goals_for,
-          COALESCE(SUM(CASE 
-            WHEN m.status = 'COMPLETED' AND m.home_team_id = t.id THEN m.away_score
-            WHEN m.status = 'COMPLETED' AND m.away_team_id = t.id THEN m.home_score
-          END), 0) as goals_against
-        FROM teams t
-        LEFT JOIN matches m ON (m.home_team_id = t.id OR m.away_team_id = t.id)
-        WHERE t.created_by = $1
-        GROUP BY t.id
-      )
       SELECT t.*, 
-             COUNT(DISTINCT tp.player_id) as player_count,
+             COUNT(tp.player_id) as player_count,
              COALESCE(
-               json_agg(DISTINCT
+               json_agg(
                  json_build_object(
                    'id', tp.id,
                    'playerId', p.id,
@@ -962,21 +849,12 @@ export class PostgresDatabase {
                  )
                ) FILTER (WHERE tp.id IS NOT NULL), 
                '[]'
-             ) as players,
-             json_build_object(
-               'matchesPlayed', COALESCE(ts.matches_played, 0),
-               'wins', COALESCE(ts.wins, 0),
-               'draws', COALESCE(ts.draws, 0),
-               'losses', COALESCE(ts.losses, 0),
-               'goalsFor', COALESCE(ts.goals_for, 0),
-               'goalsAgainst', COALESCE(ts.goals_against, 0)
-             ) as stats
+             ) as players
       FROM teams t
       LEFT JOIN team_players tp ON t.id = tp.team_id
       LEFT JOIN players p ON tp.player_id = p.id
-      LEFT JOIN team_stats ts ON t.id = ts.team_id
       WHERE t.created_by = $1
-      GROUP BY t.id, ts.matches_played, ts.wins, ts.draws, ts.losses, ts.goals_for, ts.goals_against
+      GROUP BY t.id
       ORDER BY t.created_at DESC
     `, [userId]);
     
