@@ -485,6 +485,16 @@ export class PostgresDatabase {
   }
 
   async getTeamById(id: string): Promise<Team | null> {
+    // First, let's check if there are any matches for this team
+    const matchCheck = await this.pool.query(`
+      SELECT COUNT(*) as total_matches,
+             COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) as completed_matches
+      FROM matches 
+      WHERE home_team_id = $1 OR away_team_id = $1
+    `, [id]);
+    
+    console.log(`🏃 Team ${id} match check:`, matchCheck.rows[0]);
+    
     const result = await this.pool.query(`
       SELECT t.*, 
              COALESCE(
@@ -532,6 +542,11 @@ export class PostgresDatabase {
       WHERE t.id = $1
       GROUP BY t.id
     `, [id]);
+    
+    if (result.rows[0]) {
+      console.log('📊 Team from DB:', JSON.stringify(result.rows[0], null, 2));
+      console.log('📊 Team stats:', result.rows[0].stats);
+    }
     
     return result.rows[0] || null;
   }
