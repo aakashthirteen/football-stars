@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import bcrypt from 'bcryptjs';
-import { User, Team, Match, MatchWithDetails, TeamPlayer, MatchEvent, PlayerStats } from '../types';
+import { User, Team, Match, MatchWithDetails, TeamPlayer, MatchEvent, PlayerStats, PlayerConnection, PlayerConnectionWithDetails, Notification } from '../types';
 
 // PostgreSQL Database Implementation for Railway deployment
 export class PostgresDatabase {
@@ -277,6 +277,57 @@ export class PostgresDatabase {
           UNIQUE(tournament_id, match_id)
         )
       `);
+
+      // Player connections table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS player_connections (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          player_id UUID REFERENCES players(id) ON DELETE CASCADE,
+          connected_player_id UUID REFERENCES players(id) ON DELETE CASCADE,
+          status VARCHAR(20) CHECK (status IN ('pending', 'accepted', 'rejected')) DEFAULT 'pending',
+          requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          responded_at TIMESTAMP,
+          UNIQUE(player_id, connected_player_id)
+        )
+      `);
+
+      // Create indexes for performance
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_player_connections_player_id ON player_connections(player_id);
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_player_connections_connected_player_id ON player_connections(connected_player_id);
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_player_connections_status ON player_connections(status);
+      `);
+
+      // Notifications table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS notifications (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          player_id UUID REFERENCES players(id) ON DELETE CASCADE,
+          type VARCHAR(50) NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          message TEXT NOT NULL,
+          data JSONB,
+          read BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      // Create indexes for notifications
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_notifications_player_id ON notifications(player_id);
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
+      `);
+
+      console.log('✅ Created player_connections and notifications tables with indexes');
 
       // Seed initial data
       await this.seedData(client);
@@ -1291,6 +1342,347 @@ export class PostgresDatabase {
       ORDER BY position
     `, [tournamentId]);
     return result.rows;
+  }
+
+  // Player Connection Methods
+  async createConnectionRequest(playerId: string, connectedPlayerId: string): Promise<PlayerConnection> {
+    // Prevent self-connection
+    if (playerId === connectedPlayerId) {
+      throw new Error('Cannot connect to yourself');
+    }
+
+    // Check if connection already exists (in either direction)
+    const existingConnection = await this.pool.query(
+      'SELECT * FROM player_connections WHERE (player_id = $1 AND connected_player_id = $2) OR (player_id = $2 AND connected_player_id = $1)',
+      [playerId, connectedPlayerId]
+    );
+
+    if (existingConnection.rows.length > 0) {
+      const connection = existingConnection.rows[0];
+      if (connection.status === 'pending') {
+        throw new Error('Connection request already pending');
+      } else if (connection.status === 'accepted') {
+        throw new Error('You are already connected with this player');
+      } else if (connection.status === 'rejected') {
+        // Allow new request if previous was rejected (after some time)
+        const timeSinceRejection = Date.now() - new Date(connection.responded_at).getTime();
+        const oneHourInMs = 60 * 60 * 1000;
+        if (timeSinceRejection < oneHourInMs) {
+          throw new Error('Please wait before sending another connection request');
+        }
+        // Delete the old rejected connection and allow new one
+        await this.pool.query('DELETE FROM player_connections WHERE id = $1', [connection.id]);
+      }
+    }
+
+    // Verify both players exist
+    const [player1, player2] = await Promise.all([
+      this.getPlayerById(playerId),
+      this.getPlayerById(connectedPlayerId)
+    ]);
+
+    if (!player1) {
+      throw new Error('Requesting player not found');
+    }
+    if (!player2) {
+      throw new Error('Target player not found');
+    }
+
+    const result = await this.pool.query(
+      'INSERT INTO player_connections (player_id, connected_player_id, status) VALUES ($1, $2, $3) RETURNING *',
+      [playerId, connectedPlayerId, 'pending']
+    );
+
+    return {
+      id: result.rows[0].id,
+      playerId: result.rows[0].player_id,
+      connectedPlayerId: result.rows[0].connected_player_id,
+      status: result.rows[0].status,
+      requestedAt: result.rows[0].requested_at,
+      respondedAt: result.rows[0].responded_at
+    };
+  }
+
+  async getConnectionById(connectionId: string): Promise<PlayerConnection | null> {
+    const result = await this.pool.query(
+      'SELECT * FROM player_connections WHERE id = $1',
+      [connectionId]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return {
+      id: result.rows[0].id,
+      playerId: result.rows[0].player_id,
+      connectedPlayerId: result.rows[0].connected_player_id,
+      status: result.rows[0].status,
+      requestedAt: result.rows[0].requested_at,
+      respondedAt: result.rows[0].responded_at
+    };
+  }
+
+  async getPlayerConnections(playerId: string): Promise<PlayerConnectionWithDetails[]> {
+    const result = await this.pool.query(`
+      SELECT pc.*, 
+             cp.id as connected_player_id, 
+             cp.name as connected_player_name, 
+             cp.position as connected_player_position,
+             cp.avatar_url as connected_player_avatar_url,
+             cp.bio as connected_player_bio,
+             cp.location as connected_player_location,
+             rp.id as requester_player_id,
+             rp.name as requester_player_name,
+             rp.position as requester_player_position,
+             rp.avatar_url as requester_player_avatar_url,
+             rp.bio as requester_player_bio,
+             rp.location as requester_player_location
+      FROM player_connections pc
+      LEFT JOIN players cp ON pc.connected_player_id = cp.id
+      LEFT JOIN players rp ON pc.player_id = rp.id
+      WHERE (pc.player_id = $1 OR pc.connected_player_id = $1) AND pc.status IN ('accepted', 'pending')
+      ORDER BY pc.requested_at DESC
+    `, [playerId]);
+
+    return result.rows.map(row => ({
+      id: row.id,
+      playerId: row.player_id,
+      connectedPlayerId: row.connected_player_id,
+      status: row.status,
+      requestedAt: row.requested_at,
+      respondedAt: row.responded_at,
+      connectedPlayer: {
+        id: row.connected_player_id,
+        name: row.connected_player_name || 'Unknown Player',
+        position: row.connected_player_position || 'Unknown',
+        avatarUrl: row.connected_player_avatar_url,
+        bio: row.connected_player_bio,
+        location: row.connected_player_location
+      },
+      requesterPlayer: row.player_id !== playerId ? {
+        id: row.requester_player_id,
+        name: row.requester_player_name || 'Unknown Player',
+        position: row.requester_player_position || 'Unknown',
+        avatarUrl: row.requester_player_avatar_url,
+        bio: row.requester_player_bio,
+        location: row.requester_player_location
+      } : undefined
+    }));
+  }
+
+  async getPendingConnectionRequests(playerId: string): Promise<PlayerConnectionWithDetails[]> {
+    const result = await this.pool.query(`
+      SELECT pc.*, 
+             rp.id as requester_player_id,
+             rp.name as requester_player_name, 
+             rp.position as requester_player_position,
+             rp.avatar_url as requester_player_avatar_url,
+             rp.bio as requester_player_bio,
+             rp.location as requester_player_location
+      FROM player_connections pc
+      JOIN players rp ON pc.player_id = rp.id
+      WHERE pc.connected_player_id = $1 AND pc.status = 'pending'
+      ORDER BY pc.requested_at DESC
+    `, [playerId]);
+
+    return result.rows.map(row => ({
+      id: row.id,
+      playerId: row.player_id,
+      connectedPlayerId: row.connected_player_id,
+      status: row.status,
+      requestedAt: row.requested_at,
+      respondedAt: row.responded_at,
+      connectedPlayer: {
+        id: playerId,
+        name: '',
+        position: '',
+      },
+      requesterPlayer: {
+        id: row.requester_player_id,
+        name: row.requester_player_name || 'Unknown Player',
+        position: row.requester_player_position || 'Unknown',
+        avatarUrl: row.requester_player_avatar_url,
+        bio: row.requester_player_bio,
+        location: row.requester_player_location
+      }
+    }));
+  }
+
+  async updateConnectionStatus(connectionId: string, status: 'accepted' | 'rejected'): Promise<PlayerConnection> {
+    const result = await this.pool.query(
+      'UPDATE player_connections SET status = $1, responded_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [status, connectionId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error('Connection not found');
+    }
+
+    return {
+      id: result.rows[0].id,
+      playerId: result.rows[0].player_id,
+      connectedPlayerId: result.rows[0].connected_player_id,
+      status: result.rows[0].status,
+      requestedAt: result.rows[0].requested_at,
+      respondedAt: result.rows[0].responded_at
+    };
+  }
+
+  async removeConnection(connectionId: string): Promise<boolean> {
+    const result = await this.pool.query(
+      'DELETE FROM player_connections WHERE id = $1',
+      [connectionId]
+    );
+
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Notification Methods
+  async createNotification(playerId: string, type: string, title: string, message: string, data?: any): Promise<Notification> {
+    const result = await this.pool.query(
+      'INSERT INTO notifications (player_id, type, title, message, data) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [playerId, type, title, message, data ? JSON.stringify(data) : null]
+    );
+
+    return {
+      id: result.rows[0].id,
+      playerId: result.rows[0].player_id,
+      type: result.rows[0].type,
+      title: result.rows[0].title,
+      message: result.rows[0].message,
+      data: result.rows[0].data,
+      read: result.rows[0].read,
+      createdAt: result.rows[0].created_at
+    };
+  }
+
+  async getPlayerNotifications(playerId: string, limit: number = 50): Promise<Notification[]> {
+    const result = await this.pool.query(
+      'SELECT * FROM notifications WHERE player_id = $1 ORDER BY created_at DESC LIMIT $2',
+      [playerId, limit]
+    );
+
+    return result.rows.map(row => ({
+      id: row.id,
+      playerId: row.player_id,
+      type: row.type,
+      title: row.title,
+      message: row.message,
+      data: row.data,
+      read: row.read,
+      createdAt: row.created_at
+    }));
+  }
+
+  async markNotificationAsRead(notificationId: string): Promise<Notification | null> {
+    const result = await this.pool.query(
+      'UPDATE notifications SET read = TRUE WHERE id = $1 RETURNING *',
+      [notificationId]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return {
+      id: result.rows[0].id,
+      playerId: result.rows[0].player_id,
+      type: result.rows[0].type,
+      title: result.rows[0].title,
+      message: result.rows[0].message,
+      data: result.rows[0].data,
+      read: result.rows[0].read,
+      createdAt: result.rows[0].created_at
+    };
+  }
+
+  async deleteNotification(notificationId: string): Promise<boolean> {
+    const result = await this.pool.query(
+      'DELETE FROM notifications WHERE id = $1',
+      [notificationId]
+    );
+
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async markAllNotificationsAsRead(playerId: string): Promise<void> {
+    await this.pool.query(
+      'UPDATE notifications SET read = TRUE WHERE player_id = $1 AND read = FALSE',
+      [playerId]
+    );
+  }
+
+  async getUnreadNotificationCount(playerId: string): Promise<number> {
+    const result = await this.pool.query(
+      'SELECT COUNT(*) as unread_count FROM notifications WHERE player_id = $1 AND read = FALSE',
+      [playerId]
+    );
+
+    return parseInt(result.rows[0].unread_count, 10);
+  }
+
+  // Helper method to create connection request notification
+  async createConnectionRequestNotification(requesterId: string, receiverId: string): Promise<void> {
+    // Get requester's name
+    const requester = await this.getPlayerById(requesterId);
+    if (requester) {
+      await this.createNotification(
+        receiverId,
+        'connection_request',
+        'New Connection Request',
+        `${requester.name} wants to connect with you`,
+        { requesterId }
+      );
+    }
+  }
+
+  // Helper method to create connection accepted notification
+  async createConnectionAcceptedNotification(accepterId: string, requesterId: string): Promise<void> {
+    // Get accepter's name
+    const accepter = await this.getPlayerById(accepterId);
+    if (accepter) {
+      await this.createNotification(
+        requesterId,
+        'connection_accepted',
+        'Connection Accepted',
+        `${accepter.name} accepted your connection request`,
+        { accepterId }
+      );
+    }
+  }
+
+  // Helper method to clean up old notifications (older than 30 days)
+  async cleanupOldNotifications(): Promise<number> {
+    const result = await this.pool.query(`
+      DELETE FROM notifications 
+      WHERE created_at < NOW() - INTERVAL '30 days'
+    `);
+    
+    return result.rowCount || 0;
+  }
+
+  // Helper method to get connection summary for a player
+  async getPlayerConnectionSummary(playerId: string): Promise<{
+    totalConnections: number;
+    pendingRequests: number;
+    sentRequests: number;
+  }> {
+    const summary = await this.pool.query(`
+      SELECT 
+        COUNT(CASE WHEN status = 'accepted' THEN 1 END) as total_connections,
+        COUNT(CASE WHEN status = 'pending' AND connected_player_id = $1 THEN 1 END) as pending_requests,
+        COUNT(CASE WHEN status = 'pending' AND player_id = $1 THEN 1 END) as sent_requests
+      FROM player_connections 
+      WHERE player_id = $1 OR connected_player_id = $1
+    `, [playerId]);
+
+    const row = summary.rows[0];
+    return {
+      totalConnections: parseInt(row.total_connections, 10),
+      pendingRequests: parseInt(row.pending_requests, 10),
+      sentRequests: parseInt(row.sent_requests, 10)
+    };
   }
 
   async close(): Promise<void> {

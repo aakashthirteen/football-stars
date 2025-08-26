@@ -191,3 +191,58 @@ export interface MatchEventRequest {
   minute: number;
   description?: string;
 }
+
+export interface PlayerConnection {
+  id: string;
+  playerId: string;
+  connectedPlayerId: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  requestedAt: Date;
+  respondedAt?: Date;
+}
+
+export interface PlayerConnectionWithDetails extends PlayerConnection {
+  connectedPlayer: {
+    id: string;
+    name: string;
+    position: string;
+    avatarUrl?: string;
+    bio?: string;
+    location?: string;
+  };
+  requesterPlayer?: {
+    id: string;
+    name: string;
+    position: string;
+    avatarUrl?: string;
+    bio?: string;
+    location?: string;
+  };
+}
+
+export interface Notification {
+  id: string;
+  playerId: string;
+  type: string;
+  title: string;
+  message: string;
+  data?: any;
+  read: boolean;
+  createdAt: Date;
+}
+
+export interface CreateConnectionRequest {
+  connectedPlayerId: string;
+}
+
+export interface ConnectionActionRequest {
+  connectionId: string;
+}
+
+export interface CreateNotificationRequest {
+  playerId: string;
+  type: string;
+  title: string;
+  message: string;
+  data?: any;
+}

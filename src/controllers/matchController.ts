@@ -739,6 +739,84 @@ export const addMatchEvent = async (req: AuthRequest, res: Response): Promise<vo
       console.log(`✅ [${requestId}] Match score updated successfully`);
     }
 
+    // Create notifications for match events
+    try {
+      console.log(`🔔 [${requestId}] Creating notifications for match event...`);
+      
+      // Get all connected players to notify them about match events
+      const match = await database.getMatchById(id);
+      if (match) {
+        // Get player details for the event creator
+        const eventPlayer = await database.getPlayerById(playerId);
+        const eventPlayerName = eventPlayer?.name || 'Unknown Player';
+        
+        // Get all players from both teams
+        const homeTeamPlayers = match.homeTeam?.players || [];
+        const awayTeamPlayers = match.awayTeam?.players || [];
+        const allMatchPlayers = [...homeTeamPlayers, ...awayTeamPlayers];
+        
+        // Create notification message based on event type
+        let notificationTitle = '';
+        let notificationMessage = '';
+        
+        switch (eventType) {
+          case 'GOAL':
+            notificationTitle = 'Goal Scored!';
+            notificationMessage = `${eventPlayerName} scored a goal in minute ${minute}`;
+            break;
+          case 'YELLOW_CARD':
+            notificationTitle = 'Yellow Card';
+            notificationMessage = `${eventPlayerName} received a yellow card in minute ${minute}`;
+            break;
+          case 'RED_CARD':
+            notificationTitle = 'Red Card';
+            notificationMessage = `${eventPlayerName} received a red card in minute ${minute}`;
+            break;
+          case 'SUBSTITUTION':
+            notificationTitle = 'Substitution';
+            notificationMessage = `Substitution made in minute ${minute}: ${eventPlayerName}`;
+            break;
+          case 'ASSIST':
+            notificationTitle = 'Assist';
+            notificationMessage = `${eventPlayerName} made an assist in minute ${minute}`;
+            break;
+          default:
+            notificationTitle = 'Match Event';
+            notificationMessage = `Match event: ${eventType} by ${eventPlayerName} in minute ${minute}`;
+        }
+        
+        // Create notifications for all players in the match (except the event creator)
+        for (const player of allMatchPlayers) {
+          if (player.id !== playerId) {
+            try {
+              await database.createNotification(
+                player.id,
+                'match_event',
+                notificationTitle,
+                notificationMessage,
+                {
+                  matchId: id,
+                  eventType,
+                  playerId,
+                  teamId,
+                  minute,
+                  eventId: createdEvent?.id
+                }
+              );
+            } catch (notificationError) {
+              console.error(`❌ [${requestId}] Failed to create notification for player ${player.id}:`, notificationError);
+              // Don't fail the entire transaction for notification errors
+            }
+          }
+        }
+        
+        console.log(`✅ [${requestId}] Match event notifications created successfully`);
+      }
+    } catch (notificationError) {
+      console.error(`❌ [${requestId}] Error creating match event notifications:`, notificationError);
+      // Don't fail the transaction for notification errors
+    }
+
     // Commit transaction if everything succeeded
     await client.query('COMMIT');
     console.log(`🔓 [${requestId}] Database transaction committed successfully`);
@@ -1004,5 +1082,79 @@ export const manualHalftime = async (req: AuthRequest, res: Response): Promise<v
   } catch (error) {
     console.error('❌ Manual halftime error:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
+  }
+};
+
+export const deleteMatch = async (req: AuthRequest, res: Response): Promise<void> => {
+  const client = await database.pool.connect();
+  
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    
+    console.log('🗑️ Attempting to delete match:', { matchId: id, userId });
+    
+    // Start transaction
+    await client.query('BEGIN');
+    
+    // First check if match exists and user has permission
+    const matchResult = await client.query(`
+      SELECT m.*, 
+             t1.owner_id as home_owner_id,
+             t2.owner_id as away_owner_id
+      FROM matches m
+      JOIN teams t1 ON m.home_team_id = t1.id
+      JOIN teams t2 ON m.away_team_id = t2.id
+      WHERE m.id = $1
+    `, [id]);
+    
+    if (matchResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+    
+    const match = matchResult.rows[0];
+    
+    // Check if user owns either team or is an admin
+    if (match.home_owner_id !== userId && match.away_owner_id !== userId) {
+      await client.query('ROLLBACK');
+      res.status(403).json({ error: 'Unauthorized to delete this match' });
+      return;
+    }
+    
+    // Delete related data first (foreign key constraints)
+    // Delete match events
+    await client.query('DELETE FROM match_events WHERE match_id = $1', [id]);
+    
+    // Delete match formations
+    await client.query('DELETE FROM match_formations WHERE match_id = $1', [id]);
+    
+    // Delete match predictions if any
+    await client.query('DELETE FROM match_predictions WHERE match_id = $1', [id]);
+    
+    // Finally delete the match
+    const deleteResult = await client.query('DELETE FROM matches WHERE id = $1 RETURNING *', [id]);
+    
+    // Commit transaction
+    await client.query('COMMIT');
+    
+    console.log('✅ Match deleted successfully:', id);
+    
+    res.json({
+      success: true,
+      message: 'Match deleted successfully',
+      match: deleteResult.rows[0]
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Error deleting match:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete match',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  } finally {
+    client.release();
   }
 };

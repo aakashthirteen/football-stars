@@ -16,7 +16,8 @@ import {
   updateFormationDuringMatch,
   pauseMatch,
   resumeMatch,
-  manualHalftime
+  manualHalftime,
+  deleteMatch
 } from '../controllers/matchController';
 import { authenticateToken } from '../middleware/auth';
 
@@ -29,6 +30,7 @@ router.get('/', getUserMatches);
 router.post('/', createMatch);
 router.post('/populate-teams', populateTeamsWithPlayers);
 router.get('/:id', getMatchById);
+router.delete('/:id', deleteMatch);
 router.patch('/:id/start', startMatch);
 router.patch('/:id/end', endMatch);
 router.patch('/:id/halftime', pauseForHalftime);

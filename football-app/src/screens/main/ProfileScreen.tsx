@@ -292,6 +292,14 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         <Text style={styles.menuText}>My Teams</Text>
         <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
       </TouchableOpacity>
+
+      <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Connections')}>
+        <View style={styles.menuIcon}>
+          <Ionicons name="person-add" size={24} color={colors.status.success} />
+        </View>
+        <Text style={styles.menuText}>Friends & Connections</Text>
+        <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+      </TouchableOpacity>
       
       <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Matches')}>
         <View style={styles.menuIcon}>

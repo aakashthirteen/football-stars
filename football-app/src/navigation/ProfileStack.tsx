@@ -3,12 +3,14 @@ import { createStackNavigator } from '@react-navigation/stack';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import EditProfileScreen from '../screens/main/EditProfileScreen';
 import AchievementsScreen from '../screens/main/AchievementsScreen';
+import ConnectionsScreen from '../screens/main/ConnectionsScreen';
 import DebugScreen from '../screens/main/DebugScreen';
 
 export type ProfileStackParamList = {
   ProfileMain: undefined;
   EditProfile: undefined;
   Achievements: undefined;
+  Connections: undefined;
   Debug: undefined;
 };
 
@@ -32,6 +34,10 @@ export default function ProfileStack() {
       <Stack.Screen 
         name="Achievements" 
         component={AchievementsScreen}
+      />
+      <Stack.Screen 
+        name="Connections" 
+        component={ConnectionsScreen}
       />
       <Stack.Screen 
         name="Debug" 
